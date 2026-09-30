@@ -46,6 +46,8 @@ model User {
   settingsUpdates Settings[]
   clientsCreated  Client[]      @relation("ClientCreatedBy")
   clientsUpdated  Client[]      @relation("ClientUpdatedBy")
+  catalogCreated  CatalogItem[] @relation("CatalogItemCreatedBy")
+  catalogUpdated  CatalogItem[] @relation("CatalogItemUpdatedBy")
 
   @@map("user")
 }
@@ -280,6 +282,71 @@ model Client {
   @@index([canton])
   @@index([tags], type: Gin)
   @@map("client")
+}
+
+// ---------------------------------------------------------------------------
+// Catalogue de prestations
+// ---------------------------------------------------------------------------
+
+/// Type de ligne d'un devis ou d'une facture.
+enum LineType {
+  /// Forfait (ex. « Site vitrine 5 pages »)
+  FLAT
+  /// À l'heure (quantité en heures)
+  HOURLY
+  /// Supplément (ex. « Page supplémentaire »)
+  EXTRA
+  /// Abonnement, facturé périodiquement (ex. « Hébergement + maintenance »)
+  SUBSCRIPTION
+}
+
+enum Periodicity {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+/// Unités des lignes, traduites sur les documents (voir src/domain/units.ts).
+enum Unit {
+  FLAT
+  HOUR
+  PIECE
+  PAGE
+  DAY
+  MONTH
+  QUARTER
+  YEAR
+}
+
+/// Prestation réutilisable dans les devis et factures. Prix hors TVA, en centimes.
+model CatalogItem {
+  id             String       @id @default(uuid(7))
+  name           String
+  /// Nom utilisé sur les documents en allemand (facultatif : sinon le nom français).
+  nameDe         String       @default("")
+  description    String       @default("")
+  descriptionDe  String       @default("")
+  category       String       @default("")
+  lineType       LineType
+  unit           Unit
+  unitPriceCents Int
+  /// Obligatoire pour un abonnement, vide sinon.
+  periodicity    Periodicity?
+  active         Boolean      @default(true)
+  /// Texte de recherche (minuscules, sans accents).
+  searchText     String       @default("")
+  version        Int          @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  createdBy   User?    @relation("CatalogItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy   User?    @relation("CatalogItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([active])
+  @@index([category])
+  @@map("catalog_item")
 }
 
 // ---------------------------------------------------------------------------

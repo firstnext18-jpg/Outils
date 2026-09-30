@@ -199,7 +199,7 @@ export function ClientForm({ defaultValues, siteTypes, tagSuggestions, existing 
                     <FormLabel>Canton</FormLabel>
                     <Select
                       value={field.value ?? NONE}
-                      onValueChange={(v) => field.onChange(v === NONE ? null : v)}
+                      onValueChange={(v) => v && field.onChange(v === NONE ? null : v)}
                     >
                       <FormControl>
                         <SelectTrigger className="w-full">
@@ -266,7 +266,7 @@ export function ClientForm({ defaultValues, siteTypes, tagSuggestions, existing 
                   <FormLabel>Type de site demandé</FormLabel>
                   <Select
                     value={field.value ?? NONE}
-                    onValueChange={(v) => field.onChange(v === NONE ? null : v)}
+                    onValueChange={(v) => v && field.onChange(v === NONE ? null : v)}
                   >
                     <FormControl>
                       <SelectTrigger className="w-full">
@@ -292,7 +292,7 @@ export function ClientForm({ defaultValues, siteTypes, tagSuggestions, existing 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Langue des documents</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select value={field.value} onValueChange={(v) => v && field.onChange(v)}>
                     <FormControl>
                       <SelectTrigger className="w-full">
                         <SelectValue />

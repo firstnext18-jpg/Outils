@@ -103,6 +103,31 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
 - **Données de démonstration** (`npm run db:seed:demo`) : 15 clients fictifs, avec des adresses
   email en `.example` (domaine réservé, aucun email ne peut partir vers une vraie personne).
 
+## Catalogue (phase 3)
+
+- **Prix hors TVA, en centimes.** La TVA (désactivée pour l'instant) s'appliquera au niveau du
+  document (phase 4), selon les paramètres.
+- **Saisie des montants tolérante** : « 1'490.00 », « 1 490,50 », « CHF 90 », « 1.250,5 » sont
+  compris ; plus de deux décimales, lettres ou montant négatif sont refusés. En quittant le champ,
+  le montant est remis en forme (« 1'490.00 »).
+- **Unités choisies dans une liste fixe** (forfait, heure, pièce, page, jour, mois, trimestre,
+  année) plutôt qu'en texte libre : chacune a son libellé français et allemand, au singulier et au
+  pluriel, pour que les documents allemands soient entièrement traduits. L'unité dépend du type :
+  une prestation à l'heure se compte en heures, un abonnement dans sa période.
+- **Nom et description en allemand facultatifs** : une prestation ajoutée à un devis en allemand
+  reprend ces textes s'ils existent, sinon le texte français.
+- **Les documents copient les lignes** : modifier ou supprimer une prestation ne change aucun devis
+  ni aucune facture existants. La suppression reste donc possible ; la désactivation retire
+  simplement la prestation des choix proposés.
+- **Données par défaut créées par une migration SQL** (exemples du catalogue, types de sites) :
+  une migration ne s'exécute qu'une fois par base, alors que le seed tourne à chaque déploiement.
+  Ainsi, un élément supprimé dans l'interface ne réapparaît pas au déploiement suivant. Les types
+  de sites, créés par le seed en phase 2, sont passés dans cette migration (sans effet si la liste
+  existe déjà).
+- **Formulaires** : le composant `FormField` de shadcn/ui transmet désormais le type des valeurs
+  transformées par le schéma Zod (ex. prix saisi en texte, converti en centimes). Les listes
+  déroulantes ignorent la valeur vide que Radix peut envoyer quand leurs options changent.
+
 ## Interface
 
 - **Interface en français, sans bibliothèque de traduction.** Les traductions FR/DE ne concernent

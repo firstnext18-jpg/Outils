@@ -22,7 +22,12 @@ export type ActivityAction =
   | "client.deleted"
   | "client.data_exported"
   | "clients.imported"
-  | "clients.exported";
+  | "clients.exported"
+  | "catalog.created"
+  | "catalog.updated"
+  | "catalog.activated"
+  | "catalog.deactivated"
+  | "catalog.deleted";
 
 export type ActivityEntry = {
   userId: string | null;

@@ -14,7 +14,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 | ----------------------------------------- | ----------------------------------------------------------------- | ----------- |
 | 1. Fondations                             | Connexion, invitations, rôles, paramètres de l'entreprise, Docker | ✅ Terminée |
 | 2. Clients                                | Fiches, recherche, import/export CSV-Excel                        | ✅ Terminée |
-| 3. Catalogue                              | Prestations réutilisables                                         | À venir     |
+| 3. Catalogue                              | Prestations réutilisables                                         | ✅ Terminée |
 | 4. Devis                                  | Calculs, remises, acompte, PDF FR/DE                              | À venir     |
 | 5. Factures                               | QR-facture, paiements, acomptes                                   | À venir     |
 | 6. Emails                                 | Envoi des devis et factures                                       | À venir     |
@@ -45,6 +45,12 @@ entreprise, auto-hébergé sur un Raspberry Pi.
     import ;
   - **export CSV / Excel** de la liste affichée (filtres appliqués), réimportable tel quel ;
   - export de toutes les données d'un client au format JSON (droit d'accès, nLPD).
+- **Catalogue de prestations** :
+  - forfaits, prestations à l'heure, suppléments et abonnements (mensuels, trimestriels,
+    annuels), avec prix hors TVA et unité (forfait, h, page, pièce, jour, mois…) ;
+  - nom et description en allemand facultatifs, repris sur les documents en allemand ;
+  - regroupement par catégorie, recherche, filtres, duplication, désactivation ;
+  - pré-rempli avec 11 exemples aux prix fictifs, à ajuster.
 - **Recherche globale** (Ctrl+K) : clients par nom, localité, email ou téléphone.
 - **Navigation** latérale (repliable, en tiroir sur téléphone), thème clair / sombre / système.
 - Chaque action importante est enregistrée dans un **journal d'activité** (la page de consultation
