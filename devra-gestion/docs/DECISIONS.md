@@ -98,8 +98,8 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   réservé aux membres et admins, et inscrit au journal. Les devis et factures s'y ajouteront.
 - **Types de sites** : un type utilisé ne peut pas être supprimé, seulement désactivé (il n'est plus
   proposé mais reste affiché sur les fiches existantes). Noms uniques sans tenir compte de la casse.
-- **Recherche globale** (Ctrl+K) : les clients pour l'instant ; les numéros de devis et de factures
-  s'y ajouteront avec les phases 4 et 5.
+- **Recherche globale** (Ctrl+K) : les clients, puis les devis (phase 4) ; les factures s'y
+  ajouteront en phase 5.
 - **Données de démonstration** (`npm run db:seed:demo`) : 15 clients fictifs, avec des adresses
   email en `.example` (domaine réservé, aucun email ne peut partir vers une vraie personne).
 
@@ -127,6 +127,54 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
 - **Formulaires** : le composant `FormField` de shadcn/ui transmet désormais le type des valeurs
   transformées par le schéma Zod (ex. prix saisi en texte, converti en centimes). Les listes
   déroulantes ignorent la valeur vide que Radix peut envoyer quand leurs options changent.
+
+## Devis (phase 4)
+
+- **Montants en centimes entiers, quantités en millièmes, pourcentages en points de base**
+  (8.1 % = 810). Les multiplications passent par `BigInt` et l'arrondi est « au plus proche,
+  moitié vers le haut ». Tout le calcul est dans `src/domain/totals.ts`, partagé par l'éditeur
+  (affichage en direct) et le serveur (qui recalcule tout et ignore les montants envoyés).
+- **Ordre des calculs** : quantité × prix (arrondi au centime) → remise de ligne → sous-total →
+  remise globale → TVA par taux → total arrondi aux 5 centimes (l'écart apparaît sur une ligne
+  « Arrondi ») → acompte, lui aussi arrondi aux 5 centimes. Une remise ne dépasse jamais le
+  montant auquel elle s'applique.
+- **Remise globale et acompte : sur le montant unique seulement** (décision validée). Les
+  abonnements sont totalisés à part, par périodicité, et seront facturés par les abonnements
+  (phases 5 et 7).
+- **TVA avec remise globale** : la remise est répartie entre les taux au prorata des montants
+  (méthode du plus fort reste, sans perte d'un centime), puis la TVA est calculée par taux. Le
+  choix « TVA activée » est enregistré sur chaque devis : activer la TVA plus tard ne change pas
+  les devis déjà enregistrés (un brouillon la prend en compte lorsqu'il est enregistré à nouveau).
+- **Numéro attribué à la création**, par une seule requête SQL (`INSERT … ON CONFLICT DO UPDATE
+… RETURNING`) dans la transaction qui crée le devis : deux créations simultanées ne peuvent pas
+  obtenir le même numéro, et un échec n'en consomme aucun. Le compteur repart à 1 chaque année
+  (celle de la date du document), c'est pourquoi le format doit contenir l'année. Un numéro de
+  devis supprimé n'est pas réattribué. Le « prochain numéro » réglable dans les paramètres ne peut
+  qu'avancer.
+- **Statuts** : brouillon → envoyé → accepté / refusé ; un devis envoyé dont la validité est
+  dépassée devient « expiré » (vérifié à l'affichage des devis en attendant la tâche planifiée de
+  la phase 7). Acceptation et refus peuvent être annulés (retour à « envoyé »), un devis expiré
+  peut encore être accepté. **Seul un brouillon se modifie ou se supprime** : pour corriger un
+  devis envoyé, on le repasse en brouillon (c'est tracé dans l'historique).
+- **« Marquer comme envoyé » en attendant les emails** (phase 6) : le devis est alors considéré
+  comme transmis au client. À ce moment, les coordonnées du client et de l'entreprise sont
+  **figées** sur le devis : le PDF reste identique même si une fiche change ensuite.
+- **PDF généré avec PDFKit**, polices standard (Helvetica, aucune police à embarquer), format A4 :
+  adresse du destinataire à la position de la fenêtre des enveloppes C5 suisses (à droite), en-tête
+  de tableau répété sur chaque page, pied de page avec numéros de page, filigrane « Brouillon » /
+  « Entwurf » tant que le devis n'est pas envoyé. Les fichiers de métriques de PDFKit sont inclus
+  explicitement dans le build `standalone`.
+- **Textes des documents en JSON** (`src/i18n/documents/fr.json`, `de.json`) ; un test vérifie que
+  les deux fichiers ont les mêmes clés. Les textes par défaut (introduction, conditions) sont des
+  valeurs par défaut du schéma, modifiables dans les paramètres puis sur chaque devis.
+- **Espace insécable avant « % »** (« 30 % ») pour éviter une coupure de ligne entre le nombre et
+  le signe, à l'écran comme sur le PDF.
+- **Nom de l'entreprise sur les documents** : celui saisi dans les paramètres, jamais un nom
+  générique ; s'il manque, l'en-tête et le nom du fichier PDF s'en passent.
+- **Plafond de 20 millions de francs par devis** : les montants sont stockés en entiers 32 bits
+  (en centimes), largement suffisant ; au-delà, un message clair est affiché.
+- **Données de démonstration** : `npm run db:seed:demo` ajoute 6 devis fictifs, un par statut,
+  si la base n'en contient aucun.
 
 ## Interface
 

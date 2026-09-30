@@ -27,7 +27,14 @@ export type ActivityAction =
   | "catalog.updated"
   | "catalog.activated"
   | "catalog.deactivated"
-  | "catalog.deleted";
+  | "catalog.deleted"
+  | "quote.created"
+  | "quote.duplicated"
+  | "quote.updated"
+  | "quote.status_changed"
+  | "quote.deleted"
+  | "settings.documents_updated"
+  | "settings.billing_updated";
 
 export type ActivityEntry = {
   userId: string | null;

@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { isQrIban, isValidSwissIban, normalizeIban } from "@/domain/iban";
+import { validateNumberFormat } from "@/domain/numbering";
+import { parsePercent } from "@/domain/percent";
 
 // Longueurs maximales alignées sur la QR-facture (normes SIX).
 const optionalText = (max: number) => z.string().trim().max(max, `${max} caractères maximum`);
@@ -51,3 +53,87 @@ export type CompanySettingsOutput = z.output<typeof companySettingsSchema>;
 
 /** Taille maximale du logo. */
 export const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+
+// ---------------------------------------------------------------------------
+// Textes des documents
+// ---------------------------------------------------------------------------
+
+export const documentTextsSchema = z.object({
+  quoteIntroFr: optionalText(5000),
+  quoteIntroDe: optionalText(5000),
+  quoteConditionsFr: optionalText(5000),
+  quoteConditionsDe: optionalText(5000),
+  documentFooterFr: optionalText(300),
+  documentFooterDe: optionalText(300),
+});
+export type DocumentTextsInput = z.input<typeof documentTextsSchema>;
+
+// ---------------------------------------------------------------------------
+// Facturation : numérotation, délais, TVA
+// ---------------------------------------------------------------------------
+
+const numberFormatSchema = z
+  .string()
+  .trim()
+  .superRefine((format, ctx) => {
+    const error = validateNumberFormat(format);
+    if (error) ctx.addIssue({ code: "custom", message: error });
+  });
+
+const daysSchema = (min: number, label: string) =>
+  z
+    .string()
+    .trim()
+    .regex(/^\d{1,3}$/, `${label} : nombre de jours entre ${min} et 365`)
+    .transform(Number)
+    .refine((days) => days >= min && days <= 365, `${label} : nombre de jours entre ${min} et 365`);
+
+/** Prochain numéro souhaité (vide = inchangé). */
+const nextNumberSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{0,6}$/, "Nombre entier attendu")
+  .transform((value) => (value ? Number(value) : null))
+  .refine((value) => value === null || value >= 1, "Le numéro doit être au moins 1");
+
+export const billingSettingsSchema = z
+  .object({
+    quoteNumberFormat: numberFormatSchema,
+    invoiceNumberFormat: numberFormatSchema,
+    nextQuoteNumber: nextNumberSchema,
+    nextInvoiceNumber: nextNumberSchema,
+    quoteValidityDays: daysSchema(1, "Validité"),
+    paymentTermDays: daysSchema(0, "Délai de paiement"),
+    vatEnabled: z.boolean(),
+    vatNumber: z.string().trim().max(40, "40 caractères maximum"),
+    vatRates: z.array(z.string()).min(1, "Au moins un taux").max(5, "5 taux maximum"),
+  })
+  .superRefine((settings, ctx) => {
+    if (
+      settings.vatEnabled &&
+      !/^CHE-\d{3}\.\d{3}\.\d{3}( (TVA|MWST|IVA))?$/.test(settings.vatNumber)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["vatNumber"],
+        message: "Numéro TVA attendu au format CHE-123.456.789 TVA",
+      });
+    }
+    settings.vatRates.forEach((rate, index) => {
+      const bps = parsePercent(rate);
+      if (bps === null || bps === 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["vatRates", index],
+          message: "Taux invalide (ex. 8.1)",
+        });
+      }
+    });
+  })
+  .transform((settings) => ({
+    ...settings,
+    vatRates: [...new Set(settings.vatRates.map((rate) => parsePercent(rate) ?? 0))],
+  }));
+
+export type BillingSettingsInput = z.input<typeof billingSettingsSchema>;
+export type BillingSettingsOutput = z.output<typeof billingSettingsSchema>;

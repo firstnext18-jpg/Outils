@@ -40,3 +40,34 @@ export function parseChfInput(input: string): number | null {
   const cents = francs * 100 + centimes;
   return Number.isSafeInteger(cents) ? cents : null;
 }
+
+/**
+ * Division arrondie « au plus proche, 0,5 vers le haut » (arrondi commercial),
+ * calculée en entiers exacts (BigInt) : aucune perte de précision, même pour de
+ * grands montants multipliés par des quantités.
+ */
+export function divideRounded(numerator: bigint, denominator: bigint): number {
+  const negative = numerator < 0n !== denominator < 0n;
+  const n = numerator < 0n ? -numerator : numerator;
+  const d = denominator < 0n ? -denominator : denominator;
+  const quotient = (n * 2n + d) / (d * 2n);
+  const result = Number(negative ? -quotient : quotient);
+  if (!Number.isSafeInteger(result)) throw new RangeError("Montant hors limites");
+  return result;
+}
+
+/**
+ * Arrondi aux 5 centimes (règle suisse pour les montants à payer) :
+ * 1.02 → 1.00, 1.03 → 1.05, 1.07 → 1.05, 1.08 → 1.10.
+ * Un montant en centimes entiers ne tombe jamais exactement entre deux valeurs.
+ */
+export function roundTo5Cents(cents: number): number {
+  const sign = cents < 0 ? -1 : 1;
+  return sign * Math.round(Math.abs(cents) / 5) * 5;
+}
+
+/** Montant en centimes → « 1490.50 » (sans séparateur de milliers), pour les champs de saisie. */
+export function centsToInput(cents: number): string {
+  const abs = Math.abs(cents);
+  return `${cents < 0 ? "-" : ""}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, "0")}`;
+}

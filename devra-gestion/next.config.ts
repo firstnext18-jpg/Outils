@@ -14,7 +14,11 @@ const nextConfig: NextConfig = {
   // Pas de fichiers AGENTS.md / CLAUDE.md générés automatiquement par `next dev`.
   agentRules: false,
   // Module natif (binaire précompilé ARM64/x64) : ne pas l'empaqueter avec webpack/turbopack.
-  serverExternalPackages: ["@node-rs/argon2"],
+  serverExternalPackages: ["@node-rs/argon2", "pdfkit"],
+  // PDFKit lit ses polices (fichiers .afm) sur le disque : à inclure dans l'image.
+  outputFileTracingIncludes: {
+    "/api/**": ["./node_modules/pdfkit/js/data/**"],
+  },
   experimental: {
     // Envoi du logo et des fichiers d'import via les actions serveur (limite par défaut : 1 Mo).
     serverActions: { bodySizeLimit: "12mb" },

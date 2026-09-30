@@ -1,15 +1,21 @@
 /**
- * Données de démonstration : clients fictifs (les phases suivantes ajouteront
- * devis et factures). À utiliser en développement ou pour une présentation,
- * jamais sur la base de production.
+ * Données de démonstration : clients fictifs et devis dans différents statuts
+ * (les factures s'ajouteront en phase 5). À utiliser en développement ou pour
+ * une présentation, jamais sur la base de production.
  *
  * Lancement : `npm run db:seed:demo` (après `npm run db:seed`).
  */
 import "dotenv/config";
 import type { CantonCode } from "@/domain/cantons";
 import { clientInputSchema, EMPTY_CLIENT, type ClientInput } from "@/modules/clients/schemas";
+import { addDays, isoToDbDate, todayIso, yearOf } from "@/domain/dates";
+import { normalizeSearchText } from "@/domain/search";
 import { withComputedColumns } from "@/modules/clients/computed-columns";
+import { quoteColumns } from "@/modules/quotes/columns";
+import { emptyLine, lineFromCatalog } from "@/modules/quotes/form";
+import { quoteInputSchema } from "@/modules/quotes/schemas";
 import { db } from "@/server/db";
+import { allocateDocumentNumber } from "@/server/numbering";
 
 type Demo = Partial<ClientInput> & { siteType?: string; archived?: boolean };
 
@@ -167,9 +173,9 @@ const CLIENTS: Demo[] = [
   }),
 ];
 
-async function main() {
+async function seedClients() {
   if ((await db.client.count()) > 0) {
-    console.log("Des clients existent déjà : aucune donnée de démonstration ajoutée.");
+    console.log("Des clients existent déjà : aucun client de démonstration ajouté.");
     return;
   }
   const admin = await db.user.findFirst({
@@ -194,6 +200,153 @@ async function main() {
     });
   }
   console.log(`✓ ${CLIENTS.length} clients de démonstration créés.`);
+}
+
+type DemoQuote = {
+  client: string;
+  subject: string;
+  status: "DRAFT" | "SENT" | "ACCEPTED" | "REFUSED" | "EXPIRED";
+  /** Date du devis : aujourd'hui moins ce nombre de jours. */
+  daysAgo: number;
+  items: [name: string, quantity?: string][];
+  globalDiscount?: string;
+  deposit?: string;
+};
+
+const QUOTES: DemoQuote[] = [
+  {
+    client: "Boulangerie des Alpes Sàrl",
+    subject: "Création de votre site vitrine",
+    status: "SENT",
+    daysAgo: 10,
+    items: [
+      ["Site vitrine (jusqu'à 5 pages)"],
+      ["Page supplémentaire", "2"],
+      ["Hébergement + maintenance"],
+    ],
+    deposit: "30",
+  },
+  {
+    client: "Weinhandel Seeblick GmbH",
+    subject: "Onlineshop für Ihre Weine",
+    status: "ACCEPTED",
+    daysAgo: 25,
+    items: [
+      ["Boutique en ligne"],
+      ["Version bilingue (français / allemand)"],
+      ["Hébergement + maintenance (annuel)"],
+    ],
+    globalDiscount: "5",
+    deposit: "30",
+  },
+  {
+    client: "Café Lumière",
+    subject: "Landing page de lancement",
+    status: "DRAFT",
+    daysAgo: 1,
+    items: [["Landing page"], ["Formulaire de contact"]],
+  },
+  {
+    client: "Garage du Lac SA",
+    subject: "Refonte du site",
+    status: "REFUSED",
+    daysAgo: 40,
+    items: [["Refonte d'un site existant"], ["Modification sur demande", "4"]],
+  },
+  {
+    client: "Studio Yoga Soleil",
+    subject: "Page de présentation des cours",
+    status: "EXPIRED",
+    daysAgo: 60,
+    items: [["Landing page"], ["Nom de domaine .ch"]],
+  },
+  {
+    client: "Atelier Nord Design",
+    subject: "Portfolio en ligne",
+    status: "SENT",
+    daysAgo: 3,
+    items: [["Site vitrine (jusqu'à 5 pages)"], ["Page supplémentaire", "3"]],
+  },
+];
+
+async function seedQuotes() {
+  if ((await db.quote.count()) > 0) {
+    console.log("Des devis existent déjà : aucun devis de démonstration ajouté.");
+    return;
+  }
+  const settings = await db.settings.findUniqueOrThrow({ where: { id: 1 } });
+  const admin = await db.user.findFirst({
+    where: { role: "ADMIN" },
+    orderBy: { createdAt: "asc" },
+  });
+  const catalog = await db.catalogItem.findMany();
+  const vatRate = settings.vatEnabled ? (settings.vatRates[0] ?? null) : null;
+  let created = 0;
+
+  for (const demo of QUOTES) {
+    const client = await db.client.findFirst({ where: { displayName: demo.client } });
+    if (!client) continue;
+    const issueDate = addDays(todayIso(), -demo.daysAgo);
+    const lines = demo.items.map(([name, quantity]) => {
+      const item = catalog.find((c) => c.name === name);
+      const line = item
+        ? lineFromCatalog(item, client.language, vatRate)
+        : { ...emptyLine(vatRate), label: name, unitPrice: "100" };
+      return { ...line, quantity: quantity ?? "1" };
+    });
+    const data = quoteInputSchema.parse({
+      clientId: client.id,
+      language: client.language,
+      issueDate,
+      validUntil: addDays(issueDate, settings.quoteValidityDays),
+      subject: demo.subject,
+      siteTypeId: client.siteTypeId,
+      introText: client.language === "DE" ? settings.quoteIntroDe : settings.quoteIntroFr,
+      conditionsText:
+        client.language === "DE" ? settings.quoteConditionsDe : settings.quoteConditionsFr,
+      globalDiscountType: "PERCENT",
+      globalDiscountValue: demo.globalDiscount ?? "",
+      depositType: "PERCENT",
+      depositValue: demo.deposit ?? "",
+      lines,
+    });
+    const { columns, lines: lineRows } = quoteColumns(data, settings.vatEnabled);
+    const sentAt = demo.status === "DRAFT" ? null : isoToDbDate(issueDate);
+    await db.$transaction(async (tx) => {
+      const year = yearOf(issueDate);
+      const { number, sequence } = await allocateDocumentNumber(
+        tx,
+        "QUOTE",
+        year,
+        settings.quoteNumberFormat,
+      );
+      await tx.quote.create({
+        data: {
+          ...columns,
+          number,
+          year,
+          sequence,
+          status: demo.status,
+          sentAt,
+          decidedAt:
+            demo.status === "ACCEPTED" || demo.status === "REFUSED"
+              ? isoToDbDate(addDays(issueDate, 5))
+              : null,
+          searchText: normalizeSearchText(`${number} ${demo.subject}`),
+          createdById: admin?.id,
+          updatedById: admin?.id,
+          lines: { create: lineRows },
+        },
+      });
+    });
+    created += 1;
+  }
+  console.log(`✓ ${created} devis de démonstration créés.`);
+}
+
+async function main() {
+  await seedClients();
+  await seedQuotes();
 }
 
 main()

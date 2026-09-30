@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import {
   ArchiveIcon,
+  FilePlusIcon,
   Building2Icon,
   FileTextIcon,
   GlobeIcon,
@@ -13,6 +14,8 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClientActions } from "@/app/(app)/clients/[id]/client-actions";
+import { QuotesList } from "@/components/documents/quotes-list";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { describeActivity } from "@/domain/activity";
@@ -22,6 +25,7 @@ import { countryName } from "@/domain/countries";
 import { canEdit } from "@/domain/roles";
 import { formatChf, formatDate, formatDateTime } from "@/lib/format";
 import { getClient, getClientActivity } from "@/modules/clients/service";
+import { listClientQuotes } from "@/modules/quotes/service";
 import { requireUser } from "@/server/session";
 
 export async function generateMetadata({ params }: PageProps<"/clients/[id]">): Promise<Metadata> {
@@ -46,7 +50,11 @@ function Row({ icon: Icon, children }: { icon: typeof MailIcon; children: React.
 export default async function ClientPage({ params }: PageProps<"/clients/[id]">) {
   const user = await requireUser();
   const { id } = await params;
-  const [client, activity] = await Promise.all([getClient(id), getClientActivity(id)]);
+  const [client, activity, quotes] = await Promise.all([
+    getClient(id),
+    getClientActivity(id),
+    listClientQuotes(id),
+  ]);
   if (!client) notFound();
 
   const address = [
@@ -193,13 +201,32 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
           </div>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Devis et factures</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Devis</CardTitle>
+              {canEdit(user.role) && !client.archivedAt && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/devis/nouveau?client=${client.id}`}>
+                    <FilePlusIcon /> Nouveau devis
+                  </Link>
+                </Button>
+              )}
             </CardHeader>
-            <CardContent className="grid gap-4 text-sm sm:grid-cols-2">
-              <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
-                <FileTextIcon className="size-5" /> Aucun devis pour ce client.
-              </div>
+            <CardContent className="text-sm">
+              {quotes.length > 0 ? (
+                <QuotesList quotes={quotes} showClient={false} />
+              ) : (
+                <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
+                  <FileTextIcon className="size-5" /> Aucun devis pour ce client.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Factures</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm">
               <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
                 <ReceiptTextIcon className="size-5" /> Aucune facture pour ce client.
               </div>

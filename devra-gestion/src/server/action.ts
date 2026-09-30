@@ -2,6 +2,7 @@ import "server-only";
 import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { hasRole, type Role } from "@/domain/roles";
+import { UserError } from "@/lib/errors";
 import { getCurrentUser, type CurrentUser } from "@/server/session";
 
 /** Résultat renvoyé au navigateur par toutes les actions serveur. */
@@ -9,11 +10,7 @@ export type ActionResult<T = null> =
   | { ok: true; data: T }
   | { ok: false; error: string; fieldErrors?: Record<string, string[] | undefined> };
 
-/**
- * Erreur « métier » dont le message peut être montré tel quel à l'utilisateur
- * (ex. « Un utilisateur avec cet email existe déjà. »).
- */
-export class UserError extends Error {}
+export { UserError };
 
 const GENERIC_ERROR =
   "Une erreur inattendue est survenue. Réessayez ou contactez un administrateur.";
