@@ -1,0 +1,27 @@
+import type { NextConfig } from "next";
+
+const securityHeaders = [
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+];
+
+const nextConfig: NextConfig = {
+  // Image Docker minimale : seul le serveur autonome est copié dans l'image finale.
+  output: "standalone",
+  poweredByHeader: false,
+  // Pas de fichiers AGENTS.md / CLAUDE.md générés automatiquement par `next dev`.
+  agentRules: false,
+  // Module natif (binaire précompilé ARM64/x64) : ne pas l'empaqueter avec webpack/turbopack.
+  serverExternalPackages: ["@node-rs/argon2"],
+  experimental: {
+    // Envoi du logo via une action serveur (limite par défaut : 1 Mo).
+    serverActions: { bodySizeLimit: "3mb" },
+  },
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
+};
+
+export default nextConfig;

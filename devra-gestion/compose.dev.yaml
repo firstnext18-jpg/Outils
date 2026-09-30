@@ -1,0 +1,33 @@
+# Services pour le développement local : la base PostgreSQL et Mailpit
+# (faux serveur SMTP qui capture les emails : interface sur http://localhost:8025).
+# L'application elle-même tourne avec `npm run dev`.
+name: devra-gestion-dev
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: devra
+      POSTGRES_PASSWORD: devra
+      POSTGRES_DB: devra_gestion
+      TZ: Europe/Zurich
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - db-dev-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devra -d devra_gestion"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+
+volumes:
+  db-dev-data:

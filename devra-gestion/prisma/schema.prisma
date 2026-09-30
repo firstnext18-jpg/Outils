@@ -1,0 +1,188 @@
+// Schéma de la base de données de Devra Gestion.
+//
+// Conventions (voir docs/DECISIONS.md) :
+// - identifiants UUID v7 (triables par date de création) ;
+// - montants en centimes (Int), pourcentages en points de base (10 % = 1000),
+//   quantités en millièmes (1,5 h = 1500) — à partir de la phase 4 ;
+// - les tables d'authentification (user, session, account, verification,
+//   rate_limit) suivent le format attendu par Better Auth.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Rôles des utilisateurs, du plus élevé au plus faible.
+enum Role {
+  ADMIN
+  MEMBER
+  READONLY
+}
+
+// ---------------------------------------------------------------------------
+// Authentification (Better Auth)
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String   @id @default(uuid(7))
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  role          Role     @default(MEMBER)
+  /// Un utilisateur désactivé ne peut plus se connecter (ses sessions sont supprimées).
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions        Session[]
+  accounts        Account[]
+  activities      ActivityLog[]
+  invitationsSent Invitation[]  @relation("InvitedBy")
+  settingsUpdates Settings[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(uuid(7))
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+/// Compte de connexion. Pour l'email + mot de passe : providerId = "credential"
+/// et `password` contient l'empreinte Argon2id.
+model Account {
+  id                    String    @id @default(uuid(7))
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+/// Jetons temporaires de Better Auth (réinitialisation du mot de passe).
+model Verification {
+  id         String   @id @default(uuid(7))
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+/// Compteurs de la limitation des tentatives (connexion, mot de passe oublié).
+model RateLimit {
+  id          String @id @default(uuid(7))
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("rate_limit")
+}
+
+// ---------------------------------------------------------------------------
+// Utilisateurs : invitations
+// ---------------------------------------------------------------------------
+
+/// Invitation envoyée par un admin. Seule l'empreinte SHA-256 du jeton est
+/// stockée : le jeton lui-même n'existe que dans le lien envoyé par email.
+model Invitation {
+  id          String    @id @default(uuid(7))
+  email       String
+  name        String
+  role        Role
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  invitedById String
+  invitedBy   User      @relation("InvitedBy", fields: [invitedById], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@index([email])
+  @@map("invitation")
+}
+
+// ---------------------------------------------------------------------------
+// Paramètres
+// ---------------------------------------------------------------------------
+
+/// Paramètres de l'application : une seule ligne (id = 1).
+/// Les informations de l'entreprise ne sont jamais écrites dans le code.
+model Settings {
+  id Int @id @default(1)
+
+  companyName         String @default("")
+  companyStreet       String @default("")
+  companyStreetNumber String @default("")
+  companyPostalCode   String @default("")
+  companyCity         String @default("")
+  /// Code pays ISO 3166-1 alpha-2.
+  companyCountry      String @default("CH")
+  companyEmail        String @default("")
+  companyPhone        String @default("")
+  companyWebsite      String @default("")
+  /// IBAN classique (références SCOR sur la QR-facture). Stocké sans espaces.
+  iban                String @default("")
+  /// QR-IBAN (références QRR sur la QR-facture). Stocké sans espaces.
+  qrIban              String @default("")
+  /// Nom du fichier du logo dans DATA_DIR/uploads.
+  logoFile            String?
+
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("settings")
+}
+
+// ---------------------------------------------------------------------------
+// Journal d'activité
+// ---------------------------------------------------------------------------
+
+/// « Marc a envoyé le devis D-2026-004 » : qui, quoi, sur quel document.
+model ActivityLog {
+  id         String   @id @default(uuid(7))
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Code de l'action, ex. "user.invited", "quote.sent".
+  action     String
+  entityType String?
+  entityId   String?
+  /// Libellé lisible de l'objet concerné, ex. "D-2026-004" ou "lea@devra.ch".
+  label      String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@map("activity_log")
+}

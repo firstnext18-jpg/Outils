@@ -1,0 +1,61 @@
+# Déploiement de production (Raspberry Pi ou tout serveur Docker).
+#   docker compose up -d --build
+# Voir docs/DEPLOIEMENT_RASPBERRY_PI.md.
+name: devra-gestion
+
+x-app-env: &app-env # La base est joignable sous le nom « db » sur le réseau interne de Docker.
+  DATABASE_URL: postgresql://${POSTGRES_USER:-devra}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .env}@db:5432/${POSTGRES_DB:-devra_gestion}
+  DATA_DIR: /data
+  TZ: Europe/Zurich
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-devra}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .env}
+      POSTGRES_DB: ${POSTGRES_DB:-devra_gestion}
+      TZ: Europe/Zurich
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # Applique les migrations et crée le premier admin, puis s'arrête.
+  migrate:
+    build:
+      context: .
+      target: tools
+    image: devra-gestion-tools:latest
+    env_file: .env
+    environment: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runner
+    image: devra-gestion:latest
+    restart: unless-stopped
+    env_file: .env
+    environment: *app-env
+    volumes:
+      - app-data:/data
+    # Accessible uniquement depuis le Raspberry Pi lui-même : l'accès depuis
+    # Internet passe par Cloudflare Tunnel ou Caddy (HTTPS).
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  db-data:
+  app-data:

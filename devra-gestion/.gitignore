@@ -1,0 +1,31 @@
+# Dépendances
+/node_modules
+
+# Next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+
+# Client Prisma généré (recréé par `prisma generate`)
+/src/generated/
+
+# Tests
+/coverage
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/tests/e2e/.auth/
+
+# Données locales (logo, PDF archivés, sauvegardes)
+/data/
+
+# Secrets : seul .env.example est versionné
+.env*
+!.env.example
+
+# Divers
+.DS_Store
+*.pem
+npm-debug.log*
