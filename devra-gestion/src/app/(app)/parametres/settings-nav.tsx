@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 const SECTIONS = [
   { href: "/parametres/entreprise", label: "Entreprise" },
+  { href: "/parametres/types-de-sites", label: "Types de sites" },
   { href: "/parametres/utilisateurs", label: "Utilisateurs" },
 ];
 

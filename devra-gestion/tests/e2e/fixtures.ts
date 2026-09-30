@@ -71,3 +71,33 @@ export async function logout(page: Page) {
   await page.getByRole("menuitem", { name: "Se déconnecter" }).click();
   await expect(page).toHaveURL(/\/connexion/);
 }
+
+/** L'admin (déjà connecté) invite une personne avec le rôle indiqué. */
+export async function invite(
+  page: Page,
+  person: { name: string; email: string },
+  roleLabel: string,
+) {
+  await deleteEmailsTo(person.email);
+  await page.goto("/parametres/utilisateurs");
+  await page.getByRole("button", { name: "Inviter" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Nom complet").fill(person.name);
+  await dialog.getByLabel("Email").fill(person.email);
+  await dialog.getByRole("combobox").click();
+  await page.getByRole("option", { name: new RegExp(`^${roleLabel}`) }).click();
+  await dialog.getByRole("button", { name: "Envoyer l'invitation" }).click();
+  await expect(page.getByText(`Invitation envoyée à ${person.email}.`)).toBeVisible();
+}
+
+/** La personne invitée active son compte depuis le lien reçu par email. */
+export async function acceptInvitation(page: Page, person: { email: string; password: string }) {
+  const link = await waitForEmailLink(person.email, "Invitation");
+  await switchToFreshIp(page);
+  await page.goto(link);
+  await expect(page.getByLabel("Email")).toHaveValue(person.email);
+  await page.getByLabel("Nouveau mot de passe").fill(person.password);
+  await page.getByLabel("Confirmation").fill(person.password);
+  await page.getByRole("button", { name: "Activer mon compte" }).click();
+  await expect(page).toHaveURL("/");
+}

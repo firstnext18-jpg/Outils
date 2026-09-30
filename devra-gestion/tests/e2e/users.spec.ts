@@ -1,8 +1,9 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import {
+  acceptInvitation,
   ADMIN,
-  deleteEmailsTo,
   formAlert,
+  invite,
   login,
   logout,
   switchToFreshIp,
@@ -16,30 +17,6 @@ test.describe.configure({ mode: "serial" });
 
 const MEMBER = { name: "Léa Membre", email: "lea@e2e.test", password: "Lea-Password-2026" };
 const READER = { name: "Marc Lecteur", email: "marc@e2e.test", password: "Marc-Password-2026" };
-
-async function invite(page: Page, person: { name: string; email: string }, roleLabel: string) {
-  await deleteEmailsTo(person.email);
-  await page.goto("/parametres/utilisateurs");
-  await page.getByRole("button", { name: "Inviter" }).click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Nom complet").fill(person.name);
-  await dialog.getByLabel("Email").fill(person.email);
-  await dialog.getByRole("combobox").click();
-  await page.getByRole("option", { name: new RegExp(`^${roleLabel}`) }).click();
-  await dialog.getByRole("button", { name: "Envoyer l'invitation" }).click();
-  await expect(page.getByText(`Invitation envoyée à ${person.email}.`)).toBeVisible();
-}
-
-async function acceptInvitation(page: Page, person: { email: string; password: string }) {
-  const link = await waitForEmailLink(person.email, "Invitation");
-  await switchToFreshIp(page);
-  await page.goto(link);
-  await expect(page.getByLabel("Email")).toHaveValue(person.email);
-  await page.getByLabel("Nouveau mot de passe").fill(person.password);
-  await page.getByLabel("Confirmation").fill(person.password);
-  await page.getByRole("button", { name: "Activer mon compte" }).click();
-  await expect(page).toHaveURL("/");
-}
 
 test("l'admin invite un membre et un utilisateur en lecture seule", async ({ page }) => {
   await login(page, ADMIN.email, ADMIN.password);

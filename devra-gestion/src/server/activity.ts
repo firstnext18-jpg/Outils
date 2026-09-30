@@ -13,7 +13,16 @@ export type ActivityAction =
   | "user.reactivated"
   | "settings.company_updated"
   | "settings.logo_updated"
-  | "settings.logo_removed";
+  | "settings.logo_removed"
+  | "settings.site_types_updated"
+  | "client.created"
+  | "client.updated"
+  | "client.archived"
+  | "client.unarchived"
+  | "client.deleted"
+  | "client.data_exported"
+  | "clients.imported"
+  | "clients.exported";
 
 export type ActivityEntry = {
   userId: string | null;

@@ -62,6 +62,47 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
 - **Protection CSRF** : Better Auth vérifie l'origine des requêtes ; les actions serveur de Next.js
   comparent l'en-tête `Origin` à l'hôte.
 
+## Clients (phase 2)
+
+- **Colonnes calculées** enregistrées avec chaque client :
+  - `displayName` : raison sociale, ou « Prénom Nom » ;
+  - `sortName` : nom en minuscules sans accents, pour que « Émile » se range avec les E (le tri de
+    PostgreSQL sous Alpine se fait sinon octet par octet) ;
+  - `searchText` : nom, contact, email, téléphone, adresse et tags sans accents. La recherche
+    découpe la saisie en mots ; chaque mot doit apparaître (« dubois sion »).
+- **Verrouillage optimiste** : chaque fiche porte un numéro de version. Une modification n'est
+  enregistrée que si la fiche n'a pas changé depuis son ouverture ; sinon l'utilisateur est invité
+  à recharger la page.
+- **Longueurs maximales alignées sur la QR-facture** (nom et rue 70 caractères, numéro et NPA 16,
+  localité 35) pour que chaque client puisse figurer comme débiteur sans retouche. Le NPA d'un
+  client suisse doit comporter 4 chiffres ; le canton n'est proposé que pour la Suisse.
+- **Archiver plutôt que supprimer** : l'archivage retire le client de la liste en gardant tout son
+  historique. La suppression définitive reste possible pour une fiche créée par erreur ; dès les
+  phases 4 et 5, la base refusera de supprimer un client lié à des devis ou des factures.
+- **Import** :
+  - le fichier est lu côté serveur (Papa Parse pour le CSV, ExcelJS pour le .xlsx) : même code
+    pour tous, testé ;
+  - encodage détecté (UTF-8, sinon Windows-1252 des CSV d'Excel) et séparateur détecté
+    (`;`, `,`, tabulation) ;
+  - limites : 5 Mo et 5 000 lignes ;
+  - une adresse saisie en une seule colonne (« Rue du Lac 12 ») est séparée en rue et numéro ;
+  - doublons = même email qu'un client existant ou qu'une ligne précédente du fichier ; par défaut
+    ils sont ignorés, l'utilisateur peut choisir de les importer quand même ;
+  - l'import se fait en une seule transaction (tout ou rien) et laisse une seule ligne dans le
+    journal d'activité (nom du fichier, nombre de clients).
+- **Export** : CSV avec point-virgule, BOM UTF-8 et fins de ligne Windows (s'ouvre correctement
+  dans Excel en Suisse), ou Excel (.xlsx). Les cellules commençant par `=`, `+`, `-` ou `@` sont
+  préfixées d'une apostrophe (protection contre l'injection de formules) ; l'import retire ce
+  préfixe. Les intitulés de colonnes sont reconnus par l'import : un export se réimporte tel quel.
+- **Export nLPD** d'un client : fichier JSON avec toutes ses données et l'historique de sa fiche,
+  réservé aux membres et admins, et inscrit au journal. Les devis et factures s'y ajouteront.
+- **Types de sites** : un type utilisé ne peut pas être supprimé, seulement désactivé (il n'est plus
+  proposé mais reste affiché sur les fiches existantes). Noms uniques sans tenir compte de la casse.
+- **Recherche globale** (Ctrl+K) : les clients pour l'instant ; les numéros de devis et de factures
+  s'y ajouteront avec les phases 4 et 5.
+- **Données de démonstration** (`npm run db:seed:demo`) : 15 clients fictifs, avec des adresses
+  email en `.example` (domaine réservé, aucun email ne peut partir vers une vraie personne).
+
 ## Interface
 
 - **Interface en français, sans bibliothèque de traduction.** Les traductions FR/DE ne concernent
@@ -86,6 +127,9 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
 - **Docker : image multi-étapes** sur `node:24-bookworm-slim` (Debian, glibc : compatible avec les
   binaires précompilés ARM64). Un service `migrate` applique les migrations et le seed, puis
   s'arrête ; l'application ne démarre qu'après son succès.
+- **ESLint** : les variables volontairement inutilisées sont préfixées par `_`.
+- **`npm audit`** : ExcelJS dépend d'une ancienne version de `uuid` (vulnérabilité « moderate »
+  limitée aux fonctions v3/v5/v6 avec un tampon fourni, que nous n'utilisons pas).
 - **`npm audit`** signale 4 vulnérabilités « high » dans des dépendances des outils en ligne de
   commande de Prisma (`mysql2`, `deepmerge-ts`). Elles ne sont pas utilisées par l'application en
   fonctionnement (nous n'utilisons pas MySQL) ; à suivre lors des mises à jour de Prisma.

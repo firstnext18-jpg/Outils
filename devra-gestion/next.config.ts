@@ -16,8 +16,8 @@ const nextConfig: NextConfig = {
   // Module natif (binaire précompilé ARM64/x64) : ne pas l'empaqueter avec webpack/turbopack.
   serverExternalPackages: ["@node-rs/argon2"],
   experimental: {
-    // Envoi du logo via une action serveur (limite par défaut : 1 Mo).
-    serverActions: { bodySizeLimit: "3mb" },
+    // Envoi du logo et des fichiers d'import via les actions serveur (limite par défaut : 1 Mo).
+    serverActions: { bodySizeLimit: "12mb" },
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

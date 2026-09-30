@@ -13,7 +13,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 | Phase                                     | Contenu                                                           | État        |
 | ----------------------------------------- | ----------------------------------------------------------------- | ----------- |
 | 1. Fondations                             | Connexion, invitations, rôles, paramètres de l'entreprise, Docker | ✅ Terminée |
-| 2. Clients                                | Fiches, recherche, import/export CSV-Excel                        | À venir     |
+| 2. Clients                                | Fiches, recherche, import/export CSV-Excel                        | ✅ Terminée |
 | 3. Catalogue                              | Prestations réutilisables                                         | À venir     |
 | 4. Devis                                  | Calculs, remises, acompte, PDF FR/DE                              | À venir     |
 | 5. Factures                               | QR-facture, paiements, acomptes                                   | À venir     |
@@ -30,6 +30,22 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 - **Invitation d'utilisateurs** par un admin (lien valable 7 jours), choix du rôle,
   changement de rôle, désactivation / réactivation d'un compte.
 - **Paramètres → Entreprise** : nom, adresse, contact, IBAN et QR-IBAN (vérifiés), logo.
+- **Paramètres → Types de sites** : liste modifiable (ajouter, renommer, réordonner, désactiver).
+- **Clients** :
+  - particuliers et entreprises, adresse suisse structurée (rue, numéro, NPA, localité, canton),
+    contact, type de site demandé, langue des documents (FR/DE), tags et notes ;
+  - liste avec recherche (sans tenir compte des accents), filtres (type, canton, type de site,
+    tag, archivés), tri et pagination ; tableau sur ordinateur, cartes sur téléphone ;
+  - fiche client avec coordonnées, projet et historique des modifications ;
+  - si deux personnes modifient la même fiche en même temps, la seconde est prévenue au lieu
+    d'écraser le travail de la première ;
+  - archivage (et désarchivage), suppression avec confirmation ;
+  - **import CSV / Excel** en 4 étapes : fichier, correspondance des colonnes (reconnue
+    automatiquement en français, allemand et anglais), vérification (erreurs, doublons par email),
+    import ;
+  - **export CSV / Excel** de la liste affichée (filtres appliqués), réimportable tel quel ;
+  - export de toutes les données d'un client au format JSON (droit d'accès, nLPD).
+- **Recherche globale** (Ctrl+K) : clients par nom, localité, email ou téléphone.
 - **Navigation** latérale (repliable, en tiroir sur téléphone), thème clair / sombre / système.
 - Chaque action importante est enregistrée dans un **journal d'activité** (la page de consultation
   arrive en phase 9).
@@ -45,6 +61,7 @@ npm install
 npm run db:up                 # PostgreSQL + Mailpit (faux serveur email)
 npm run db:migrate            # crée les tables
 npm run db:seed               # crée le premier administrateur (ADMIN_EMAIL / ADMIN_PASSWORD)
+npm run db:seed:demo          # facultatif : 15 clients fictifs pour découvrir l'outil
 npm run dev
 ```
 
@@ -79,6 +96,7 @@ Le guide complet (Raspberry Pi, HTTPS sur `gestion.devra.ch`, sauvegardes) arriv
 | `npm run db:up` / `db:down`   | Démarre / arrête PostgreSQL et Mailpit de développement                             |
 | `npm run db:migrate`          | Crée une migration après modification de `prisma/schema.prisma`                     |
 | `npm run db:seed`             | Crée le premier admin si la base n'a aucun utilisateur                              |
+| `npm run db:seed:demo`        | Ajoute des clients fictifs (base de développement uniquement)                       |
 | `npm run db:studio`           | Explorateur de la base (Prisma Studio)                                              |
 
 ## Structure

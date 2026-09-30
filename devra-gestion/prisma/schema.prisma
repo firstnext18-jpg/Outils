@@ -44,6 +44,8 @@ model User {
   activities      ActivityLog[]
   invitationsSent Invitation[]  @relation("InvitedBy")
   settingsUpdates Settings[]
+  clientsCreated  Client[]      @relation("ClientCreatedBy")
+  clientsUpdated  Client[]      @relation("ClientUpdatedBy")
 
   @@map("user")
 }
@@ -140,20 +142,20 @@ model Invitation {
 model Settings {
   id Int @id @default(1)
 
-  companyName         String @default("")
-  companyStreet       String @default("")
-  companyStreetNumber String @default("")
-  companyPostalCode   String @default("")
-  companyCity         String @default("")
+  companyName         String  @default("")
+  companyStreet       String  @default("")
+  companyStreetNumber String  @default("")
+  companyPostalCode   String  @default("")
+  companyCity         String  @default("")
   /// Code pays ISO 3166-1 alpha-2.
-  companyCountry      String @default("CH")
-  companyEmail        String @default("")
-  companyPhone        String @default("")
-  companyWebsite      String @default("")
+  companyCountry      String  @default("CH")
+  companyEmail        String  @default("")
+  companyPhone        String  @default("")
+  companyWebsite      String  @default("")
   /// IBAN classique (références SCOR sur la QR-facture). Stocké sans espaces.
-  iban                String @default("")
+  iban                String  @default("")
   /// QR-IBAN (références QRR sur la QR-facture). Stocké sans espaces.
-  qrIban              String @default("")
+  qrIban              String  @default("")
   /// Nom du fichier du logo dans DATA_DIR/uploads.
   logoFile            String?
 
@@ -162,6 +164,122 @@ model Settings {
   updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
 
   @@map("settings")
+}
+
+// ---------------------------------------------------------------------------
+// Clients
+// ---------------------------------------------------------------------------
+
+enum ClientKind {
+  INDIVIDUAL
+  COMPANY
+}
+
+/// Langue des documents envoyés au client (devis, factures, emails).
+enum DocumentLanguage {
+  FR
+  DE
+}
+
+/// Les 26 cantons suisses (codes officiels).
+enum Canton {
+  AG
+  AI
+  AR
+  BE
+  BL
+  BS
+  FR
+  GE
+  GL
+  GR
+  JU
+  LU
+  NE
+  NW
+  OW
+  SG
+  SH
+  SO
+  SZ
+  TG
+  TI
+  UR
+  VD
+  VS
+  ZG
+  ZH
+}
+
+/// Types de sites proposés (liste modifiable dans Paramètres → Types de sites).
+model SiteType {
+  id        String   @id @default(uuid(7))
+  name      String   @unique
+  position  Int      @default(0)
+  /// Un type désactivé n'est plus proposé, mais reste affiché sur les fiches existantes.
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clients Client[]
+
+  @@map("site_type")
+}
+
+model Client {
+  id   String     @id @default(uuid(7))
+  kind ClientKind
+
+  /// Particulier
+  firstName   String @default("")
+  lastName    String @default("")
+  /// Entreprise
+  companyName String @default("")
+  contactName String @default("")
+  /// Nom affiché : raison sociale, ou « Prénom Nom ».
+  displayName String
+  /// Clé de tri du nom (minuscules, sans accents) : « Émile » se range avec les E.
+  sortName    String @default("")
+  /// Texte de recherche (minuscules, sans accents) : « zurich » trouve « Zürich ».
+  searchText  String @default("")
+
+  street       String  @default("")
+  streetNumber String  @default("")
+  postalCode   String  @default("")
+  city         String  @default("")
+  canton       Canton?
+  /// Code pays ISO 3166-1 alpha-2.
+  country      String  @default("CH")
+
+  /// Enregistré en minuscules (détection des doublons).
+  email   String @default("")
+  phone   String @default("")
+  website String @default("")
+
+  siteTypeId String?
+  siteType   SiteType?        @relation(fields: [siteTypeId], references: [id], onDelete: SetNull)
+  language   DocumentLanguage @default(FR)
+  notes      String           @default("")
+  tags       String[]         @default([])
+
+  /// Un client archivé n'apparaît plus dans la liste par défaut.
+  archivedAt DateTime?
+  /// Incrémenté à chaque modification : empêche d'écraser le travail d'un autre utilisateur.
+  version    Int       @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  createdBy   User?    @relation("ClientCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy   User?    @relation("ClientUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([sortName])
+  @@index([email])
+  @@index([archivedAt])
+  @@index([canton])
+  @@index([tags], type: Gin)
+  @@map("client")
 }
 
 // ---------------------------------------------------------------------------

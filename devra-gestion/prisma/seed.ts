@@ -1,6 +1,7 @@
 /**
  * Seed de base, exécuté à chaque déploiement (idempotent) :
  *   - crée la ligne des paramètres si elle n'existe pas ;
+ *   - crée les types de sites par défaut si la liste est vide ;
  *   - crée le premier administrateur à partir de ADMIN_NAME / ADMIN_EMAIL /
  *     ADMIN_PASSWORD, uniquement si la base ne contient encore aucun utilisateur.
  *
@@ -12,6 +13,17 @@ import { createUserWithPassword } from "@/modules/users/create-user";
 import { emailSchema, nameSchema, passwordSchema } from "@/modules/users/schemas";
 import { db } from "@/server/db";
 
+/** Types de sites proposés au départ (modifiables dans Paramètres → Types de sites). */
+const DEFAULT_SITE_TYPES = [
+  "Vitrine",
+  "E-commerce",
+  "Landing page",
+  "Blog",
+  "Portfolio",
+  "Refonte",
+  "Sur mesure",
+];
+
 const adminSchema = z.object({
   ADMIN_NAME: nameSchema,
   ADMIN_EMAIL: emailSchema,
@@ -20,6 +32,13 @@ const adminSchema = z.object({
 
 async function main() {
   await db.settings.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
+
+  if ((await db.siteType.count()) === 0) {
+    await db.siteType.createMany({
+      data: DEFAULT_SITE_TYPES.map((name, position) => ({ name, position })),
+    });
+    console.log(`✓ ${DEFAULT_SITE_TYPES.length} types de sites créés.`);
+  }
 
   const userCount = await db.user.count();
   if (userCount > 0) {
