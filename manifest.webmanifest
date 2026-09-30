@@ -1,0 +1,13 @@
+{
+  "name": "Jour après jour",
+  "short_name": "Jour après jour",
+  "description": "Tâches du jour et suivi d'habitudes.",
+  "lang": "fr",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#EDF1EE",
+  "theme_color": "#1E6B4F",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Jour après jour</title>
+  <meta name="description" content="Tâches du jour et suivi d'habitudes, dans le navigateur.">
+  <meta name="theme-color" content="#1E6B4F">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Recursive:wght,CASL,MONO@400..800,0..1,0..1&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- page:start -->
+<div class="app">
+  <header class="top">
+    <div class="brand-row">
+      <span class="brand">Jour après jour</span>
+      <span class="eyebrow" id="week"></span>
+    </div>
+    <h1 id="date">Aujourd’hui</h1>
+    <div class="summary">
+      <div class="meter">
+        <div class="meter-label"><span>Tâches faites</span><span class="meter-value" id="tasks-count">0/0</span></div>
+        <div class="bar" aria-hidden="true"><span id="tasks-bar"></span></div>
+      </div>
+      <div class="meter">
+        <div class="meter-label"><span>Habitudes du jour</span><span class="meter-value" id="habits-count">0/0</span></div>
+        <div class="bar" aria-hidden="true"><span id="habits-bar"></span></div>
+      </div>
+    </div>
+    <p class="summary-note" id="summary-note" aria-live="polite"></p>
+  </header>
+
+  <main class="columns">
+    <section class="panel" aria-labelledby="tasks-title">
+      <div class="panel-head">
+        <h2 id="tasks-title">À faire</h2>
+        <span class="hint">Ce qui n’est pas fait passe au lendemain</span>
+      </div>
+      <form class="add-row" id="task-form" autocomplete="off">
+        <label class="sr-only" for="task-input">Nouvelle tâche</label>
+        <input class="field" id="task-input" name="task" type="text" maxlength="140" placeholder="Ex. : appeler le médecin" enterkeyhint="done">
+        <button class="btn" type="submit">Ajouter</button>
+      </form>
+      <ul class="task-list" id="task-list"></ul>
+      <p class="empty" id="task-empty">Rien de prévu pour l’instant. Écrivez une tâche ci-dessus puis appuyez sur Ajouter.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="habits-title">
+      <div class="panel-head">
+        <h2 id="habits-title">Habitudes</h2>
+        <span class="hint">Touchez un jour pour le cocher</span>
+      </div>
+      <ul class="habit-list" id="habit-list"></ul>
+      <div class="empty" id="habit-empty">
+        <p>Choisissez une habitude à tenir chaque jour. Quelques idées :</p>
+        <div class="chips" id="habit-ideas"></div>
+      </div>
+      <form class="add-row" id="habit-form" autocomplete="off">
+        <label class="sr-only" for="habit-input">Nouvelle habitude</label>
+        <input class="field" id="habit-input" name="habit" type="text" maxlength="60" placeholder="Ex. : marcher 30 minutes" enterkeyhint="done">
+        <button class="btn" type="submit">Suivre</button>
+      </form>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span class="sync" id="sync-status" data-mode="local">Enregistré sur cet appareil</span>
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden>
+  <span id="toast-text"></span>
+  <button type="button" id="toast-undo">Annuler</button>
+</div>
+<!-- page:end -->
+<script src="app.js"></script>
+</body>
+</html>
