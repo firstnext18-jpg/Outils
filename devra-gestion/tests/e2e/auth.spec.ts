@@ -56,3 +56,17 @@ test.describe("limitation des tentatives", () => {
     await expect(formAlert(page)).toContainText("Trop de tentatives");
   });
 });
+
+test("en-têtes de sécurité : CSP, HSTS, pas d'intégration dans un cadre", async ({ request }) => {
+  const page = await request.get("/connexion");
+  const headers = page.headers();
+  expect(headers["content-security-policy"]).toContain("default-src 'self'");
+  expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+  expect(headers["strict-transport-security"]).toBe("max-age=31536000");
+  expect(headers["x-frame-options"]).toBe("DENY");
+  expect(headers["x-content-type-options"]).toBe("nosniff");
+  expect(headers["x-powered-by"]).toBeUndefined();
+  // Les PDF (sous /api) restent lisibles par le lecteur intégré du navigateur.
+  const api = await request.get("/api/logo");
+  expect(api.headers()["content-security-policy"]).toBeUndefined();
+});

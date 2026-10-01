@@ -1,6 +1,7 @@
 # Déploiement de production (Raspberry Pi ou tout serveur Docker).
 #   docker compose up -d --build
-# Voir docs/DEPLOIEMENT_RASPBERRY_PI.md.
+# Accès HTTPS depuis Internet : ajouter compose.cloudflare.yaml ou compose.caddy.yaml
+# (variable COMPOSE_FILE dans .env). Voir docs/DEPLOIEMENT_RASPBERRY_PI.md.
 name: devra-gestion
 
 x-app-env: &app-env # La base est joignable sous le nom « db » sur le réseau interne de Docker.
@@ -73,6 +74,47 @@ services:
     depends_on:
       app:
         condition: service_started
+
+  # Sauvegardes automatiques : base et fichiers chaque jour à BACKUP_TIME, conservées
+  # BACKUP_RETENTION_DAYS jours dans BACKUP_DIR (et copiées vers BACKUP_REMOTE si
+  # renseigné). Voir docs/SAUVEGARDES.md.
+  backup:
+    build:
+      context: docker/backup
+    image: devra-gestion-backup:latest
+    restart: unless-stopped
+    env_file: .env # variables RCLONE_CONFIG_* de la copie hors du Raspberry Pi
+    environment: &backup-env
+      TZ: Europe/Zurich
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-devra}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .env}
+      PGDATABASE: ${POSTGRES_DB:-devra_gestion}
+      BACKUP_TIME: ${BACKUP_TIME:-02:30}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_REMOTE: ${BACKUP_REMOTE:-}
+    volumes:
+      - app-data:/data:ro
+      - ${BACKUP_DIR:-./sauvegardes}:/backups
+    depends_on:
+      # Après les migrations : la première sauvegarde contient déjà les tables.
+      migrate:
+        condition: service_completed_successfully
+
+  # Restauration (lancée à la main, jamais au démarrage) :
+  #   docker compose run --rm restore            liste les sauvegardes
+  #   docker compose run --rm restore --test     vérifie la dernière sauvegarde
+  restore:
+    image: devra-gestion-backup:latest
+    profiles: ["restauration"]
+    entrypoint: ["restore.sh"]
+    environment: *backup-env
+    volumes:
+      - app-data:/data
+      - ${BACKUP_DIR:-./sauvegardes}:/backups
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   db-data:

@@ -1,0 +1,28 @@
+# Option HTTPS « Caddy » : le Raspberry Pi est joignable directement depuis
+# Internet (ports 80 et 443 redirigés par la box vers lui). Caddy obtient le
+# certificat HTTPS automatiquement.
+#   .env : COMPOSE_FILE=compose.yaml:compose.caddy.yaml, DOMAIN, ACME_EMAIL,
+#          AUTH_IP_HEADER=x-forwarded-for
+# Voir docs/DEPLOIEMENT_RASPBERRY_PI.md.
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN manquant dans .env (ex. gestion.devra.ch)}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL manquant dans .env}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_started
+
+volumes:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,13 @@
+# Reverse proxy HTTPS de Devra Gestion (compose.caddy.yaml).
+# Caddy obtient et renouvelle seul le certificat Let's Encrypt du domaine
+# (DOMAIN dans .env, ex. gestion.devra.ch) et redirige HTTP vers HTTPS.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+	# Caddy remplace l'en-tête X-Forwarded-For envoyé par le visiteur par sa
+	# véritable adresse IP : AUTH_IP_HEADER=x-forwarded-for.
+	reverse_proxy app:3000
+}

@@ -21,7 +21,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 | 7. Relances et abonnements                | Relances, abonnements, tâches quotidiennes                        | ✅ Terminée |
 | 8. Tableau de bord                        | Indicateurs, graphiques, zones d'action                           | ✅ Terminée |
 | 9. Acceptation en ligne, exports, journal | Devis acceptés en ligne, export comptable, journal d'activité     | ✅ Terminée |
-| 10. Production                            | Sauvegardes, déploiement Raspberry Pi                             | À venir     |
+| 10. Production                            | Sauvegardes, HTTPS, sécurité, déploiement Raspberry Pi            | ✅ Terminée |
 
 ## Ce qui fonctionne aujourd'hui
 
@@ -167,21 +167,37 @@ npm run dev
 - En développement, il n'y a pas de conteneur `cron` : les tâches quotidiennes se lancent depuis
   **Paramètres → Tâches** (« Lancer maintenant »).
 
-## Lancer avec Docker (comme en production)
+## Production (Raspberry Pi)
+
+Le guide pas à pas est dans [`docs/DEPLOIEMENT_RASPBERRY_PI.md`](docs/DEPLOIEMENT_RASPBERRY_PI.md) :
+installation de Raspberry Pi OS 64 bits et de Docker, fichier `.env`, accès HTTPS sur
+`gestion.devra.ch` par **Cloudflare Tunnel** (recommandé) ou **Caddy**, mises à jour, dépannage.
+
+En résumé :
 
 ```bash
-cp .env.example .env          # complétez au minimum BETTER_AUTH_SECRET, POSTGRES_PASSWORD,
-                              # APP_URL, SMTP_*, ADMIN_* et CRON_SECRET
+cp .env.example .env          # secrets, SMTP, admin, sauvegardes, option HTTPS (COMPOSE_FILE)
 docker compose up -d --build
 ```
 
-Quatre services démarrent : `db` (PostgreSQL), `migrate` (applique les migrations et crée le
-premier admin, puis s'arrête), `app` (l'application, sur `127.0.0.1:3000`) et `cron` (appelle
-chaque matin à `CRON_TIME`, 06:00 par défaut, la route des tâches quotidiennes avec
-`CRON_SECRET`, ainsi qu'au démarrage). Les images fonctionnent sur Raspberry Pi (ARM64) comme sur
-un ordinateur classique.
+| Service                  | Rôle                                                                                                 |
+| ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `db`                     | PostgreSQL                                                                                           |
+| `migrate`                | applique les migrations et crée le premier admin, puis s'arrête                                      |
+| `app`                    | l'application, sur `127.0.0.1:3000` seulement                                                        |
+| `cron`                   | tâches quotidiennes (devis expirés, factures d'abonnement, relances), à `CRON_TIME`                  |
+| `backup`                 | sauvegarde quotidienne de la base et des fichiers, rotation sur 30 jours, copie distante facultative |
+| `cloudflared` ou `caddy` | accès HTTPS depuis Internet (`compose.cloudflare.yaml` ou `compose.caddy.yaml`)                      |
 
-Le guide complet (Raspberry Pi, HTTPS sur `gestion.devra.ch`, sauvegardes) arrivera en phase 10.
+Les images fonctionnent sur Raspberry Pi (ARM64) comme sur un ordinateur classique.
+
+**Sauvegardes et restauration** : voir [`docs/SAUVEGARDES.md`](docs/SAUVEGARDES.md).
+
+```bash
+docker compose exec backup backup.sh maintenant   # sauvegarde immédiate
+docker compose run --rm restore --test            # vérifie la dernière sauvegarde
+docker compose run --rm restore derniere          # restaure (application arrêtée)
+```
 
 ## Commandes utiles
 
@@ -217,11 +233,22 @@ devra-gestion/
 │  ├─ i18n/documents/     textes des documents en français et en allemand
 │  ├─ components/         composants d'interface (ui/ = shadcn/ui)
 │  └─ lib/                utilitaires (formats suisses…)
-├─ docker/cron/           planificateur des tâches quotidiennes (conteneur cron)
+├─ docker/
+│  ├─ cron/               planificateur des tâches quotidiennes (conteneur cron)
+│  ├─ backup/             sauvegarde et restauration (conteneurs backup et restore)
+│  └─ caddy/              configuration du reverse proxy HTTPS (option Caddy)
 ├─ tests/e2e/             tests Playwright
-├─ docs/                  documentation (DECISIONS.md…)
+├─ docs/                  déploiement, sauvegardes, choix techniques
 ├─ compose.yaml           production (Docker)
+├─ compose.cloudflare.yaml / compose.caddy.yaml   options d'accès HTTPS
 └─ compose.dev.yaml       développement (PostgreSQL + Mailpit)
 ```
 
-Les choix techniques et leurs raisons sont détaillés dans [`docs/DECISIONS.md`](docs/DECISIONS.md).
+## Documentation
+
+- [`docs/DEPLOIEMENT_RASPBERRY_PI.md`](docs/DEPLOIEMENT_RASPBERRY_PI.md) : installation sur le
+  Raspberry Pi, HTTPS, mises à jour, dépannage, mesures de sécurité.
+- [`docs/SAUVEGARDES.md`](docs/SAUVEGARDES.md) : fonctionnement des sauvegardes, copie hors du
+  Raspberry Pi, vérification et restauration.
+- [`docs/DECISIONS.md`](docs/DECISIONS.md) : choix techniques et leurs raisons.
+- [`.env.example`](.env.example) : toutes les variables de configuration, commentées.
