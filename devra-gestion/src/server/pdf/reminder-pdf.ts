@@ -1,0 +1,114 @@
+import "server-only";
+import { dbDateToIso, formatIsoDate, type IsoDate } from "@/domain/dates";
+import { documentFileName } from "@/domain/file-names";
+import { buildQrBillData } from "@/domain/qr-bill";
+import type { ReminderLevel } from "@/domain/reminders";
+import { documentLabels, fillLabel } from "@/i18n/documents";
+import { formatAmount } from "@/lib/format";
+import { computeTotals } from "@/domain/totals";
+import type { InvoiceDetail } from "@/modules/invoices/service";
+import { clientSnapshot, companySnapshot, type ClientSnapshot } from "@/modules/settings/documents";
+import type { AppSettings } from "@/modules/settings/service";
+import { renderDocumentPdf, type TotalRow } from "@/server/pdf/document-pdf";
+import { invoiceTitleLabel } from "@/server/pdf/invoice-pdf";
+import { pdfRecipient } from "@/server/pdf/quote-pdf";
+import { readUpload } from "@/server/storage";
+
+export type ReminderPdfInput = {
+  invoice: InvoiceDetail;
+  level: ReminderLevel;
+  date: IsoDate;
+  dueDate: IsoDate;
+  feeCents: number;
+  totalCents: number;
+  /** Texte de la relance, variables déjà remplacées. */
+  text: string;
+};
+
+export function reminderPdfFileName(
+  invoice: InvoiceDetail,
+  level: ReminderLevel,
+  settings: AppSettings,
+) {
+  const labels = documentLabels(invoice.language);
+  const client =
+    (invoice.clientSnapshot as ClientSnapshot | null) ?? clientSnapshot(invoice.client);
+  return documentFileName(
+    settings.companyName.trim(),
+    `${labels.reminderFile}-${level}`,
+    invoice.number ?? "",
+    client.displayName,
+  );
+}
+
+/**
+ * PDF d'une relance : lettre, récapitulatif (facture, déjà payé, frais, montant
+ * à payer) et nouvelle QR-facture du montant à payer, avec la même référence
+ * que la facture (le paiement se rapproche ainsi de la facture).
+ */
+export async function buildReminderPdf(input: ReminderPdfInput, settings: AppSettings) {
+  const { invoice, level } = input;
+  const labels = documentLabels(invoice.language);
+  const company = companySnapshot(settings);
+  const client =
+    (invoice.clientSnapshot as ClientSnapshot | null) ?? clientSnapshot(invoice.client);
+  const logo = company.logoFile ? await readUpload(company.logoFile) : null;
+  const levelLabel = labels[`reminder${level}`];
+  const title = `${levelLabel} – ${invoiceTitleLabel(invoice.type, labels)} ${invoice.number}`;
+  const chf = (cents: number) => `${labels.currency} ${formatAmount(cents)}`;
+
+  const rows: TotalRow[] = [
+    {
+      label: fillLabel(labels.invoiceAmount, { number: invoice.number ?? "" }),
+      value: chf(invoice.amountDueCents),
+    },
+  ];
+  if (invoice.paidCents > 0)
+    rows.push({ label: labels.alreadyPaid, value: chf(-invoice.paidCents) });
+  if (invoice.feesCents > 0)
+    rows.push({ label: labels.previousFees, value: chf(invoice.feesCents) });
+  if (input.feeCents > 0) rows.push({ label: labels.reminderFee, value: chf(input.feeCents) });
+  rows.push({ label: labels.amountDue, value: chf(input.totalCents), bold: true, ruleAbove: true });
+
+  const qrBill =
+    invoice.paymentAccount && invoice.referenceType && input.totalCents > 0
+      ? buildQrBillData({
+          setup: {
+            account: invoice.paymentAccount,
+            referenceType: invoice.referenceType,
+            reference: invoice.paymentReference,
+          },
+          creditor: company,
+          debtor: { ...client, name: client.displayName },
+          amountCents: input.totalCents,
+          message: fillLabel(labels.reminderQrMessage, { number: invoice.number ?? "" }),
+        })
+      : null;
+
+  const buffer = await renderDocumentPdf({
+    language: invoice.language,
+    title,
+    watermark: null,
+    company,
+    logo,
+    recipient: pdfRecipient(client, invoice.language),
+    meta: [
+      [labels.date, formatIsoDate(input.date)],
+      [labels.invoiceDate, formatIsoDate(dbDateToIso(invoice.issueDate))],
+      [labels.originalDueDate, formatIsoDate(dbDateToIso(invoice.dueDate))],
+      [labels.newDueDate, formatIsoDate(input.dueDate)],
+    ],
+    intro: input.text,
+    lines: [],
+    // Totaux non utilisés (récapitulatif fourni) : structure vide.
+    totals: computeTotals({ lines: [], globalDiscount: null, deposit: null, vatEnabled: false }),
+    globalDiscount: null,
+    deposit: null,
+    vatEnabled: true,
+    summaryRows: rows,
+    conditions: "",
+    qrBill,
+    info: { title, subject: client.displayName },
+  });
+  return { buffer, fileName: reminderPdfFileName(invoice, level, settings) };
+}

@@ -98,6 +98,10 @@ export function getQuote(id: string) {
       siteType: { select: { id: true, name: true } },
       createdBy: { select: { name: true } },
       updatedBy: { select: { name: true } },
+      subscriptions: {
+        orderBy: { createdAt: "asc" },
+        select: { id: true, label: true, status: true },
+      },
     },
   });
 }
@@ -362,7 +366,7 @@ export async function deleteQuote(actor: CurrentUser, id: string) {
 
 /**
  * Passe en « expiré » les devis envoyés dont la validité est dépassée.
- * Appelé à l'affichage des devis (et, dès la phase 7, chaque matin par le cron).
+ * Appelé à l'affichage des devis et chaque matin par les tâches quotidiennes.
  */
 export async function expireQuotes(today = todayIso()) {
   const expired = await db.quote.findMany({

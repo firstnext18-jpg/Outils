@@ -64,6 +64,20 @@ export function balanceCents(amountDueCents: number, paidCents: number): number 
   return Math.max(0, amountDueCents - paidCents);
 }
 
+/** Montant dû par le client : montant de la facture plus les frais de relance facturés. */
+export function owedCents(invoice: { amountDueCents: number; feesCents: number }): number {
+  return invoice.amountDueCents + invoice.feesCents;
+}
+
+/** Solde restant d'une facture, frais de relance compris. */
+export function outstandingCents(invoice: {
+  amountDueCents: number;
+  feesCents: number;
+  paidCents: number;
+}): number {
+  return balanceCents(owedCents(invoice), invoice.paidCents);
+}
+
 /** Seule une facture émise sans paiement peut être annulée ; un brouillon se supprime. */
 export function canCancel(status: InvoiceStatus, paidCents: number): boolean {
   return status === "SENT" && paidCents === 0;

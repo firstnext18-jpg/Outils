@@ -18,7 +18,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 | 4. Devis                                  | Calculs, remises, acompte, PDF FR/DE                              | ✅ Terminée |
 | 5. Factures                               | QR-facture, paiements, acomptes                                   | ✅ Terminée |
 | 6. Emails                                 | Envoi des devis et factures                                       | ✅ Terminée |
-| 7. Relances et abonnements                | Tâches planifiées                                                 | À venir     |
+| 7. Relances et abonnements                | Relances, abonnements, tâches quotidiennes                        | ✅ Terminée |
 | 8. Tableau de bord                        | Indicateurs et graphiques                                         | À venir     |
 | 9. Acceptation en ligne, exports, journal |                                                                   | À venir     |
 | 10. Production                            | Sauvegardes, déploiement Raspberry Pi                             | À venir     |
@@ -73,8 +73,8 @@ entreprise, auto-hébergé sur un Raspberry Pi.
   - à l'envoi, les coordonnées du client et de l'entreprise sont figées sur le devis.
 - **Factures** :
   - **conversion d'un devis accepté en un clic** : facture simple, ou facture d'acompte puis
-    facture finale qui déduit l'acompte facturé ; les abonnements ne sont pas repris (ils seront
-    facturés par le module Abonnements) ;
+    facture finale qui déduit l'acompte facturé ; les abonnements ne sont pas repris (ils sont
+    facturés par un abonnement, créé en un clic depuis le devis) ;
   - création directe, avec le même éditeur que les devis (toutes les lignes sont dues, y compris
     une période d'abonnement) ;
   - brouillon modifiable, puis **émission** : numéro sans trou (`F-2026-001`), référence de
@@ -91,7 +91,8 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 - **Envoi par email** des devis et des factures, depuis leur fiche :
   - PDF en pièce jointe, message proposé à partir d'un modèle (français ou allemand selon la
     langue du document), modifiable avant l'envoi ;
-  - variables `{client}`, `{numero}`, `{montant}`, `{echeance}`, `{lien}` et `{entreprise}` ;
+  - variables `{client}`, `{numero}`, `{date}`, `{montant}`, `{echeance}`, `{lien}` et
+    `{entreprise}` ;
   - plusieurs destinataires possibles, copie optionnelle à l'expéditeur, réponses adressées à
     l'email de l'entreprise ;
   - un devis en brouillon passe en « envoyé » ; une facture en brouillon est émise puis envoyée
@@ -99,6 +100,28 @@ entreprise, auto-hébergé sur un Raspberry Pi.
   - historique des envois sur le document, échecs compris (avec le message du serveur).
 - **Paramètres → Emails** : modèles d'envoi des devis et des factures, en français et en
   allemand ; une variable mal écrite est signalée.
+- **Relances** des factures impayées :
+  - trois niveaux : 1er rappel, 2e rappel, mise en demeure ; délais (par défaut 10 jours après
+    l'échéance, puis 15 jours entre deux relances), frais par niveau (0 par défaut) et nouveau
+    délai de paiement accordé, dans **Paramètres → Relances** ;
+  - mode **manuel** (par défaut) : la page « Relances à envoyer » liste les relances dues, à
+    envoyer par email ou à enregistrer pour un envoi par courrier ; mode **automatique** : elles
+    partent chaque matin par email ;
+  - chaque relance a son PDF (lettre + QR-facture du montant restant, frais compris, même
+    référence de paiement que la facture), archivé et joint à l'email ; textes FR/DE modifiables ;
+  - les frais s'ajoutent au solde de la facture ; l'historique des relances est sur la facture.
+- **Abonnements** (hébergement, maintenance, nom de domaine…) :
+  - créés depuis un devis accepté (un par périodicité) ou saisis directement ; mensuels,
+    trimestriels ou annuels, avec une date de début ;
+  - une facture par période, générée automatiquement au début de chaque période (en brouillon,
+    ou émise et envoyée directement si l'option est activée) ; les périodes manquées sont
+    rattrapées, jamais facturées deux fois ;
+  - pause (les périodes de la pause ne sont pas facturées), reprise, résiliation, modification
+    du contenu pour les prochaines factures ;
+  - revenu récurrent mensuel (MRR) et annuel, hors TVA ; abonnements sur la fiche client.
+- **Tâches quotidiennes** (devis expirés, factures d'abonnement, relances) : lancées chaque matin
+  par le conteneur `cron`, ou à la main dans **Paramètres → Tâches**, qui affiche aussi les
+  dernières exécutions.
 - **Recherche globale** (Ctrl+K) : clients (nom, localité, email, téléphone), devis et factures
   (numéro, objet).
 - **Navigation** latérale (repliable, en tiroir sur téléphone), thème clair / sombre / système.
@@ -116,24 +139,28 @@ npm install
 npm run db:up                 # PostgreSQL + Mailpit (faux serveur email)
 npm run db:migrate            # crée les tables
 npm run db:seed               # crée le premier administrateur (ADMIN_EMAIL / ADMIN_PASSWORD)
-npm run db:seed:demo          # facultatif : clients, devis et factures fictifs pour découvrir l'outil
+npm run db:seed:demo          # facultatif : clients, devis, factures et abonnements fictifs
 npm run dev
 ```
 
 - Application : <http://localhost:3000>
-- Emails envoyés (invitations, mots de passe) : <http://localhost:8025> (Mailpit)
+- Emails envoyés (invitations, documents, relances) : <http://localhost:8025> (Mailpit)
+- En développement, il n'y a pas de conteneur `cron` : les tâches quotidiennes se lancent depuis
+  **Paramètres → Tâches** (« Lancer maintenant »).
 
 ## Lancer avec Docker (comme en production)
 
 ```bash
 cp .env.example .env          # complétez au minimum BETTER_AUTH_SECRET, POSTGRES_PASSWORD,
-                              # APP_URL, SMTP_* et ADMIN_*
+                              # APP_URL, SMTP_*, ADMIN_* et CRON_SECRET
 docker compose up -d --build
 ```
 
-Trois services démarrent : `db` (PostgreSQL), `migrate` (applique les migrations et crée le
-premier admin, puis s'arrête) et `app` (l'application, sur `127.0.0.1:3000`). Les images
-fonctionnent sur Raspberry Pi (ARM64) comme sur un ordinateur classique.
+Quatre services démarrent : `db` (PostgreSQL), `migrate` (applique les migrations et crée le
+premier admin, puis s'arrête), `app` (l'application, sur `127.0.0.1:3000`) et `cron` (appelle
+chaque matin à `CRON_TIME`, 06:00 par défaut, la route des tâches quotidiennes avec
+`CRON_SECRET`, ainsi qu'au démarrage). Les images fonctionnent sur Raspberry Pi (ARM64) comme sur
+un ordinateur classique.
 
 Le guide complet (Raspberry Pi, HTTPS sur `gestion.devra.ch`, sauvegardes) arrivera en phase 10.
 
@@ -151,7 +178,7 @@ Le guide complet (Raspberry Pi, HTTPS sur `gestion.devra.ch`, sauvegardes) arriv
 | `npm run db:up` / `db:down`   | Démarre / arrête PostgreSQL et Mailpit de développement                             |
 | `npm run db:migrate`          | Crée une migration après modification de `prisma/schema.prisma`                     |
 | `npm run db:seed`             | Crée le premier admin si la base n'a aucun utilisateur                              |
-| `npm run db:seed:demo`        | Ajoute des clients, devis et factures fictifs (base de développement uniquement)    |
+| `npm run db:seed:demo`        | Ajoute des données fictives (base de développement uniquement)                      |
 | `npm run db:studio`           | Explorateur de la base (Prisma Studio)                                              |
 
 ## Structure
@@ -163,13 +190,14 @@ devra-gestion/
 │  ├─ app/
 │  │  ├─ (auth)/          connexion, mot de passe oublié, invitation
 │  │  ├─ (app)/           application connectée (navigation latérale)
-│  │  └─ api/             authentification, logo, exports, PDF
+│  │  └─ api/             authentification, logo, exports, PDF, tâches quotidiennes
 │  ├─ domain/             règles métier pures, sans base de données (testées)
 │  ├─ modules/<module>/   schémas Zod, services, actions serveur par module
 │  ├─ server/             authentification, base, sessions, emails, fichiers, PDF
 │  ├─ i18n/documents/     textes des documents en français et en allemand
 │  ├─ components/         composants d'interface (ui/ = shadcn/ui)
 │  └─ lib/                utilitaires (formats suisses…)
+├─ docker/cron/           planificateur des tâches quotidiennes (conteneur cron)
 ├─ tests/e2e/             tests Playwright
 ├─ docs/                  documentation (DECISIONS.md…)
 ├─ compose.yaml           production (Docker)

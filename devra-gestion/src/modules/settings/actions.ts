@@ -12,6 +12,7 @@ import {
   companySettingsSchema,
   documentTextsSchema,
   emailTemplatesSchema,
+  reminderSettingsSchema,
   LOGO_MAX_BYTES,
 } from "@/modules/settings/schemas";
 import { getSettings } from "@/modules/settings/service";
@@ -95,6 +96,22 @@ export const updateEmailTemplatesAction = authAction(
       entityType: "settings",
     });
     revalidatePath("/parametres/emails");
+    return null;
+  },
+);
+
+export const updateReminderSettingsAction = authAction(
+  { role: "ADMIN", schema: reminderSettingsSchema },
+  async (input, { user }) => {
+    await getSettings();
+    await db.settings.update({ where: { id: 1 }, data: { ...input, updatedById: user.id } });
+    await logActivity({
+      userId: user.id,
+      action: "settings.reminders_updated",
+      entityType: "settings",
+      details: { mode: input.reminderMode, autoSend: input.subscriptionAutoSend },
+    });
+    revalidatePath("/parametres/relances");
     return null;
   },
 );

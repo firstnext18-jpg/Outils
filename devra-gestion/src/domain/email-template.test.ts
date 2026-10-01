@@ -26,9 +26,9 @@ describe("modèles d'emails", () => {
       "numéro",
       "Nombre",
     ]);
-    expect(unknownVariables("{client} {numero} {montant} {echeance} {lien} {entreprise}")).toEqual(
-      [],
-    );
+    expect(
+      unknownVariables("{client} {numero} {montant} {echeance} {date} {lien} {entreprise}"),
+    ).toEqual([]);
   });
 });
 

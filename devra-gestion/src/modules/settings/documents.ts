@@ -1,3 +1,5 @@
+import { DEFAULT_REMINDER_TEMPLATES, type ReminderTemplates } from "@/domain/reminder-templates";
+import type { ReminderRules } from "@/domain/reminders";
 import type { AppSettings } from "@/modules/settings/service";
 
 /** Textes par défaut des devis selon la langue. */
@@ -92,3 +94,22 @@ export function clientSnapshot(client: {
 }
 
 export type ClientSnapshot = ReturnType<typeof clientSnapshot>;
+
+/** Règles de relance (délais, frais, nouveau délai de paiement) tirées des paramètres. */
+export function reminderRules(settings: AppSettings): ReminderRules {
+  return {
+    delays: { 1: settings.reminderDelay1, 2: settings.reminderDelay2, 3: settings.reminderDelay3 },
+    feesCents: {
+      1: settings.reminderFee1Cents,
+      2: settings.reminderFee2Cents,
+      3: settings.reminderFee3Cents,
+    },
+    paymentDays: settings.reminderPaymentDays,
+  };
+}
+
+/** Textes des relances : ceux des paramètres, sinon les textes par défaut. */
+export function reminderTemplates(settings: AppSettings): ReminderTemplates {
+  const saved = settings.reminderTemplates as Partial<ReminderTemplates> | null;
+  return { ...DEFAULT_REMINDER_TEMPLATES, ...(saved ?? {}) };
+}

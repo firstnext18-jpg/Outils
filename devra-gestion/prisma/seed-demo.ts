@@ -1,6 +1,6 @@
 /**
- * Données de démonstration : clients fictifs, devis et factures dans
- * différents statuts. À utiliser en développement ou pour une présentation,
+ * Données de démonstration : clients fictifs, devis, factures (dont une
+ * relancée) et abonnements dans différents statuts. À utiliser en développement ou pour une présentation,
  * jamais sur la base de production.
  *
  * Lancement : `npm run db:seed:demo` (après `npm run db:seed`).
@@ -8,18 +8,28 @@
 import "dotenv/config";
 import type { CantonCode } from "@/domain/cantons";
 import { clientInputSchema, EMPTY_CLIENT, type ClientInput } from "@/modules/clients/schemas";
-import { addDays, isoToDbDate, todayIso, yearOf } from "@/domain/dates";
+import { addDays, formatIsoDate, isoToDbDate, todayIso, yearOf } from "@/domain/dates";
+import { renderTemplate } from "@/domain/email-template";
 import { statusAfterPayments, type PaymentMethod } from "@/domain/invoice-status";
 import { depositParts } from "@/domain/invoices";
 import { formatPercent } from "@/domain/percent";
 import { paymentSetup } from "@/domain/qr-bill";
+import { reminderAmounts, type ReminderLevel } from "@/domain/reminders";
+import { addMonths, duePeriods, periodStart } from "@/domain/subscriptions";
 import { documentLabels, fillLabel } from "@/i18n/documents";
-import { formatAmount } from "@/lib/format";
+import { formatAmount, formatChf } from "@/lib/format";
 import type { DocumentLineInput } from "@/modules/documents/lines";
 import { storedDocumentTotals } from "@/modules/documents/lines";
 import { invoiceColumns } from "@/modules/invoices/columns";
 import { invoiceInputSchema } from "@/modules/invoices/schemas";
-import { clientSnapshot, companySnapshot } from "@/modules/settings/documents";
+import {
+  clientSnapshot,
+  companySnapshot,
+  reminderRules,
+  reminderTemplates,
+} from "@/modules/settings/documents";
+import { periodAmount } from "@/modules/subscriptions/amounts";
+import { subscriptionInputSchema } from "@/modules/subscriptions/schemas";
 import { normalizeSearchText } from "@/domain/search";
 import { withComputedColumns } from "@/modules/clients/computed-columns";
 import { quoteColumns } from "@/modules/quotes/columns";
@@ -364,9 +374,18 @@ type DemoInvoice = {
   payments?: [daysAgo: number, amount: "all" | string, method: PaymentMethod][];
   draft?: boolean;
   cancelReason?: string;
+  /** Relances déjà envoyées (il y a n jours), dans l'ordre des niveaux. */
+  reminders?: number[];
 };
 
 const INVOICES: DemoInvoice[] = [
+  {
+    client: "Studio Yoga Soleil",
+    subject: "Cours en ligne : mise en place",
+    daysAgo: 75,
+    items: [["Modification sur demande", "2"]],
+    reminders: [20],
+  },
   {
     client: "Café Lumière",
     subject: "Formulaire de contact",
@@ -516,7 +535,7 @@ async function seedInvoices() {
         : demo.cancelReason
           ? "CANCELLED"
           : statusAfterPayments(columns.amountDueCents, paid);
-      await tx.invoice.create({
+      const invoice = await tx.invoice.create({
         data: {
           ...columns,
           ...issued,
@@ -533,16 +552,189 @@ async function seedInvoices() {
           payments: { create: payments },
         },
       });
+
+      // Relances déjà envoyées par email, avec leurs frais éventuels.
+      let feesCents = 0;
+      for (const [index, daysAgo] of (demo.reminders ?? []).entries()) {
+        const level = (index + 1) as ReminderLevel;
+        const date = addDays(todayIso(), -daysAgo);
+        const dueDate = addDays(date, settings.reminderPaymentDays);
+        const amounts = reminderAmounts(
+          { amountDueCents: columns.amountDueCents, feesCents, paidCents: paid },
+          level,
+          reminderRules(settings),
+        );
+        const template = reminderTemplates(settings)[`level${level}`][client.language];
+        await tx.reminder.create({
+          data: {
+            invoiceId: invoice.id,
+            level,
+            date: isoToDbDate(date),
+            dueDate: isoToDbDate(dueDate),
+            ...amounts,
+            channel: "EMAIL",
+            text: renderTemplate(template.text, {
+              client: client.contactName || client.displayName,
+              numero: invoice.number ?? "",
+              date: formatIsoDate(issueDate),
+              montant: formatChf(amounts.totalCents),
+              echeance: formatIsoDate(dueDate),
+              lien: "",
+              entreprise: settings.companyName.trim(),
+            }),
+            createdById: admin?.id,
+          },
+        });
+        feesCents += amounts.feeCents;
+      }
+      if (feesCents > 0) {
+        await tx.invoice.update({ where: { id: invoice.id }, data: { feesCents } });
+      }
     });
     created += 1;
   }
   console.log(`✓ ${created} factures de démonstration créées.`);
 }
 
+type DemoSubscription = {
+  client: string;
+  /** Abonnements du catalogue, tous de la même périodicité. */
+  items: string[];
+  monthsAgo: number;
+  /**
+   * Périodes commencées considérées comme déjà facturées (avant l'outil) ;
+   * sinon, la prochaine exécution des tâches quotidiennes les facture.
+   */
+  billed: boolean;
+  status?: "PAUSED" | "CANCELLED";
+};
+
+const SUBSCRIPTIONS: DemoSubscription[] = [
+  {
+    client: "Garage du Lac SA",
+    items: ["Hébergement + maintenance"],
+    monthsAgo: 5,
+    billed: true,
+  },
+  {
+    client: "Weinhandel Seeblick GmbH",
+    items: ["Hébergement + maintenance (annuel)", "Nom de domaine .ch"],
+    monthsAgo: 2,
+    billed: true,
+  },
+  {
+    client: "Atelier Nord Design",
+    items: ["Hébergement + maintenance"],
+    monthsAgo: 0,
+    billed: false,
+  },
+  {
+    client: "Café Lumière",
+    items: ["Nom de domaine .ch"],
+    monthsAgo: 14,
+    billed: true,
+    status: "PAUSED",
+  },
+  {
+    client: "Studio Yoga Soleil",
+    items: ["Hébergement + maintenance"],
+    monthsAgo: 8,
+    billed: true,
+    status: "CANCELLED",
+  },
+];
+
+async function seedSubscriptions() {
+  if ((await db.subscription.count()) > 0) {
+    console.log("Des abonnements existent déjà : aucun abonnement de démonstration ajouté.");
+    return;
+  }
+  const settings = await db.settings.findUniqueOrThrow({ where: { id: 1 } });
+  const admin = await db.user.findFirst({
+    where: { role: "ADMIN" },
+    orderBy: { createdAt: "asc" },
+  });
+  const catalog = await db.catalogItem.findMany({ where: { lineType: "SUBSCRIPTION" } });
+  const vatRate = settings.vatEnabled ? (settings.vatRates[0] ?? null) : null;
+  const today = todayIso();
+  let created = 0;
+
+  for (const demo of SUBSCRIPTIONS) {
+    const client = await db.client.findFirst({ where: { displayName: demo.client } });
+    const items = demo.items.flatMap((name) => catalog.filter((c) => c.name === name));
+    if (!client || items.length !== demo.items.length) continue;
+    const periodicity = items[0]!.periodicity ?? "MONTHLY";
+    const startDate = addMonths(today, -demo.monthsAgo);
+    const data = subscriptionInputSchema.parse({
+      clientId: client.id,
+      label: items.map((item) => (client.language === "DE" && item.nameDe) || item.name).join(", "),
+      periodicity,
+      startDate,
+      language: client.language,
+      notes: "",
+      items: items.map((item) => {
+        const line = lineFromCatalog(item, client.language, vatRate);
+        return {
+          catalogItemId: item.id,
+          label: line.label,
+          description: line.description,
+          quantity: "1",
+          unitPrice: line.unitPrice,
+          discountType: "PERCENT",
+          discountValue: "",
+          vatRateBps: line.vatRateBps,
+        };
+      }),
+    });
+    const rows = data.items.map((item, position) => ({
+      position,
+      catalogItemId: item.catalogItemId,
+      label: item.label,
+      description: item.description,
+      quantityMilli: item.quantityMilli,
+      unitPriceCents: item.unitPriceCents,
+      discountType: item.discount?.type ?? null,
+      discountValue: item.discount?.value ?? 0,
+      vatRateBps: item.vatRateBps,
+    }));
+    // En pause depuis 20 jours, résilié il y a 15 jours : facturé jusque-là.
+    const pausedOn = addDays(today, -20);
+    const endDate = addDays(today, -15);
+    const billedUntil =
+      demo.status === "PAUSED" ? pausedOn : demo.status === "CANCELLED" ? endDate : today;
+    const billedPeriods = demo.billed
+      ? duePeriods({ startDate, periodicity, billedPeriods: 0 }, billedUntil, 1_000).length
+      : 0;
+    await db.subscription.create({
+      data: {
+        clientId: client.id,
+        label: data.label,
+        periodicity,
+        language: data.language,
+        notes: "",
+        status: demo.status ?? "ACTIVE",
+        startDate: isoToDbDate(startDate),
+        billedPeriods,
+        nextBillingDate: isoToDbDate(periodStart(startDate, periodicity, billedPeriods)),
+        pausedAt: demo.status === "PAUSED" ? new Date(`${pausedOn}T09:00:00Z`) : null,
+        endDate: demo.status === "CANCELLED" ? isoToDbDate(endDate) : null,
+        amountCents: periodAmount(rows),
+        searchText: normalizeSearchText(`${data.label} ${client.displayName}`),
+        createdById: admin?.id,
+        updatedById: admin?.id,
+        items: { create: rows },
+      },
+    });
+    created += 1;
+  }
+  console.log(`✓ ${created} abonnements de démonstration créés.`);
+}
+
 async function main() {
   await seedClients();
   await seedQuotes();
   await seedInvoices();
+  await seedSubscriptions();
 }
 
 main()

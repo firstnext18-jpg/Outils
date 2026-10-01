@@ -6,6 +6,9 @@ export const ADMIN = {
   password: "Admin-E2E-Password",
 };
 
+/** Secret de la route des tâches quotidiennes (appelée par le conteneur cron). */
+export const CRON_SECRET = "e2e-cron-secret-0123456789abcdef0123456789";
+
 const MAILPIT_URL = process.env.MAILPIT_URL ?? "http://localhost:8025";
 
 type MailpitSummary = { ID: string; Subject: string };

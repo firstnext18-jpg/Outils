@@ -56,6 +56,24 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # Tâches quotidiennes (devis expirés, factures d'abonnement, relances) :
+  # appelle l'application chaque matin à CRON_TIME. Même image que l'application.
+  cron:
+    image: devra-gestion:latest
+    restart: unless-stopped
+    command: ["node", "docker/cron/scheduler.mjs"]
+    # Le contrôle de santé de l'image vérifie le serveur web, absent de ce conteneur.
+    healthcheck:
+      disable: true
+    environment:
+      TZ: Europe/Zurich
+      CRON_URL: http://app:3000/api/taches/quotidiennes
+      CRON_SECRET: ${CRON_SECRET:?CRON_SECRET manquant dans .env}
+      CRON_TIME: ${CRON_TIME:-06:00}
+    depends_on:
+      app:
+        condition: service_started
+
 volumes:
   db-data:
   app-data:

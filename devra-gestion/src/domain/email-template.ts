@@ -5,7 +5,8 @@
  *   {client}     nom du client (personne de contact pour une entreprise, si renseignée)
  *   {numero}     numéro du document
  *   {montant}    montant (devis : total ; facture : montant à payer)
- *   {echeance}   date (devis : fin de validité ; facture : échéance)
+ *   {echeance}   date (devis : fin de validité ; facture : échéance ; relance : nouveau délai)
+ *   {date}       date du document (devis, facture)
  *   {lien}       lien d'acceptation en ligne du devis (option de la phase 9 ; vide sinon)
  *   {entreprise} nom de l'entreprise (Paramètres → Entreprise)
  */
@@ -15,6 +16,7 @@ export const EMAIL_VARIABLES = [
   "numero",
   "montant",
   "echeance",
+  "date",
   "lien",
   "entreprise",
 ] as const;
@@ -24,8 +26,10 @@ export type EmailValues = Partial<Record<EmailVariable, string>>;
 export const EMAIL_VARIABLE_DESCRIPTIONS: Record<EmailVariable, string> = {
   client: "nom du client (personne de contact pour une entreprise, si renseignée)",
   numero: "numéro du devis ou de la facture",
-  montant: "montant du devis, ou montant à payer de la facture",
-  echeance: "fin de validité du devis, ou échéance de la facture",
+  montant:
+    "montant du devis, montant de la facture, ou montant à payer d'une relance (frais compris)",
+  echeance: "fin de validité du devis, échéance de la facture, ou nouveau délai d'une relance",
+  date: "date du devis ou de la facture",
   lien: "lien d'acceptation en ligne du devis (vide tant que l'option n'est pas activée)",
   entreprise: "nom de l'entreprise",
 };

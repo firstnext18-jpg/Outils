@@ -4,7 +4,8 @@ import { parseRecipients } from "@/domain/email-template";
 /** Envoi d'un devis ou d'une facture par email (valeurs du formulaire d'envoi). */
 export const sendEmailSchema = z
   .object({
-    kind: z.enum(["quote", "invoice"]),
+    /** Relance : `id` est celui de la facture relancée. */
+    kind: z.enum(["quote", "invoice", "reminder"]),
     id: z.uuid("Identifiant invalide"),
     /** Facture en brouillon : version lue, pour l'émission. */
     version: z.number().int().nonnegative().optional(),

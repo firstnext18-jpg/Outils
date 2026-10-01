@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FilePlusIcon, ReceiptTextIcon, SearchXIcon } from "lucide-react";
+import { BellRingIcon, FilePlusIcon, ReceiptTextIcon, SearchXIcon } from "lucide-react";
 import Link from "next/link";
 import { InvoicesToolbar } from "@/app/(app)/factures/invoices-toolbar";
 import { InvoicesList } from "@/components/documents/invoices-list";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { canEdit } from "@/domain/roles";
 import { invoiceListParamsSchema } from "@/modules/invoices/schemas";
 import { countAllInvoices, listInvoices } from "@/modules/invoices/service";
+import { reminderProposals } from "@/modules/reminders/service";
 import { requireUser } from "@/server/session";
 
 export const metadata: Metadata = { title: "Factures" };
@@ -17,14 +18,27 @@ export const metadata: Metadata = { title: "Factures" };
 export default async function InvoicesPage({ searchParams }: PageProps<"/factures">) {
   const user = await requireUser();
   const params = invoiceListParamsSchema.parse(await searchParams);
-  const [{ invoices, total, page, pageCount }, allCount] = await Promise.all([
+  const [{ invoices, total, page, pageCount }, allCount, reminders] = await Promise.all([
     listInvoices(params),
     countAllInvoices(),
+    reminderProposals(),
   ]);
   const newButton = canEdit(user.role) && (
     <Button asChild>
       <Link href="/factures/nouvelle">
         <FilePlusIcon /> Nouvelle facture
+      </Link>
+    </Button>
+  );
+  const remindersButton = (
+    <Button asChild variant="outline">
+      <Link href="/factures/relances">
+        <BellRingIcon /> Relances à envoyer
+        {reminders.length > 0 && (
+          <span className="bg-destructive ml-1 rounded-full px-1.5 text-xs text-white tabular-nums">
+            {reminders.length}
+          </span>
+        )}
       </Link>
     </Button>
   );
@@ -48,7 +62,12 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/facture
       <PageHeader
         title="Factures"
         description={`${total} facture${total > 1 ? "s" : ""}`}
-        actions={newButton}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {remindersButton}
+            {newButton}
+          </div>
+        }
       />
       <InvoicesToolbar />
       {invoices.length > 0 ? (

@@ -137,7 +137,9 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
         </div>
 
         <div className="space-y-6">
-          {(quote.status === "ACCEPTED" || invoices.length > 0) && (
+          {(quote.status === "ACCEPTED" ||
+            invoices.length > 0 ||
+            quote.subscriptions.length > 0) && (
             <QuoteBilling
               quote={{
                 id: quote.id,
@@ -157,6 +159,7 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
                 displayStatus: displayStatus(invoice.status, dbDateToIso(invoice.dueDate), today),
                 amountDueCents: invoice.amountDueCents,
               }))}
+              subscriptions={quote.subscriptions}
               canEdit={canEdit(user.role)}
             />
           )}

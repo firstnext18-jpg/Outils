@@ -9,6 +9,8 @@ const SECTIONS = [
   { href: "/parametres/documents", label: "Documents" },
   { href: "/parametres/facturation", label: "Facturation" },
   { href: "/parametres/emails", label: "Emails" },
+  { href: "/parametres/relances", label: "Relances" },
+  { href: "/parametres/taches", label: "Tâches" },
   { href: "/parametres/types-de-sites", label: "Types de sites" },
   { href: "/parametres/utilisateurs", label: "Utilisateurs" },
 ];

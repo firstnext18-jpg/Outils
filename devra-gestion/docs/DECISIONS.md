@@ -152,8 +152,8 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   devis supprimé n'est pas réattribué. Le « prochain numéro » réglable dans les paramètres ne peut
   qu'avancer.
 - **Statuts** : brouillon → envoyé → accepté / refusé ; un devis envoyé dont la validité est
-  dépassée devient « expiré » (vérifié à l'affichage des devis en attendant la tâche planifiée de
-  la phase 7). Acceptation et refus peuvent être annulés (retour à « envoyé »), un devis expiré
+  dépassée devient « expiré » (vérifié à l'affichage des devis et chaque matin par les tâches
+  quotidiennes). Acceptation et refus peuvent être annulés (retour à « envoyé »), un devis expiré
   peut encore être accepté. **Seul un brouillon se modifie ou se supprime** : pour corriger un
   devis envoyé, on le repasse en brouillon (c'est tracé dans l'historique).
 - **« Marquer comme envoyé » en attendant les emails** (phase 6) : le devis est alors considéré
@@ -273,6 +273,93 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
 - **Tests** : les emails reçus sont vérifiés dans Mailpit (objet, texte, pièce jointe, copie,
   Reply-To). Le mode « chaos » de Mailpit (activé dans `compose.dev.yaml`) simule un refus du
   serveur SMTP pour tester le cas d'échec.
+
+## Relances et abonnements (phase 7)
+
+### Relances
+
+- **Trois niveaux** : 1er rappel, 2e rappel, mise en demeure. Délais réglables (par défaut 10 jours
+  après l'échéance, puis 15 jours après la relance précédente), frais par niveau (0 par défaut,
+  CHF 1'000.00 au plus) et nouveau délai de paiement accordé (10 jours par défaut), dans
+  Paramètres → Relances. Chaque niveau n'est enregistré qu'une fois par facture (contrainte
+  d'unicité, et niveau revérifié sous verrou de la facture).
+- **Mode manuel par défaut** : la page « Relances à envoyer » propose les relances dont le délai
+  est atteint ; on les envoie par email ou on les enregistre pour un envoi par courrier (le PDF
+  s'ouvre pour être imprimé). **Mode automatique** : les tâches quotidiennes envoient les
+  relances dues par email ; les clients sans adresse email restent dans la liste. Depuis la fiche
+  d'une facture en retard, la relance suivante peut aussi être envoyée avant son terme.
+- **Montant** : solde de la facture (montant dû − paiements + frais déjà facturés) + frais du
+  niveau. Les frais sont ajoutés à la facture (`feesCents`) : ils font partie du solde, du montant
+  à payer et des totaux du client. La facture garde son échéance initiale (elle reste « en
+  retard ») ; le nouveau délai figure sur la relance.
+- **Un seul texte** par niveau et par langue : il sert de corps à l'email et de lettre sur le
+  PDF. Modifié dans la fenêtre d'envoi, il est enregistré avec la relance (le PDF peut ainsi être
+  régénéré à l'identique). Variable ajoutée : `{date}` (date de la facture).
+- **PDF de la relance** : lettre, récapitulatif (facture, déjà payé, frais), puis **QR-facture du
+  montant à payer avec le compte et la référence de la facture** : le paiement est reconnu comme
+  celui de la facture. Archivé dans `DATA_DIR/documents/reminders/`.
+- **Une relance par email n'est enregistrée que si l'envoi réussit** : en cas d'échec, l'erreur
+  figure dans l'historique des emails et la relance reste à envoyer.
+
+### Abonnements
+
+- **Création** depuis un devis accepté (« Créer l'abonnement », avec une date de début) : **un
+  abonnement par périodicité**, car une facture périodique ne peut pas mélanger mois et années.
+  Les lignes sont copiées ; devis et abonnement sont liés. Ou saisie directe (Abonnements →
+  Nouvel abonnement).
+- **Périodes ancrées sur la date de début** : la période n commence à début + n × 1, 3 ou 12 mois.
+  Un 31 devient le dernier jour des mois plus courts, sans dérive (31.01 → 28.02 → 31.03). La
+  facture est générée **le premier jour de la période** (facturation à l'avance, l'usage pour un
+  hébergement).
+- **Rattrapage** : les périodes commencées et pas encore facturées (serveur arrêté quelques jours)
+  le sont à la prochaine exécution, 12 au plus à la fois. **Jamais deux fois** : contrainte
+  d'unicité (abonnement, début de période) sur les factures et compteur de périodes facturées
+  avancé sous condition, dans la même transaction que la création de la facture.
+- **Pause** : rien n'est facturé pendant la pause ; à la reprise, les périodes commencées pendant
+  la pause sont sautées et la facturation reprend avec la première période qui commence ce
+  jour-là ou après. **Résiliation** : immédiate et définitive ; les factures déjà générées restent.
+  **Suppression** : seulement si l'abonnement n'a jamais été facturé.
+- **Modification** : prestations, libellé, langue et notes à tout moment (pour les prochaines
+  factures) ; date de début et périodicité verrouillées après la première facture (elles
+  définissent les périodes déjà facturées).
+- **Factures d'abonnement** : type « Facture d'abonnement », période indiquée sur la fiche et le
+  PDF, date du jour de génération, délai de paiement et TVA des paramètres de ce jour-là.
+  **En brouillon par défaut**, pour les vérifier avant l'envoi ; avec l'option « Envoyer
+  directement les factures d'abonnement » (Paramètres → Relances), elles sont émises puis
+  envoyées par email si le client a une adresse (sinon elles restent en brouillon). Elles sont
+  numérotées à l'émission, comme toutes les factures (pas de trou).
+- **Revenu récurrent** : hors TVA, abonnements actifs uniquement. MRR = mensuels + trimestriels ÷ 3
+  \+ annuels ÷ 12 (arrondi au centime) ; revenu annuel = somme exacte des montants annualisés.
+
+### Tâches quotidiennes
+
+- **Une seule fonction** (`runDailyTasks`) enchaîne : devis expirés, factures d'abonnement,
+  relances (envoi en mode automatique, comptage en mode manuel). Chaque étape est indépendante :
+  l'échec de l'une n'empêche pas les autres. Chaque exécution est enregistrée (table `task_run`)
+  et visible dans Paramètres → Tâches, avec un bouton « Lancer maintenant » (admin).
+- **Sans risque si elle est relancée** : chaque étape ne fait que ce qui reste à faire (statut des
+  devis, unicité des périodes, niveau des relances). Une exécution déjà en cours (depuis moins
+  de 30 minutes) refuse d'en démarrer une seconde.
+- **Planification : un conteneur `cron`** (même image, petit script Node sans dépendance,
+  `docker/cron/scheduler.mjs`) appelle `POST /api/taches/quotidiennes` chaque jour à
+  `CRON_TIME` (heure de Zurich, 06:00 par défaut) et à son démarrage (rattrapage si le Raspberry Pi
+  était éteint le matin). Si l'application ne répond pas, il réessaie chaque minute (10 fois).
+  Plutôt qu'un minuteur dans le serveur Next.js (rien ne garantit qu'il tourne en continu, et il
+  tournerait dans chaque instance) ou que la crontab de la machine (hors de Docker, moins visible) :
+  la logique reste dans l'application (Prisma, emails, PDF), le conteneur ne fait que la
+  déclencher, et ses journaux sont dans `docker compose logs cron`.
+- **Route protégée par `CRON_SECRET`** (32 caractères au moins, comparé en temps constant) dans
+  l'en-tête `Authorization: Bearer …`. Sans secret configuré, la route est désactivée (503). Elle
+  répond 409 si une exécution est en cours, 500 si une tâche a échoué (le conteneur réessaie).
+
+### Base de données
+
+- Nouvelles tables `reminder`, `subscription`, `subscription_item` et `task_run` ; colonnes
+  `feesCents`, `subscriptionId`, `periodStart` / `periodEnd` sur les factures.
+- `prisma migrate dev` refuse de créer, sans terminal interactif, une migration qui ajoute une
+  contrainte d'unicité (avertissement à confirmer). La migration est alors générée avec
+  `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`, puis
+  appliquée avec `prisma migrate deploy`.
 
 ## Interface
 
