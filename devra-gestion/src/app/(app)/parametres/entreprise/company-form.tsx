@@ -132,6 +132,15 @@ export function CompanyForm({ defaultValues }: { defaultValues: CompanySettingsI
             placeholder="CH00 3000 0000 0000 0000 0"
             autoComplete="off"
           />
+          <TextField
+            control={control}
+            name="qrReferencePrefix"
+            label="Préfixe des références QRR (facultatif)"
+            description="Seulement si la banque du QR-IBAN l'impose (identifiant client, chiffres)."
+            inputMode="numeric"
+            autoComplete="off"
+            className="sm:col-start-2"
+          />
         </div>
 
         <div className="flex justify-end">

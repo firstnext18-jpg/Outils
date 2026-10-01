@@ -25,6 +25,9 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     restart: unless-stopped
+    environment:
+      # Permet aux tests de simuler un refus du serveur SMTP (API /api/v1/chaos).
+      MP_ENABLE_CHAOS: "true"
     ports:
       - "127.0.0.1:1025:1025"
       - "127.0.0.1:8025:8025"

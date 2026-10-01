@@ -6,10 +6,17 @@ import { cn } from "@/lib/utils";
 
 const SECTIONS = [
   { href: "/parametres/entreprise", label: "Entreprise" },
+  { href: "/parametres/documents", label: "Documents" },
+  { href: "/parametres/facturation", label: "Facturation" },
+  { href: "/parametres/emails", label: "Emails" },
+  { href: "/parametres/relances", label: "Relances" },
+  { href: "/parametres/taches", label: "Tâches" },
+  { href: "/parametres/types-de-sites", label: "Types de sites" },
   { href: "/parametres/utilisateurs", label: "Utilisateurs" },
+  { href: "/parametres/journal", label: "Journal" },
 ];
 
-/** Onglets des paramètres (d'autres sections s'ajouteront au fil des phases). */
+/** Onglets des paramètres. */
 export function SettingsNav() {
   const pathname = usePathname();
   return (

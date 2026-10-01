@@ -4,6 +4,9 @@
  *   - crée le premier administrateur à partir de ADMIN_NAME / ADMIN_EMAIL /
  *     ADMIN_PASSWORD, uniquement si la base ne contient encore aucun utilisateur.
  *
+ * Les données par défaut (types de sites, exemples du catalogue) sont créées
+ * par les migrations, qui ne s'exécutent qu'une fois par base.
+ *
  * Lancement : `npm run db:seed` (ou automatiquement par le conteneur `migrate`).
  */
 import "dotenv/config";

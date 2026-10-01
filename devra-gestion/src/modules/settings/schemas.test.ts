@@ -13,6 +13,7 @@ const base: CompanySettingsInput = {
   companyWebsite: "",
   iban: "",
   qrIban: "",
+  qrReferencePrefix: "",
 };
 
 describe("companySettingsSchema", () => {
@@ -45,5 +46,18 @@ describe("companySettingsSchema", () => {
     expect(companySettingsSchema.safeParse({ ...base, companyCity: "x".repeat(36) }).success).toBe(
       false,
     );
+  });
+
+  it("n'accepte que des chiffres comme préfixe de référence QRR", () => {
+    expect(
+      companySettingsSchema.safeParse({ ...base, qrReferencePrefix: " 123456 " }).data
+        ?.qrReferencePrefix,
+    ).toBe("123456");
+    expect(companySettingsSchema.safeParse({ ...base, qrReferencePrefix: "12A" }).success).toBe(
+      false,
+    );
+    expect(
+      companySettingsSchema.safeParse({ ...base, qrReferencePrefix: "12345678901" }).success,
+    ).toBe(false);
   });
 });

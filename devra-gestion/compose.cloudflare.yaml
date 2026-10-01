@@ -1,0 +1,16 @@
+# Option HTTPS « Cloudflare Tunnel » (recommandée) : aucun port à ouvrir sur la
+# box. Le tunnel relie gestion.devra.ch (HTTPS chez Cloudflare) à l'application.
+#   .env : COMPOSE_FILE=compose.yaml:compose.cloudflare.yaml,
+#          CLOUDFLARE_TUNNEL_TOKEN, AUTH_IP_HEADER=cf-connecting-ip
+# Dans Cloudflare, la « Public Hostname » du tunnel pointe vers http://app:3000.
+# Voir docs/DEPLOIEMENT_RASPBERRY_PI.md.
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN manquant dans .env}
+    depends_on:
+      app:
+        condition: service_started

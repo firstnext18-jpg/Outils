@@ -2,6 +2,7 @@ import "server-only";
 import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { hasRole, type Role } from "@/domain/roles";
+import { UserError } from "@/lib/errors";
 import { getCurrentUser, type CurrentUser } from "@/server/session";
 
 /** Résultat renvoyé au navigateur par toutes les actions serveur. */
@@ -9,11 +10,7 @@ export type ActionResult<T = null> =
   | { ok: true; data: T }
   | { ok: false; error: string; fieldErrors?: Record<string, string[] | undefined> };
 
-/**
- * Erreur « métier » dont le message peut être montré tel quel à l'utilisateur
- * (ex. « Un utilisateur avec cet email existe déjà. »).
- */
-export class UserError extends Error {}
+export { UserError };
 
 const GENERIC_ERROR =
   "Une erreur inattendue est survenue. Réessayez ou contactez un administrateur.";
@@ -51,6 +48,20 @@ export function publicAction<S extends z.ZodType, R>(
   return async (input) => run(config.schema, input, handler);
 }
 
+/**
+ * Regroupe les erreurs Zod par champ. Les champs imbriqués sont notés avec des
+ * points (« client.lastName ») pour pouvoir être affichés sous le bon champ.
+ */
+function collectErrors(error: z.ZodError) {
+  const formErrors: string[] = [];
+  const fieldErrors: Record<string, string[]> = {};
+  for (const issue of error.issues) {
+    if (issue.path.length === 0) formErrors.push(issue.message);
+    else (fieldErrors[issue.path.join(".")] ??= []).push(issue.message);
+  }
+  return { formErrors, fieldErrors };
+}
+
 async function run<S extends z.ZodType, R>(
   schema: S,
   input: unknown,
@@ -58,11 +69,11 @@ async function run<S extends z.ZodType, R>(
 ): Promise<ActionResult<R>> {
   const parsed = schema.safeParse(input);
   if (!parsed.success) {
-    const flattened = z.flattenError(parsed.error);
+    const { formErrors, fieldErrors } = collectErrors(parsed.error);
     return {
       ok: false,
-      error: flattened.formErrors[0] ?? "Certaines informations sont invalides.",
-      fieldErrors: flattened.fieldErrors as Record<string, string[] | undefined>,
+      error: formErrors[0] ?? "Certaines informations sont invalides.",
+      fieldErrors,
     };
   }
   try {
