@@ -33,8 +33,32 @@ export type ActivityAction =
   | "quote.updated"
   | "quote.status_changed"
   | "quote.deleted"
+  | "invoice.created"
+  | "invoice.duplicated"
+  | "invoice.updated"
+  | "invoice.deleted"
+  | "invoice.issued"
+  | "invoice.cancelled"
+  | "payment.recorded"
+  | "payment.deleted"
   | "settings.documents_updated"
-  | "settings.billing_updated";
+  | "settings.emails_updated"
+  | "settings.reminders_updated"
+  | "invoice.reminded"
+  | "subscription.created"
+  | "subscription.updated"
+  | "subscription.paused"
+  | "subscription.resumed"
+  | "subscription.cancelled"
+  | "subscription.deleted"
+  | "subscription.invoiced"
+  | "quote.emailed"
+  | "invoice.emailed"
+  | "settings.billing_updated"
+  | "export.accounting"
+  | "export.pdfs"
+  | "quote.accepted_online"
+  | "quote.refused_online";
 
 export type ActivityEntry = {
   userId: string | null;

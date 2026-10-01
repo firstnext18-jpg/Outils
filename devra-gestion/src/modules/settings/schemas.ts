@@ -1,7 +1,10 @@
 import { z } from "zod";
+import { unknownVariables } from "@/domain/email-template";
 import { isQrIban, isValidSwissIban, normalizeIban } from "@/domain/iban";
+import { parseChfInput } from "@/domain/money";
 import { validateNumberFormat } from "@/domain/numbering";
 import { parsePercent } from "@/domain/percent";
+import { isValidQrrPrefix, MAX_QRR_PREFIX_LENGTH } from "@/domain/qr-reference";
 
 // Longueurs maximales alignées sur la QR-facture (normes SIX).
 const optionalText = (max: number) => z.string().trim().max(max, `${max} caractères maximum`);
@@ -46,6 +49,10 @@ export const companySettingsSchema = z.object({
       "IBAN suisse invalide (CH ou LI, 21 caractères)",
     )
     .refine((v) => v === "" || isQrIban(v), "Ce n'est pas un QR-IBAN (IID entre 30000 et 31999)"),
+  qrReferencePrefix: z
+    .string()
+    .trim()
+    .refine(isValidQrrPrefix, `Chiffres uniquement, ${MAX_QRR_PREFIX_LENGTH} au maximum`),
 });
 
 export type CompanySettingsInput = z.input<typeof companySettingsSchema>;
@@ -63,10 +70,47 @@ export const documentTextsSchema = z.object({
   quoteIntroDe: optionalText(5000),
   quoteConditionsFr: optionalText(5000),
   quoteConditionsDe: optionalText(5000),
+  invoiceIntroFr: optionalText(5000),
+  invoiceIntroDe: optionalText(5000),
+  invoiceConditionsFr: optionalText(5000),
+  invoiceConditionsDe: optionalText(5000),
   documentFooterFr: optionalText(300),
   documentFooterDe: optionalText(300),
 });
 export type DocumentTextsInput = z.input<typeof documentTextsSchema>;
+
+// ---------------------------------------------------------------------------
+// Modèles d'emails
+// ---------------------------------------------------------------------------
+
+/** Texte d'un modèle : obligatoire, sans variable inconnue (faute de frappe). */
+const templateText = (max: number, label: string) =>
+  z
+    .string()
+    .trim()
+    .min(1, `${label} est obligatoire`)
+    .max(max, `${max} caractères maximum`)
+    .superRefine((value, ctx) => {
+      const unknown = unknownVariables(value);
+      if (unknown.length > 0) {
+        ctx.addIssue({
+          code: "custom",
+          message: `Variable inconnue : ${unknown.map((v) => `{${v}}`).join(", ")}`,
+        });
+      }
+    });
+
+export const emailTemplatesSchema = z.object({
+  quoteEmailSubjectFr: templateText(200, "L'objet"),
+  quoteEmailSubjectDe: templateText(200, "L'objet"),
+  quoteEmailBodyFr: templateText(5000, "Le message"),
+  quoteEmailBodyDe: templateText(5000, "Le message"),
+  invoiceEmailSubjectFr: templateText(200, "L'objet"),
+  invoiceEmailSubjectDe: templateText(200, "L'objet"),
+  invoiceEmailBodyFr: templateText(5000, "Le message"),
+  invoiceEmailBodyDe: templateText(5000, "Le message"),
+});
+export type EmailTemplatesInput = z.input<typeof emailTemplatesSchema>;
 
 // ---------------------------------------------------------------------------
 // Facturation : numérotation, délais, TVA
@@ -104,6 +148,7 @@ export const billingSettingsSchema = z
     nextInvoiceNumber: nextNumberSchema,
     quoteValidityDays: daysSchema(1, "Validité"),
     paymentTermDays: daysSchema(0, "Délai de paiement"),
+    onlineAcceptance: z.boolean(),
     vatEnabled: z.boolean(),
     vatNumber: z.string().trim().max(40, "40 caractères maximum"),
     vatRates: z.array(z.string()).min(1, "Au moins un taux").max(5, "5 taux maximum"),
@@ -137,3 +182,44 @@ export const billingSettingsSchema = z
 
 export type BillingSettingsInput = z.input<typeof billingSettingsSchema>;
 export type BillingSettingsOutput = z.output<typeof billingSettingsSchema>;
+
+// ---------------------------------------------------------------------------
+// Relances et abonnements
+// ---------------------------------------------------------------------------
+
+/** Frais de relance saisis en CHF (vide ou 0 = sans frais), 1'000 CHF au maximum. */
+const feeSchema = z
+  .string()
+  .trim()
+  .superRefine((value, ctx) => {
+    const cents = value === "" ? 0 : parseChfInput(value);
+    if (cents === null || cents > 100_000) {
+      ctx.addIssue({ code: "custom", message: "Montant invalide (0 à 1'000 CHF)" });
+    }
+  })
+  .transform((value) => (value === "" ? 0 : (parseChfInput(value) ?? 0)));
+
+const reminderTemplate = z.object({
+  subject: templateText(200, "L'objet"),
+  text: templateText(5000, "Le texte"),
+});
+const reminderLevelTemplates = z.object({ FR: reminderTemplate, DE: reminderTemplate });
+
+export const reminderSettingsSchema = z.object({
+  reminderMode: z.enum(["MANUAL", "AUTOMATIC"]),
+  reminderDelay1: daysSchema(1, "Délai du 1er rappel"),
+  reminderDelay2: daysSchema(1, "Délai du 2e rappel"),
+  reminderDelay3: daysSchema(1, "Délai de la mise en demeure"),
+  reminderFee1Cents: feeSchema,
+  reminderFee2Cents: feeSchema,
+  reminderFee3Cents: feeSchema,
+  reminderPaymentDays: daysSchema(1, "Délai de paiement"),
+  reminderTemplates: z.object({
+    level1: reminderLevelTemplates,
+    level2: reminderLevelTemplates,
+    level3: reminderLevelTemplates,
+  }),
+  subscriptionAutoSend: z.boolean(),
+});
+export type ReminderSettingsInput = z.input<typeof reminderSettingsSchema>;
+export type ReminderSettingsOutput = z.output<typeof reminderSettingsSchema>;

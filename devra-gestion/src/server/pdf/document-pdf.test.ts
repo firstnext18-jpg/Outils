@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildQrBillData, paymentSetup } from "@/domain/qr-bill";
 import { computeTotals } from "@/domain/totals";
 import { renderDocumentPdf, type PdfDocumentData, type PdfLine } from "@/server/pdf/document-pdf";
 
@@ -28,7 +29,7 @@ function data(lines: PdfLine[], overrides: Partial<PdfDocumentData> = {}): PdfDo
   return {
     language: "FR",
     title: "Devis D-2026-001",
-    draft: false,
+    watermark: null,
     company,
     logo: null,
     recipient: {
@@ -81,8 +82,95 @@ describe("renderDocumentPdf", () => {
 
   it("fonctionne en allemand, en brouillon et avec un logo illisible", async () => {
     const pdf = await renderDocumentPdf(
-      data([line(1)], { language: "DE", draft: true, logo: Buffer.from("pas une image") }),
+      data([line(1)], { language: "DE", watermark: "ENTWURF", logo: Buffer.from("pas une image") }),
     );
     expect(pageCount(pdf)).toBe(1);
+  });
+});
+
+/**
+ * Texte d'un PDF non compressé : PDFKit écrit les chaînes en hexadécimal
+ * (codage WinAnsi) dans des tableaux TJ, découpées par le crénage.
+ */
+function pdfText(pdf: Buffer): string {
+  const arrays = pdf.toString("latin1").match(/\[([^\]]*)\] TJ/g) ?? [];
+  return arrays
+    .map((array) =>
+      (array.match(/<([0-9a-f]+)>/g) ?? [])
+        .map((hex) => Buffer.from(hex.slice(1, -1), "hex").toString("latin1"))
+        .join(""),
+    )
+    .join("\n");
+}
+
+const qrBill = buildQrBillData({
+  setup: paymentSetup(
+    { iban: "", qrIban: "CH4431999123000889012", qrReferencePrefix: "" },
+    { number: "F-2026-001", year: 2026, sequence: 1 },
+  )!,
+  creditor: company,
+  debtor: {
+    name: "Client Test",
+    street: "Rue",
+    streetNumber: "2",
+    postalCode: "1200",
+    city: "Genève",
+    country: "CH",
+  },
+  amountCents: 20_010,
+  message: "Facture F-2026-001",
+});
+
+const shortLine: PdfLine = { ...line(1), label: "Site vitrine", description: "" };
+
+describe("facture avec QR-facture", () => {
+  const invoice = (lines: PdfLine[], language: "FR" | "DE" = "FR") =>
+    data(lines, {
+      language,
+      title: "Facture F-2026-001",
+      deposit: null,
+      separateRecurring: false,
+      qrBill,
+      uncompressed: true,
+    });
+
+  it("place la section paiement en bas de l'unique page", async () => {
+    const pdf = await renderDocumentPdf(invoice([shortLine]));
+    expect(pageCount(pdf)).toBe(1);
+    const text = pdfText(pdf);
+    expect(text).toContain("Récépissé");
+    expect(text).toContain("Section paiement");
+    expect(text).toContain("Facture F-2026-001");
+    expect(text).toContain("CH44 3199 9123 0008 8901 2");
+  });
+
+  it("passe la section paiement sur une nouvelle page s'il manque de la place", async () => {
+    // Le plus grand nombre de lignes qui tient sur une page sans QR-facture…
+    let lines = [line(1)];
+    while (
+      pageCount(await renderDocumentPdf({ ...invoice([...lines, line(1)]), qrBill: null })) === 1
+    ) {
+      lines = [...lines, line(1)];
+    }
+    expect(pageCount(await renderDocumentPdf({ ...invoice(lines), qrBill: null }))).toBe(1);
+    // …laisse trop peu de place en bas de page : la QR-facture passe sur la page suivante.
+    expect(pageCount(await renderDocumentPdf(invoice(lines)))).toBe(2);
+  });
+
+  it("traduit la section paiement en allemand", async () => {
+    const text = pdfText(await renderDocumentPdf(invoice([shortLine], "DE")));
+    expect(text).toContain("Empfangsschein");
+    expect(text).toContain("Zahlteil");
+  });
+
+  it("affiche les acomptes déduits et le montant à payer", async () => {
+    const text = pdfText(
+      await renderDocumentPdf({
+        ...invoice([shortLine]),
+        deductions: [{ number: "F-2026-000", amountCents: 3_000 }],
+      }),
+    );
+    expect(text).toContain("Acompte facturé (F-2026-000)");
+    expect(text).toContain("Montant à payer");
   });
 });

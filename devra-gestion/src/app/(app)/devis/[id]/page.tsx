@@ -2,17 +2,24 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { QuoteActions } from "@/app/(app)/devis/[id]/quote-actions";
+import { QuoteBilling } from "@/app/(app)/devis/[id]/quote-billing";
 import { LinesTable } from "@/components/documents/lines-table";
 import { QuoteStatusBadge } from "@/components/documents/quote-status-badge";
+import { EmailHistoryCard } from "@/components/documents/email-history-card";
 import { TotalsSummary } from "@/components/documents/totals-summary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { describeActivity } from "@/domain/activity";
+import { activityActor, describeActivity } from "@/domain/activity";
 import { LANGUAGE_LABELS } from "@/domain/clients";
-import { dbDateToIso, formatIsoDate } from "@/domain/dates";
+import { dbDateToIso, formatIsoDate, todayIso } from "@/domain/dates";
+import { displayStatus } from "@/domain/invoice-status";
 import { canEdit } from "@/domain/roles";
-import { formatDateTime } from "@/lib/format";
+import { formatChf, formatDateTime } from "@/lib/format";
+import { listQuoteInvoices } from "@/modules/invoices/service";
 import { expireQuotes, getQuote, getQuoteActivity } from "@/modules/quotes/service";
-import { storedDocumentTotals } from "@/modules/quotes/totals";
+import { storedDocumentTotals } from "@/modules/documents/lines";
+import { listEmailLogs, quoteEmailDraft } from "@/modules/emails/service";
+import { getSettings } from "@/modules/settings/service";
+import { quotePdfFileName } from "@/server/pdf/quote-pdf";
 import { requireUser } from "@/server/session";
 
 export async function generateMetadata({ params }: PageProps<"/devis/[id]">): Promise<Metadata> {
@@ -24,9 +31,16 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
   const user = await requireUser();
   const { id } = await params;
   await expireQuotes();
-  const [quote, activity] = await Promise.all([getQuote(id), getQuoteActivity(id)]);
+  const [quote, activity, invoices, emails, settings] = await Promise.all([
+    getQuote(id),
+    getQuoteActivity(id),
+    listQuoteInvoices(id),
+    listEmailLogs({ quoteId: id }),
+    getSettings(),
+  ]);
   if (!quote) notFound();
   const { totals, globalDiscount, deposit } = storedDocumentTotals(quote);
+  const today = todayIso();
 
   return (
     <>
@@ -52,6 +66,20 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
         <QuoteActions
           quote={{ id: quote.id, number: quote.number, status: quote.status }}
           canEdit={canEdit(user.role)}
+          email={{
+            draft: quoteEmailDraft(quote, settings),
+            attachment: quotePdfFileName(quote, settings),
+            note:
+              [
+                quote.status === "DRAFT" &&
+                  "Après l'envoi, le devis passe au statut « envoyé » et ne peut plus être modifié (sauf en le repassant en brouillon).",
+                settings.onlineAcceptance &&
+                  "{lien} sera remplacé à l'envoi par le lien d'acceptation en ligne.",
+              ]
+                .filter(Boolean)
+                .join(" ") || undefined,
+            senderEmail: user.email,
+          }}
         />
       </div>
 
@@ -90,6 +118,7 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
               </CardContent>
             </Card>
           )}
+          <EmailHistoryCard logs={emails} />
           <Card>
             <CardHeader>
               <CardTitle>Historique</CardTitle>
@@ -102,7 +131,9 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
                       {formatDateTime(entry.createdAt)}
                     </time>
                     <span>
-                      <span className="font-medium">{entry.user?.name ?? "Système"}</span>{" "}
+                      <span className="font-medium">
+                        {activityActor(entry.user, entry.details)}
+                      </span>{" "}
                       {describeActivity(entry.action, entry.details)}
                     </span>
                   </li>
@@ -113,6 +144,32 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
         </div>
 
         <div className="space-y-6">
+          {(quote.status === "ACCEPTED" ||
+            invoices.length > 0 ||
+            quote.subscriptions.length > 0) && (
+            <QuoteBilling
+              quote={{
+                id: quote.id,
+                status: quote.status,
+                depositCents: quote.depositCents,
+                hasOneTimeLines: quote.lines.some((line) => line.lineType !== "SUBSCRIPTION"),
+                recurring: totals.recurring.map(
+                  (r) =>
+                    `${formatChf(r.totalCents)} / ${{ MONTHLY: "mois", QUARTERLY: "trimestre", YEARLY: "an" }[r.periodicity]}`,
+                ),
+              }}
+              invoices={invoices.map((invoice) => ({
+                id: invoice.id,
+                number: invoice.number,
+                type: invoice.type,
+                status: invoice.status,
+                displayStatus: displayStatus(invoice.status, dbDateToIso(invoice.dueDate), today),
+                amountDueCents: invoice.amountDueCents,
+              }))}
+              subscriptions={quote.subscriptions}
+              canEdit={canEdit(user.role)}
+            />
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Montants</CardTitle>
@@ -148,6 +205,24 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
                   <>
                     <dt className="text-muted-foreground">Envoyé le</dt>
                     <dd>{formatDateTime(quote.sentAt)}</dd>
+                  </>
+                )}
+                {quote.decidedOnline && quote.decidedAt && (
+                  <>
+                    <dt className="text-muted-foreground">
+                      {quote.status === "ACCEPTED" ? "Accepté en ligne" : "Refusé en ligne"}
+                    </dt>
+                    <dd>
+                      {formatDateTime(quote.decidedAt)} par {quote.decisionName}
+                      <span className="text-muted-foreground block text-xs">
+                        Adresse IP : {quote.decisionIp || "inconnue"}
+                      </span>
+                      {quote.decisionComment && (
+                        <span className="block whitespace-pre-wrap">
+                          « {quote.decisionComment} »
+                        </span>
+                      )}
+                    </dd>
                   </>
                 )}
                 <dt className="text-muted-foreground">Créé par</dt>

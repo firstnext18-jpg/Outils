@@ -1,10 +1,9 @@
 import "server-only";
 import { db } from "@/server/db";
-import { quoteEditorSettings } from "@/modules/settings/documents";
 import { getSettings } from "@/modules/settings/service";
 
-/** Données nécessaires à l'éditeur : réglages, catalogue actif, types de sites. */
-export async function loadQuoteEditorData(currentSiteTypeId: string | null = null) {
+/** Données nécessaires aux éditeurs de devis et de factures : réglages, catalogue actif, types de sites. */
+export async function loadDocumentEditorData(currentSiteTypeId: string | null = null) {
   const [settings, catalog, siteTypes] = await Promise.all([
     getSettings(),
     db.catalogItem.findMany({
@@ -29,5 +28,5 @@ export async function loadQuoteEditorData(currentSiteTypeId: string | null = nul
       select: { id: true, name: true },
     }),
   ]);
-  return { settings, editorSettings: quoteEditorSettings(settings), catalog, siteTypes };
+  return { settings, catalog, siteTypes };
 }

@@ -1,93 +1,11 @@
 import { z } from "zod";
-import { allowedUnits, LINE_TYPES, PERIODICITIES } from "@/domain/catalog";
 import { isValidIsoDate } from "@/domain/dates";
-import { MAX_UNIT_PRICE_CENTS, parseChfInput } from "@/domain/money";
-import { parsePercent } from "@/domain/percent";
-import { MAX_QUANTITY_MILLI, parseQuantity } from "@/domain/quantity";
-import type { Discount } from "@/domain/totals";
-import { UNITS } from "@/domain/units";
-
-export const DISCOUNT_TYPES = ["PERCENT", "AMOUNT"] as const;
-
-const text = (max: number) => z.string().trim().max(max, `${max} caractères maximum`);
-
-/**
- * Remise saisie (type + valeur texte) → remise calculable. Valeur vide = pas
- * de remise. Renvoie un message d'erreur si la saisie est invalide.
- */
-export function parseDiscountInput(
-  type: (typeof DISCOUNT_TYPES)[number],
-  value: string,
-): { discount: Discount } | { error: string } {
-  if (!value.trim()) return { discount: null };
-  if (type === "PERCENT") {
-    const bps = parsePercent(value);
-    return bps === null
-      ? { error: "Pourcentage invalide (0 à 100)" }
-      : { discount: bps ? { type, value: bps } : null };
-  }
-  const cents = parseChfInput(value);
-  if (cents === null) return { error: "Montant invalide" };
-  if (cents > MAX_UNIT_PRICE_CENTS) return { error: "Montant trop élevé" };
-  return { discount: cents ? { type, value: cents } : null };
-}
-
-// ---------------------------------------------------------------------------
-// Ligne
-// ---------------------------------------------------------------------------
-
-export const quoteLineInputSchema = z
-  .object({
-    catalogItemId: z.uuid().nullable(),
-    lineType: z.enum(LINE_TYPES),
-    periodicity: z.enum(PERIODICITIES).nullable(),
-    label: text(200).min(1, "La désignation est obligatoire"),
-    description: text(2000),
-    quantity: z.string(),
-    unit: z.enum(UNITS),
-    unitPrice: z.string(),
-    discountType: z.enum(DISCOUNT_TYPES),
-    discountValue: z.string(),
-    vatRateBps: z.number().int().min(0).max(10_000).nullable(),
-  })
-  .superRefine((line, ctx) => {
-    const quantity = parseQuantity(line.quantity);
-    if (quantity === null || quantity === 0 || quantity > MAX_QUANTITY_MILLI) {
-      ctx.addIssue({ code: "custom", path: ["quantity"], message: "Quantité invalide" });
-    }
-    const price = parseChfInput(line.unitPrice);
-    if (price === null || price > MAX_UNIT_PRICE_CENTS) {
-      ctx.addIssue({ code: "custom", path: ["unitPrice"], message: "Prix invalide" });
-    }
-    const discount = parseDiscountInput(line.discountType, line.discountValue);
-    if ("error" in discount)
-      ctx.addIssue({ code: "custom", path: ["discountValue"], message: discount.error });
-    if (line.lineType === "SUBSCRIPTION" && !line.periodicity) {
-      ctx.addIssue({ code: "custom", path: ["periodicity"], message: "Périodicité requise" });
-    }
-    const periodicity = line.lineType === "SUBSCRIPTION" ? line.periodicity : null;
-    if (!allowedUnits(line.lineType, periodicity).includes(line.unit)) {
-      ctx.addIssue({ code: "custom", path: ["unit"], message: "Unité incompatible" });
-    }
-  })
-  .transform((line) => {
-    const discount = parseDiscountInput(line.discountType, line.discountValue);
-    return {
-      catalogItemId: line.catalogItemId,
-      lineType: line.lineType,
-      periodicity: line.lineType === "SUBSCRIPTION" ? line.periodicity : null,
-      label: line.label,
-      description: line.description,
-      quantityMilli: parseQuantity(line.quantity) ?? 0,
-      unit: line.unit,
-      unitPriceCents: parseChfInput(line.unitPrice) ?? 0,
-      discount: "discount" in discount ? discount.discount : null,
-      vatRateBps: line.vatRateBps,
-    };
-  });
-
-export type QuoteLineInput = z.input<typeof quoteLineInputSchema>;
-export type QuoteLineData = z.output<typeof quoteLineInputSchema>;
+import {
+  DISCOUNT_TYPES,
+  documentLinesSchema,
+  parseDiscountInput,
+  text,
+} from "@/modules/documents/lines";
 
 // ---------------------------------------------------------------------------
 // Devis
@@ -103,10 +21,7 @@ export const quoteInputSchema = z
     siteTypeId: z.uuid().nullable(),
     introText: text(5000),
     conditionsText: text(5000),
-    lines: z
-      .array(quoteLineInputSchema)
-      .min(1, "Ajoutez au moins une ligne")
-      .max(200, "200 lignes maximum"),
+    lines: documentLinesSchema,
     globalDiscountType: z.enum(DISCOUNT_TYPES),
     globalDiscountValue: z.string(),
     depositType: z.enum(DISCOUNT_TYPES),

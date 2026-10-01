@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { ADMIN } from "./tests/e2e/fixtures";
+import { ADMIN, CRON_SECRET } from "./tests/e2e/fixtures";
 import { testDatabaseUrl } from "./tests/e2e/test-database";
 
 /**
@@ -59,6 +59,7 @@ export default defineConfig({
       ADMIN_NAME: ADMIN.name,
       ADMIN_EMAIL: ADMIN.email,
       ADMIN_PASSWORD: ADMIN.password,
+      CRON_SECRET,
     },
   },
 });
