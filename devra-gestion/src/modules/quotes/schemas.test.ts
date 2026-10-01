@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { emptyLine, lineFromCatalog, quoteToInput } from "@/modules/quotes/form";
+import { emptyLine, lineFromCatalog } from "@/modules/documents/lines";
+import { quoteToInput } from "@/modules/quotes/form";
 import { quoteInputSchema, type QuoteInput } from "@/modules/quotes/schemas";
 
 const CLIENT = "01900000-0000-7000-8000-000000000001";

@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClientActions } from "@/app/(app)/clients/[id]/client-actions";
+import { InvoicesList } from "@/components/documents/invoices-list";
 import { QuotesList } from "@/components/documents/quotes-list";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,7 @@ import { countryName } from "@/domain/countries";
 import { canEdit } from "@/domain/roles";
 import { formatChf, formatDate, formatDateTime } from "@/lib/format";
 import { getClient, getClientActivity } from "@/modules/clients/service";
+import { clientInvoiceSummary, listClientInvoices } from "@/modules/invoices/service";
 import { listClientQuotes } from "@/modules/quotes/service";
 import { requireUser } from "@/server/session";
 
@@ -50,10 +52,12 @@ function Row({ icon: Icon, children }: { icon: typeof MailIcon; children: React.
 export default async function ClientPage({ params }: PageProps<"/clients/[id]">) {
   const user = await requireUser();
   const { id } = await params;
-  const [client, activity, quotes] = await Promise.all([
+  const [client, activity, quotes, invoices, summary] = await Promise.all([
     getClient(id),
     getClientActivity(id),
     listClientQuotes(id),
+    listClientInvoices(id),
+    clientInvoiceSummary(id),
   ]);
   if (!client) notFound();
 
@@ -185,9 +189,9 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
         <div className="space-y-6 lg:col-span-2">
           <div className="grid gap-4 sm:grid-cols-3">
             {[
-              ["Total facturé", 0],
-              ["Encaissé", 0],
-              ["Impayé", 0],
+              ["Total facturé", summary.invoicedCents],
+              ["Encaissé", summary.paidCents],
+              ["Impayé", summary.unpaidCents],
             ].map(([label, amount]) => (
               <Card key={label} className="gap-2 py-4">
                 <CardHeader className="px-4">
@@ -223,13 +227,24 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
               <CardTitle>Factures</CardTitle>
+              {canEdit(user.role) && !client.archivedAt && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/factures/nouvelle?client=${client.id}`}>
+                    <FilePlusIcon /> Nouvelle facture
+                  </Link>
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="text-sm">
-              <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
-                <ReceiptTextIcon className="size-5" /> Aucune facture pour ce client.
-              </div>
+              {invoices.length > 0 ? (
+                <InvoicesList invoices={invoices} showClient={false} />
+              ) : (
+                <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
+                  <ReceiptTextIcon className="size-5" /> Aucune facture pour ce client.
+                </div>
+              )}
             </CardContent>
           </Card>
 

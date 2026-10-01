@@ -4,7 +4,7 @@ import { dbDateToIso, formatIsoDate } from "@/domain/dates";
 import { documentFileName } from "@/domain/file-names";
 import { documentLabels } from "@/i18n/documents";
 import type { QuoteDetail } from "@/modules/quotes/service";
-import { storedDiscount, storedDocumentTotals } from "@/modules/quotes/totals";
+import { storedDiscount, storedDocumentTotals } from "@/modules/documents/lines";
 import { companySnapshot, type CompanySnapshot } from "@/modules/settings/documents";
 import type { AppSettings } from "@/modules/settings/service";
 import { renderDocumentPdf, type PdfRecipient } from "@/server/pdf/document-pdf";
@@ -67,7 +67,7 @@ export async function buildQuotePdf(
   const buffer = await renderDocumentPdf({
     language: quote.language,
     title: `${labels.quote} ${quote.number}`,
-    draft: quote.status === "DRAFT",
+    watermark: quote.status === "DRAFT" ? labels.draft : null,
     company,
     logo,
     recipient: pdfRecipient(client, quote.language),

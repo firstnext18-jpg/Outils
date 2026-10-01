@@ -176,18 +176,26 @@ export function computeTotals(input: {
   globalDiscount: Discount;
   deposit: Discount;
   vatEnabled: boolean;
+  /**
+   * Devis : les abonnements sont totalisés à part (montants récurrents).
+   * Facture : `false`, toutes les lignes sont dues (une période d'abonnement
+   * facturée est un montant comme un autre).
+   */
+  separateRecurring?: boolean;
 }): DocumentTotals {
+  const separate = input.separateRecurring ?? true;
   const lines = input.lines.map(computeLine);
   const withAmounts = input.lines.map((line, i) => ({ ...line, netCents: lines[i]!.netCents }));
+  const isRecurring = (line: CalcLine) => separate && line.lineType === "SUBSCRIPTION";
 
   const oneTime = computeSection(
-    withAmounts.filter((line) => line.lineType !== "SUBSCRIPTION"),
+    withAmounts.filter((line) => !isRecurring(line)),
     input.globalDiscount,
     input.vatEnabled,
   );
 
   const recurring: RecurringTotals[] = [];
-  for (const periodicity of PERIODICITIES) {
+  for (const periodicity of separate ? PERIODICITIES : []) {
     const group = withAmounts.filter(
       (line) => line.lineType === "SUBSCRIPTION" && (line.periodicity ?? "MONTHLY") === periodicity,
     );

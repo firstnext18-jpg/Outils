@@ -1,5 +1,7 @@
 import "server-only";
 import PDFDocument from "pdfkit";
+import { SwissQRBill } from "swissqrbill/pdf";
+import type { Data as QrBillData } from "swissqrbill/types";
 import type { PeriodicityCode } from "@/domain/catalog";
 import { formatPercent } from "@/domain/percent";
 import { formatQuantity } from "@/domain/quantity";
@@ -13,6 +15,10 @@ import type { CompanySnapshot } from "@/modules/settings/documents";
  * Mise en page A4 commune aux devis et aux factures : sobre (noir, gris,
  * blanc), seul le logo identifie l'entreprise. Polices Helvetica intégrées à
  * PDFKit (compatibles avec la QR-facture, qui exige une police sans empattement).
+ *
+ * Factures : la QR-facture (section paiement et récépissé, 105 mm de haut) est
+ * placée en bas de la dernière page, au niveau de la perforation ; s'il ne
+ * reste pas assez de place, elle passe seule sur une nouvelle page A4.
  */
 
 const MM = 72 / 25.4; // points par millimètre
@@ -46,7 +52,8 @@ export type PdfDocumentData = {
   language: "FR" | "DE";
   /** Ex. « Devis D-2026-001 » */
   title: string;
-  draft: boolean;
+  /** Filigrane en travers des pages (« BROUILLON », « ANNULÉE »), ou null. */
+  watermark: string | null;
   company: CompanySnapshot;
   logo: Buffer | null;
   recipient: PdfRecipient;
@@ -58,7 +65,13 @@ export type PdfDocumentData = {
   globalDiscount: Discount;
   deposit: Discount;
   vatEnabled: boolean;
+  /** Devis : abonnements dans une section à part. Facture : false. */
+  separateRecurring?: boolean;
+  /** Facture finale : acomptes déduits du total. */
+  deductions?: { number: string; amountCents: number }[];
   conditions: string;
+  /** Données de la QR-facture (factures émises avec un montant à payer). */
+  qrBill?: QrBillData | null;
   /** Métadonnées du fichier PDF. */
   info: { title: string; subject: string };
   /** Test uniquement : flux non compressés pour pouvoir lire le texte. */
@@ -122,7 +135,9 @@ export function renderDocumentPdf(data: PdfDocumentData): Promise<Buffer> {
   y = drawLines(doc, data, labels, y);
   y = drawTotals(doc, data, labels, y);
   drawParagraph(doc, data.conditions, y + 6);
-  drawPageDecorations(doc, data, labels);
+  // doc.y : bas du dernier texte écrit (sans la marge ajoutée après un paragraphe).
+  const qrPage = data.qrBill ? drawQrBill(doc, data.qrBill, data.language, doc.y) : null;
+  drawPageDecorations(doc, data, labels, qrPage);
 
   doc.end();
   return done;
@@ -189,7 +204,8 @@ function drawHeader(doc: Doc, data: PdfDocumentData, labels: DocumentLabels) {
 }
 
 function drawTitle(doc: Doc, data: PdfDocumentData): number {
-  let y = 95 * MM;
+  // Sous la fenêtre de l'enveloppe (qui s'arrête vers 90 mm).
+  let y = 92 * MM;
   doc
     .fillColor(COLOR.text)
     .font("Helvetica-Bold")
@@ -207,7 +223,7 @@ function drawTitle(doc: Doc, data: PdfDocumentData): number {
       .text(value, MARGIN.left + 35 * MM, y, { width: CONTENT_WIDTH - 35 * MM });
     y = doc.y + 2;
   }
-  return y + 10;
+  return y + 8;
 }
 
 /** Paragraphe (introduction, conditions), avec saut de page si nécessaire. */
@@ -217,7 +233,7 @@ function drawParagraph(doc: Doc, text: string, y: number): number {
   const height = doc.heightOfString(text, { width: CONTENT_WIDTH });
   if (y + height > bottomLimit()) y = newPage(doc);
   doc.text(text, MARGIN.left, y, { width: CONTENT_WIDTH, lineGap: 1.5 });
-  return doc.y + 12;
+  return doc.y + 9;
 }
 
 function bottomLimit() {
@@ -340,8 +356,10 @@ function drawLines(
   if (y + 60 > bottomLimit()) y = newPage(doc);
   y = drawTableHeader(doc, labels, y);
 
-  const oneTime = data.lines.filter((line) => line.lineType !== "SUBSCRIPTION");
-  const recurring = data.lines.filter((line) => line.lineType === "SUBSCRIPTION");
+  const separate = data.separateRecurring ?? true;
+  const isRecurring = (line: PdfLine) => separate && line.lineType === "SUBSCRIPTION";
+  const oneTime = data.lines.filter((line) => !isRecurring(line));
+  const recurring = data.lines.filter(isRecurring);
   let position = 0;
 
   const drawRows = (lines: PdfLine[]) => {
@@ -417,6 +435,17 @@ function totalRows(data: PdfDocumentData, labels: DocumentLabels): TotalRow[] {
     if (oneTime.roundingCents !== 0)
       rows.push({ label: labels.rounding, value: chf(oneTime.roundingCents), muted: true });
     rows.push({ label: labels.total, value: chf(oneTime.totalCents), bold: true, ruleAbove: true });
+    const deductions = data.deductions ?? [];
+    for (const deduction of deductions) {
+      rows.push({
+        label: fillLabel(labels.deduction, { number: deduction.number }),
+        value: chf(-deduction.amountCents),
+      });
+    }
+    if (deductions.length > 0) {
+      const due = oneTime.totalCents - deductions.reduce((sum, d) => sum + d.amountCents, 0);
+      rows.push({ label: labels.amountDue, value: chf(due), bold: true, ruleAbove: true });
+    }
   }
   for (const group of recurring) {
     rows.push({
@@ -473,14 +502,41 @@ function drawTotals(
       .text(labels.vatExempt, x, y + 2, { width, align: "right" });
     y = doc.y;
   }
-  return y + 14;
+  return y + 10;
 }
 
 // ---------------------------------------------------------------------------
-// Pied de page, numéros de page, filigrane « brouillon »
+// QR-facture
 // ---------------------------------------------------------------------------
 
-function drawPageDecorations(doc: Doc, data: PdfDocumentData, labels: DocumentLabels) {
+/** Hauteur de la section paiement (norme SIX) et place réservée au pied de page au-dessus. */
+const QR_HEIGHT = 105 * MM;
+const QR_FOOTER_SPACE = 10 * MM;
+
+/** Dessine la QR-facture et renvoie l'index de la page qui la porte. */
+function drawQrBill(doc: Doc, data: QrBillData, language: "FR" | "DE", contentEnd: number): number {
+  const bill = new SwissQRBill(data, { language, fontName: "Helvetica" });
+  if (contentEnd + QR_FOOTER_SPACE > PAGE.height - QR_HEIGHT) doc.addPage();
+  doc.y = PAGE.height - QR_HEIGHT - QR_FOOTER_SPACE;
+  // Écrire jusqu'en bas de la page sans saut de page automatique.
+  const bottomMargin = doc.page.margins.bottom;
+  doc.page.margins.bottom = 0;
+  bill.attachTo(doc, 0, PAGE.height - QR_HEIGHT);
+  doc.page.margins.bottom = bottomMargin;
+  const range = doc.bufferedPageRange();
+  return range.start + range.count - 1;
+}
+
+// ---------------------------------------------------------------------------
+// Pied de page, numéros de page, filigrane
+// ---------------------------------------------------------------------------
+
+function drawPageDecorations(
+  doc: Doc,
+  data: PdfDocumentData,
+  labels: DocumentLabels,
+  qrPage: number | null,
+) {
   const range = doc.bufferedPageRange();
   const footer = data.language === "DE" ? data.company.footerDe : data.company.footerFr;
   const address = [
@@ -495,11 +551,11 @@ function drawPageDecorations(doc: Doc, data: PdfDocumentData, labels: DocumentLa
     const bottomMargin = doc.page.margins.bottom;
     doc.page.margins.bottom = 0;
 
-    if (data.draft) {
+    if (data.watermark) {
       doc.save();
       doc.rotate(-35, { origin: [PAGE.width / 2, PAGE.height / 2] });
       doc.font("Helvetica-Bold").fontSize(96).fillColor("#000000").fillOpacity(0.06);
-      doc.text(labels.draft, 0, PAGE.height / 2 - 48, {
+      doc.text(data.watermark, 0, PAGE.height / 2 - 48, {
         width: PAGE.width,
         align: "center",
         lineBreak: false,
@@ -508,7 +564,10 @@ function drawPageDecorations(doc: Doc, data: PdfDocumentData, labels: DocumentLa
       doc.fillOpacity(1);
     }
 
-    const y = PAGE.height - 14 * MM;
+    // Sur la page de la QR-facture, une seule ligne juste au-dessus de la section
+    // paiement (l'adresse figure déjà dans l'en-tête et sur la QR-facture).
+    const onQrPage = range.start + i === qrPage;
+    const y = onQrPage ? PAGE.height - QR_HEIGHT - 6 * MM : PAGE.height - 14 * MM;
     doc
       .moveTo(MARGIN.left, y - 4)
       .lineTo(PAGE.width - MARGIN.right, y - 4)
@@ -516,16 +575,13 @@ function drawPageDecorations(doc: Doc, data: PdfDocumentData, labels: DocumentLa
       .strokeColor(COLOR.rule)
       .stroke();
     doc.font("Helvetica").fontSize(7.5).fillColor(COLOR.muted);
-    if (footer)
-      doc.text(footer, MARGIN.left, y, {
+    const lines = onQrPage ? [footer || address] : [footer, address].filter(Boolean);
+    lines.forEach((text, index) => {
+      doc.text(text, MARGIN.left, y + index * 10, {
         width: CONTENT_WIDTH - 30 * MM,
         lineBreak: false,
         ellipsis: true,
       });
-    doc.text(address, MARGIN.left, footer ? y + 10 : y, {
-      width: CONTENT_WIDTH - 30 * MM,
-      lineBreak: false,
-      ellipsis: true,
     });
     doc.text(
       fillLabel(labels.page, { page: i + 1, pages: range.count }),

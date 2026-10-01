@@ -13,7 +13,7 @@ import { UserError } from "@/server/action";
 import { db, type Tx } from "@/server/db";
 import { allocateDocumentNumber } from "@/server/numbering";
 import type { CurrentUser } from "@/server/session";
-import { companySnapshot } from "@/modules/settings/documents";
+import { clientSnapshot, companySnapshot } from "@/modules/settings/documents";
 import { getSettings } from "@/modules/settings/service";
 import { quoteColumns } from "@/modules/quotes/columns";
 import { quoteToInput } from "@/modules/quotes/form";
@@ -248,32 +248,19 @@ export async function updateQuote(
   });
 }
 
-/** Coordonnées du client figées sur le document. */
-function clientSnapshot(client: {
-  displayName: string;
-  kind: string;
-  contactName: string;
-  street: string;
-  streetNumber: string;
-  postalCode: string;
-  city: string;
-  country: string;
-}) {
-  return {
-    displayName: client.displayName,
-    kind: client.kind,
-    contactName: client.contactName,
-    street: client.street,
-    streetNumber: client.streetNumber,
-    postalCode: client.postalCode,
-    city: client.city,
-    country: client.country,
-  };
-}
-
 export async function changeQuoteStatus(actor: CurrentUser, id: string, to: QuoteStatus) {
   const quote = await db.quote.findUnique({ where: { id }, include: { client: true } });
   if (!quote) throw new UserError("Ce devis n'existe plus.");
+  if (quote.status === "ACCEPTED") {
+    const invoiced = await db.invoice.count({
+      where: { quoteId: id, status: { not: "CANCELLED" } },
+    });
+    if (invoiced > 0) {
+      throw new UserError(
+        "Ce devis a été facturé : annulez d'abord ses factures pour changer son statut.",
+      );
+    }
+  }
   if (!canTransition(quote.status, to)) {
     throw new UserError(
       `Impossible de passer de « ${QUOTE_STATUS_LABELS[quote.status]} » à « ${QUOTE_STATUS_LABELS[to]} ».`,

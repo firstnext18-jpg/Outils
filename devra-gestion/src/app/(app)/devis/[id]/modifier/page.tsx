@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { loadQuoteEditorData } from "@/app/(app)/devis/editor-data";
+import { loadDocumentEditorData } from "@/modules/documents/editor-data";
+import { quoteEditorSettings } from "@/modules/settings/documents";
 import { QuoteEditor } from "@/app/(app)/devis/quote-editor";
 import { PageHeader } from "@/components/page-header";
 import { isQuoteEditable } from "@/domain/quote-status";
@@ -17,7 +18,8 @@ export default async function EditQuotePage({ params }: PageProps<"/devis/[id]/m
   if (!quote) notFound();
   // Un devis envoyé se modifie après l'avoir repassé en brouillon.
   if (!isQuoteEditable(quote.status)) redirect(`/devis/${id}`);
-  const { editorSettings, catalog, siteTypes } = await loadQuoteEditorData(quote.siteTypeId);
+  const { settings, catalog, siteTypes } = await loadDocumentEditorData(quote.siteTypeId);
+  const editorSettings = quoteEditorSettings(settings);
 
   return (
     <>

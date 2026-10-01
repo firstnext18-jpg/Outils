@@ -262,9 +262,14 @@ export async function setClientArchived(actor: CurrentUser, id: string, archived
 export async function deleteClient(actor: CurrentUser, id: string) {
   const client = await db.client.findUnique({
     where: { id },
-    include: { _count: { select: { quotes: true } } },
+    include: { _count: { select: { quotes: true, invoices: true } } },
   });
   if (!client) throw new UserError("Ce client n'existe plus.");
+  if (client._count.invoices > 0) {
+    throw new UserError(
+      `Ce client a ${client._count.invoices} facture${client._count.invoices > 1 ? "s" : ""} : il ne peut pas être supprimé. Archivez-le plutôt.`,
+    );
+  }
   if (client._count.quotes > 0) {
     throw new UserError(
       `Ce client a ${client._count.quotes} devis : il ne peut pas être supprimé. Archivez-le plutôt.`,

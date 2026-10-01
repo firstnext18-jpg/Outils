@@ -16,7 +16,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 | 2. Clients                                | Fiches, recherche, import/export CSV-Excel                        | ✅ Terminée |
 | 3. Catalogue                              | Prestations réutilisables                                         | ✅ Terminée |
 | 4. Devis                                  | Calculs, remises, acompte, PDF FR/DE                              | ✅ Terminée |
-| 5. Factures                               | QR-facture, paiements, acomptes                                   | À venir     |
+| 5. Factures                               | QR-facture, paiements, acomptes                                   | ✅ Terminée |
 | 6. Emails                                 | Envoi des devis et factures                                       | À venir     |
 | 7. Relances et abonnements                | Tâches planifiées                                                 | À venir     |
 | 8. Tableau de bord                        | Indicateurs et graphiques                                         | À venir     |
@@ -29,10 +29,11 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 - **Limitation des tentatives** : 5 essais de connexion par minute et par adresse IP.
 - **Invitation d'utilisateurs** par un admin (lien valable 7 jours), choix du rôle,
   changement de rôle, désactivation / réactivation d'un compte.
-- **Paramètres → Entreprise** : nom, adresse, contact, IBAN et QR-IBAN (vérifiés), logo.
+- **Paramètres → Entreprise** : nom, adresse, contact, IBAN et QR-IBAN (vérifiés), préfixe de
+  référence QRR si la banque l'impose, logo.
 - **Paramètres → Types de sites** : liste modifiable (ajouter, renommer, réordonner, désactiver).
-- **Paramètres → Documents** : textes par défaut des devis (introduction, conditions) et pied de
-  page, en français et en allemand.
+- **Paramètres → Documents** : textes par défaut des devis et des factures (introduction,
+  conditions) et pied de page, en français et en allemand.
 - **Paramètres → Facturation** : format des numéros (`D-{AAAA}-{NNN}`, `F-{AAAA}-{NNN}`…) et
   prochain numéro, validité des devis et délai de paiement par défaut, TVA (désactivée par défaut ;
   numéro TVA et taux 8.1 / 2.6 / 3.8 % une fois activée).
@@ -70,8 +71,25 @@ entreprise, auto-hébergé sur un Raspberry Pi.
   - **PDF A4** en français ou en allemand (« Offerte »), adresse placée pour les enveloppes à
     fenêtre, filigrane « brouillon », nom de fichier `Devra_Devis_D-2026-001_Client.pdf` ;
   - à l'envoi, les coordonnées du client et de l'entreprise sont figées sur le devis.
-- **Recherche globale** (Ctrl+K) : clients (nom, localité, email, téléphone) et devis (numéro,
-  objet).
+- **Factures** :
+  - **conversion d'un devis accepté en un clic** : facture simple, ou facture d'acompte puis
+    facture finale qui déduit l'acompte facturé ; les abonnements ne sont pas repris (ils seront
+    facturés par le module Abonnements) ;
+  - création directe, avec le même éditeur que les devis (toutes les lignes sont dues, y compris
+    une période d'abonnement) ;
+  - brouillon modifiable, puis **émission** : numéro sans trou (`F-2026-001`), référence de
+    paiement, coordonnées figées, PDF archivé ; une facture émise ne se modifie plus, elle
+    s'annule (avec un motif) et se duplique ;
+  - **QR-facture suisse** en bas de la dernière page (référence QRR avec un QR-IBAN, SCOR avec un
+    IBAN classique, numéro de facture dans les informations supplémentaires), en français ou en
+    allemand ;
+  - **paiements** partiels ou complets (date, montant, virement / espèces / TWINT / autre, note),
+    solde et statut mis à jour automatiquement : envoyée → partiellement payée → payée ;
+    « en retard » s'affiche dès le lendemain de l'échéance ;
+  - liste avec recherche et filtre par statut ; sur la fiche client : factures, total facturé,
+    encaissé et impayé ; un client qui a des factures ne peut pas être supprimé.
+- **Recherche globale** (Ctrl+K) : clients (nom, localité, email, téléphone), devis et factures
+  (numéro, objet).
 - **Navigation** latérale (repliable, en tiroir sur téléphone), thème clair / sombre / système.
 - Chaque action importante est enregistrée dans un **journal d'activité** (la page de consultation
   arrive en phase 9).
@@ -87,7 +105,7 @@ npm install
 npm run db:up                 # PostgreSQL + Mailpit (faux serveur email)
 npm run db:migrate            # crée les tables
 npm run db:seed               # crée le premier administrateur (ADMIN_EMAIL / ADMIN_PASSWORD)
-npm run db:seed:demo          # facultatif : 15 clients fictifs pour découvrir l'outil
+npm run db:seed:demo          # facultatif : clients, devis et factures fictifs pour découvrir l'outil
 npm run dev
 ```
 
@@ -122,7 +140,7 @@ Le guide complet (Raspberry Pi, HTTPS sur `gestion.devra.ch`, sauvegardes) arriv
 | `npm run db:up` / `db:down`   | Démarre / arrête PostgreSQL et Mailpit de développement                             |
 | `npm run db:migrate`          | Crée une migration après modification de `prisma/schema.prisma`                     |
 | `npm run db:seed`             | Crée le premier admin si la base n'a aucun utilisateur                              |
-| `npm run db:seed:demo`        | Ajoute des clients et des devis fictifs (base de développement uniquement)          |
+| `npm run db:seed:demo`        | Ajoute des clients, devis et factures fictifs (base de développement uniquement)    |
 | `npm run db:studio`           | Explorateur de la base (Prisma Studio)                                              |
 
 ## Structure

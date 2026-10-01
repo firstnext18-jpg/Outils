@@ -52,3 +52,28 @@ export async function readUpload(fileName: string): Promise<Buffer | null> {
 export async function deleteUpload(fileName: string) {
   await rm(safePath(fileName), { force: true });
 }
+
+/**
+ * PDF archivés des documents émis (DATA_DIR/documents/<type>/<id>.pdf) : le
+ * fichier envoyé au client est conservé tel quel, même si la mise en page ou
+ * les paramètres changent ensuite.
+ */
+function documentPath(kind: "invoices", id: string): string {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error(`Identifiant invalide : ${id}`);
+  return path.resolve(env().DATA_DIR, "documents", kind, `${id}.pdf`);
+}
+
+export async function saveDocumentPdf(kind: "invoices", id: string, bytes: Uint8Array) {
+  const file = documentPath(kind, id);
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, bytes);
+  return path.relative(path.resolve(env().DATA_DIR, "documents"), file);
+}
+
+export async function readDocumentPdf(kind: "invoices", id: string): Promise<Buffer | null> {
+  try {
+    return await readFile(documentPath(kind, id));
+  } catch {
+    return null;
+  }
+}

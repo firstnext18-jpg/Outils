@@ -1,7 +1,7 @@
 /**
- * Données de démonstration : clients fictifs et devis dans différents statuts
- * (les factures s'ajouteront en phase 5). À utiliser en développement ou pour
- * une présentation, jamais sur la base de production.
+ * Données de démonstration : clients fictifs, devis et factures dans
+ * différents statuts. À utiliser en développement ou pour une présentation,
+ * jamais sur la base de production.
  *
  * Lancement : `npm run db:seed:demo` (après `npm run db:seed`).
  */
@@ -9,10 +9,21 @@ import "dotenv/config";
 import type { CantonCode } from "@/domain/cantons";
 import { clientInputSchema, EMPTY_CLIENT, type ClientInput } from "@/modules/clients/schemas";
 import { addDays, isoToDbDate, todayIso, yearOf } from "@/domain/dates";
+import { statusAfterPayments, type PaymentMethod } from "@/domain/invoice-status";
+import { depositParts } from "@/domain/invoices";
+import { formatPercent } from "@/domain/percent";
+import { paymentSetup } from "@/domain/qr-bill";
+import { documentLabels, fillLabel } from "@/i18n/documents";
+import { formatAmount } from "@/lib/format";
+import type { DocumentLineInput } from "@/modules/documents/lines";
+import { storedDocumentTotals } from "@/modules/documents/lines";
+import { invoiceColumns } from "@/modules/invoices/columns";
+import { invoiceInputSchema } from "@/modules/invoices/schemas";
+import { clientSnapshot, companySnapshot } from "@/modules/settings/documents";
 import { normalizeSearchText } from "@/domain/search";
 import { withComputedColumns } from "@/modules/clients/computed-columns";
 import { quoteColumns } from "@/modules/quotes/columns";
-import { emptyLine, lineFromCatalog } from "@/modules/quotes/form";
+import { emptyLine, lineFromCatalog } from "@/modules/documents/lines";
 import { quoteInputSchema } from "@/modules/quotes/schemas";
 import { db } from "@/server/db";
 import { allocateDocumentNumber } from "@/server/numbering";
@@ -344,9 +355,194 @@ async function seedQuotes() {
   console.log(`✓ ${created} devis de démonstration créés.`);
 }
 
+type DemoInvoice = {
+  client: string;
+  subject: string;
+  daysAgo: number;
+  /** Lignes du catalogue, ou facture d'acompte du devis accepté de ce client. */
+  items: [name: string, quantity?: string][] | "deposit";
+  payments?: [daysAgo: number, amount: "all" | string, method: PaymentMethod][];
+  draft?: boolean;
+  cancelReason?: string;
+};
+
+const INVOICES: DemoInvoice[] = [
+  {
+    client: "Café Lumière",
+    subject: "Formulaire de contact",
+    daysAgo: 50,
+    items: [["Formulaire de contact"]],
+    cancelReason: "Prestation offerte au client",
+  },
+  {
+    client: "Garage du Lac SA",
+    subject: "Modifications du site",
+    daysAgo: 40,
+    items: [["Modification sur demande", "3"]],
+  },
+  {
+    client: "Atelier Nord Design",
+    subject: "Site vitrine",
+    daysAgo: 30,
+    items: [["Site vitrine (jusqu'à 5 pages)"]],
+    payments: [[20, "all", "BANK_TRANSFER"]],
+  },
+  {
+    client: "Weinhandel Seeblick GmbH",
+    subject: "Onlineshop für Ihre Weine",
+    daysAgo: 20,
+    items: "deposit",
+    payments: [[12, "all", "BANK_TRANSFER"]],
+  },
+  {
+    client: "Café Lumière",
+    subject: "Landing page de lancement",
+    daysAgo: 10,
+    items: [["Landing page"]],
+    payments: [[3, "200", "TWINT"]],
+  },
+  {
+    client: "Studio Yoga Soleil",
+    subject: "Page de présentation des cours",
+    daysAgo: 1,
+    items: [["Landing page"]],
+    draft: true,
+  },
+];
+
+async function seedInvoices() {
+  if ((await db.invoice.count()) > 0) {
+    console.log("Des factures existent déjà : aucune facture de démonstration ajoutée.");
+    return;
+  }
+  const settings = await db.settings.findUniqueOrThrow({ where: { id: 1 } });
+  const admin = await db.user.findFirst({
+    where: { role: "ADMIN" },
+    orderBy: { createdAt: "asc" },
+  });
+  const catalog = await db.catalogItem.findMany();
+  const vatRate = settings.vatEnabled ? (settings.vatRates[0] ?? null) : null;
+  let created = 0;
+
+  for (const demo of INVOICES) {
+    const client = await db.client.findFirst({ where: { displayName: demo.client } });
+    if (!client) continue;
+    const issueDate = addDays(todayIso(), -demo.daysAgo);
+    const texts =
+      client.language === "DE"
+        ? { introText: settings.invoiceIntroDe, conditionsText: settings.invoiceConditionsDe }
+        : { introText: settings.invoiceIntroFr, conditionsText: settings.invoiceConditionsFr };
+
+    let lines: DocumentLineInput[];
+    let quoteId: string | null = null;
+    if (demo.items === "deposit") {
+      const quote = await db.quote.findFirst({
+        where: { clientId: client.id, status: "ACCEPTED", depositCents: { gt: 0 } },
+        include: { lines: true },
+      });
+      if (!quote) continue;
+      quoteId = quote.id;
+      const oneTime = quote.lines.filter((line) => line.lineType !== "SUBSCRIPTION");
+      const { totals, deposit } = storedDocumentTotals({ ...quote, lines: oneTime });
+      const labels = documentLabels(quote.language);
+      const label =
+        deposit?.type === "PERCENT"
+          ? fillLabel(labels.depositLinePercent, {
+              percent: formatPercent(deposit.value),
+              number: quote.number,
+            })
+          : fillLabel(labels.depositLineAmount, { number: quote.number });
+      lines = depositParts(totals.oneTime, quote.depositCents, settings.vatEnabled).map((part) => ({
+        ...emptyLine(part.vatRateBps),
+        label,
+        unitPrice: formatAmount(part.netCents),
+      }));
+    } else {
+      lines = demo.items.map(([name, quantity]) => {
+        const item = catalog.find((c) => c.name === name);
+        const line = item
+          ? lineFromCatalog(item, client.language, vatRate)
+          : { ...emptyLine(vatRate), label: name, unitPrice: "100" };
+        return { ...line, quantity: quantity ?? "1" };
+      });
+    }
+    const data = invoiceInputSchema.parse({
+      clientId: client.id,
+      language: client.language,
+      issueDate,
+      dueDate: addDays(issueDate, settings.paymentTermDays),
+      subject: demo.subject,
+      siteTypeId: client.siteTypeId,
+      ...texts,
+      globalDiscountType: "PERCENT",
+      globalDiscountValue: "",
+      lines,
+    });
+    const { columns, lines: lineRows } = invoiceColumns(data, settings.vatEnabled, []);
+
+    await db.$transaction(async (tx) => {
+      const issued = demo.draft
+        ? null
+        : await (async () => {
+            const year = yearOf(issueDate);
+            const { number, sequence } = await allocateDocumentNumber(
+              tx,
+              "INVOICE",
+              year,
+              settings.invoiceNumberFormat,
+            );
+            const setup = paymentSetup(settings, { number, year, sequence });
+            return {
+              number,
+              year,
+              sequence,
+              issuedAt: new Date(`${issueDate}T08:30:00Z`),
+              paymentAccount: setup?.account ?? "",
+              referenceType: setup?.referenceType ?? null,
+              paymentReference: setup?.reference ?? "",
+              clientSnapshot: clientSnapshot(client),
+              companySnapshot: companySnapshot(settings),
+            };
+          })();
+      const payments = (demo.payments ?? []).map(([daysAgo, amount, method]) => ({
+        date: isoToDbDate(addDays(todayIso(), -daysAgo)),
+        amountCents: amount === "all" ? columns.amountDueCents : Math.round(Number(amount) * 100),
+        method,
+        createdById: admin?.id,
+      }));
+      const paid = payments.reduce((sum, p) => sum + p.amountCents, 0);
+      const status = demo.draft
+        ? "DRAFT"
+        : demo.cancelReason
+          ? "CANCELLED"
+          : statusAfterPayments(columns.amountDueCents, paid);
+      await tx.invoice.create({
+        data: {
+          ...columns,
+          ...issued,
+          type: demo.items === "deposit" ? "DEPOSIT" : "STANDARD",
+          quoteId,
+          status,
+          paidCents: paid,
+          cancelledAt: demo.cancelReason ? isoToDbDate(addDays(issueDate, 3)) : null,
+          cancelReason: demo.cancelReason ?? "",
+          searchText: normalizeSearchText(`${issued?.number ?? ""} ${demo.subject}`),
+          createdById: admin?.id,
+          updatedById: admin?.id,
+          lines: { create: lineRows },
+          payments: { create: payments },
+        },
+      });
+    });
+    created += 1;
+  }
+  console.log(`✓ ${created} factures de démonstration créées.`);
+}
+
 async function main() {
   await seedClients();
   await seedQuotes();
+  await seedInvoices();
 }
 
 main()

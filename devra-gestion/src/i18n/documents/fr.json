@@ -27,5 +27,18 @@
   "deposit": "Acompte à la commande",
   "vatExempt": "Non soumis à la TVA",
   "vatNumber": "N° TVA",
-  "page": "Page {page} / {pages}"
+  "page": "Page {page} / {pages}",
+  "depositInvoice": "Facture d'acompte",
+  "finalInvoice": "Facture finale",
+  "subscriptionInvoice": "Facture d'abonnement",
+  "cancelled": "ANNULÉE",
+  "dueDate": "Échéance",
+  "quoteReference": "Selon devis",
+  "paymentReference": "Référence",
+  "depositLinePercent": "Acompte de {percent} sur le devis {number}",
+  "depositLineAmount": "Acompte sur le devis {number}",
+  "depositLineVat": "{label} (TVA {rate})",
+  "deduction": "Acompte facturé ({number})",
+  "amountDue": "Montant à payer",
+  "qrMessage": "Facture {number}"
 }

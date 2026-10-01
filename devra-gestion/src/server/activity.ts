@@ -33,6 +33,14 @@ export type ActivityAction =
   | "quote.updated"
   | "quote.status_changed"
   | "quote.deleted"
+  | "invoice.created"
+  | "invoice.duplicated"
+  | "invoice.updated"
+  | "invoice.deleted"
+  | "invoice.issued"
+  | "invoice.cancelled"
+  | "payment.recorded"
+  | "payment.deleted"
   | "settings.documents_updated"
   | "settings.billing_updated";
 

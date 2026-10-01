@@ -198,7 +198,7 @@ test("liste : recherche et filtre par statut", async ({ page }) => {
 
   // Recherche globale par numéro.
   await page.keyboard.press("Control+k");
-  await page.getByPlaceholder("Client, numéro de devis…").fill(`D-${YEAR}-001`);
+  await page.getByPlaceholder("Client, numéro de devis ou de facture…").fill(`D-${YEAR}-001`);
   await page.getByRole("option", { name: new RegExp(`D-${YEAR}-001`) }).click();
   await expect(page).toHaveURL(firstQuoteUrl);
 });

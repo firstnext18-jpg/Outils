@@ -15,6 +15,10 @@ export default async function DocumentSettingsPage() {
         quoteIntroDe: s.quoteIntroDe,
         quoteConditionsFr: s.quoteConditionsFr,
         quoteConditionsDe: s.quoteConditionsDe,
+        invoiceIntroFr: s.invoiceIntroFr,
+        invoiceIntroDe: s.invoiceIntroDe,
+        invoiceConditionsFr: s.invoiceConditionsFr,
+        invoiceConditionsDe: s.invoiceConditionsDe,
         documentFooterFr: s.documentFooterFr,
         documentFooterDe: s.documentFooterDe,
       }}

@@ -2,17 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { QuoteActions } from "@/app/(app)/devis/[id]/quote-actions";
+import { QuoteBilling } from "@/app/(app)/devis/[id]/quote-billing";
 import { LinesTable } from "@/components/documents/lines-table";
 import { QuoteStatusBadge } from "@/components/documents/quote-status-badge";
 import { TotalsSummary } from "@/components/documents/totals-summary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { describeActivity } from "@/domain/activity";
 import { LANGUAGE_LABELS } from "@/domain/clients";
-import { dbDateToIso, formatIsoDate } from "@/domain/dates";
+import { dbDateToIso, formatIsoDate, todayIso } from "@/domain/dates";
+import { displayStatus } from "@/domain/invoice-status";
 import { canEdit } from "@/domain/roles";
-import { formatDateTime } from "@/lib/format";
+import { formatChf, formatDateTime } from "@/lib/format";
+import { listQuoteInvoices } from "@/modules/invoices/service";
 import { expireQuotes, getQuote, getQuoteActivity } from "@/modules/quotes/service";
-import { storedDocumentTotals } from "@/modules/quotes/totals";
+import { storedDocumentTotals } from "@/modules/documents/lines";
 import { requireUser } from "@/server/session";
 
 export async function generateMetadata({ params }: PageProps<"/devis/[id]">): Promise<Metadata> {
@@ -24,9 +27,14 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
   const user = await requireUser();
   const { id } = await params;
   await expireQuotes();
-  const [quote, activity] = await Promise.all([getQuote(id), getQuoteActivity(id)]);
+  const [quote, activity, invoices] = await Promise.all([
+    getQuote(id),
+    getQuoteActivity(id),
+    listQuoteInvoices(id),
+  ]);
   if (!quote) notFound();
   const { totals, globalDiscount, deposit } = storedDocumentTotals(quote);
+  const today = todayIso();
 
   return (
     <>
@@ -113,6 +121,29 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
         </div>
 
         <div className="space-y-6">
+          {(quote.status === "ACCEPTED" || invoices.length > 0) && (
+            <QuoteBilling
+              quote={{
+                id: quote.id,
+                status: quote.status,
+                depositCents: quote.depositCents,
+                hasOneTimeLines: quote.lines.some((line) => line.lineType !== "SUBSCRIPTION"),
+                recurring: totals.recurring.map(
+                  (r) =>
+                    `${formatChf(r.totalCents)} / ${{ MONTHLY: "mois", QUARTERLY: "trimestre", YEARLY: "an" }[r.periodicity]}`,
+                ),
+              }}
+              invoices={invoices.map((invoice) => ({
+                id: invoice.id,
+                number: invoice.number,
+                type: invoice.type,
+                status: invoice.status,
+                displayStatus: displayStatus(invoice.status, dbDateToIso(invoice.dueDate), today),
+                amountDueCents: invoice.amountDueCents,
+              }))}
+              canEdit={canEdit(user.role)}
+            />
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Montants</CardTitle>

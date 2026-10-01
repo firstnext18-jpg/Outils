@@ -193,7 +193,7 @@ test("export CSV de la liste filtrée", async ({ page }) => {
 test("recherche globale (Ctrl+K)", async ({ page }) => {
   await login(page, ADMIN.email, ADMIN.password);
   await page.keyboard.press("Control+k");
-  await page.getByPlaceholder("Client, numéro de devis…").fill("montreux");
+  await page.getByPlaceholder("Client, numéro de devis ou de facture…").fill("montreux");
   await page.getByRole("option", { name: /Nadia Rochat/ }).click();
   await expect(page.getByRole("heading", { name: "Nadia Rochat" })).toBeVisible();
 });

@@ -39,6 +39,30 @@ export function describeActivity(action: string, details: unknown): string {
       return "a modifié le devis";
     case "quote.deleted":
       return "a supprimé le devis";
+    case "invoice.created":
+      return typeof data.fromQuote === "string"
+        ? `a créé la facture à partir du devis ${data.fromQuote}`
+        : "a créé la facture";
+    case "invoice.duplicated":
+      return typeof data.from === "string"
+        ? `a créé cette facture en dupliquant ${data.from}`
+        : "a dupliqué la facture";
+    case "invoice.updated":
+      return "a modifié la facture";
+    case "invoice.deleted":
+      return "a supprimé le brouillon de facture";
+    case "invoice.issued":
+      return "a émis la facture (numéro attribué, facture verrouillée)";
+    case "invoice.cancelled":
+      return typeof data.reason === "string"
+        ? `a annulé la facture : ${data.reason}`
+        : "a annulé la facture";
+    case "payment.recorded":
+      return `a enregistré un paiement de ${String(data.amount ?? "")}${
+        typeof data.method === "string" ? ` (${data.method})` : ""
+      }`;
+    case "payment.deleted":
+      return `a supprimé un paiement de ${String(data.amount ?? "")}`;
     case "quote.status_changed":
       return QUOTE_STATUS_SENTENCES[String(data.to)] ?? "a changé le statut du devis";
     default:

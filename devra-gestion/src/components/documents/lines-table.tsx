@@ -60,10 +60,20 @@ function Rows({ lines, offset }: { lines: DisplayLine[]; offset: number }) {
   ));
 }
 
-/** Lignes d'un devis ou d'une facture (lecture seule), abonnements à part. */
-export function LinesTable({ lines }: { lines: DisplayLine[] }) {
-  const oneTime = lines.filter((line) => line.lineType !== "SUBSCRIPTION");
-  const recurring = lines.filter((line) => line.lineType === "SUBSCRIPTION");
+/**
+ * Lignes d'un devis ou d'une facture (lecture seule). Sur un devis, les
+ * abonnements sont regroupés à part ; sur une facture, tout est dû.
+ */
+export function LinesTable({
+  lines,
+  separateRecurring = true,
+}: {
+  lines: DisplayLine[];
+  separateRecurring?: boolean;
+}) {
+  const isRecurring = (line: DisplayLine) => separateRecurring && line.lineType === "SUBSCRIPTION";
+  const oneTime = lines.filter((line) => !isRecurring(line));
+  const recurring = lines.filter(isRecurring);
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">

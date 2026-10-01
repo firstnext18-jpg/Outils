@@ -36,11 +36,14 @@ export function TotalsSummary({
   globalDiscount,
   deposit,
   vatEnabled,
+  deductions = [],
 }: {
   totals: DocumentTotals;
   globalDiscount: Discount;
   deposit: Discount;
   vatEnabled: boolean;
+  /** Facture finale : acomptes facturés, déduits du total. */
+  deductions?: { number: string; amountCents: number }[];
 }) {
   const { oneTime } = totals;
   const hasOneTime = oneTime.subtotalCents > 0 || totals.recurring.length === 0;
@@ -70,6 +73,22 @@ export function TotalsSummary({
           <div className="border-t pt-1.5">
             <Row label="Total" cents={oneTime.totalCents} strong />
           </div>
+          {deductions.map((deduction) => (
+            <Row
+              key={deduction.number}
+              label={`Acompte facturé (${deduction.number})`}
+              cents={-deduction.amountCents}
+            />
+          ))}
+          {deductions.length > 0 && (
+            <div className="border-t pt-1.5">
+              <Row
+                label="Montant à payer"
+                cents={oneTime.totalCents - deductions.reduce((sum, d) => sum + d.amountCents, 0)}
+                strong
+              />
+            </div>
+          )}
           {!vatEnabled && <p className="text-muted-foreground text-xs">Non soumis à la TVA</p>}
         </dl>
       )}

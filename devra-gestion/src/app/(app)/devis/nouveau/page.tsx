@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { loadQuoteEditorData } from "@/app/(app)/devis/editor-data";
+import { loadDocumentEditorData } from "@/modules/documents/editor-data";
+import { quoteEditorSettings } from "@/modules/settings/documents";
 import { QuoteEditor } from "@/app/(app)/devis/quote-editor";
 import { PageHeader } from "@/components/page-header";
 import { addDays, todayIso } from "@/domain/dates";
@@ -18,7 +19,8 @@ export default async function NewQuotePage({ searchParams }: PageProps<"/devis/n
           select: { id: true, displayName: true, city: true, language: true, siteTypeId: true },
         })
       : null;
-  const { editorSettings, catalog, siteTypes } = await loadQuoteEditorData(client?.siteTypeId);
+  const { settings, catalog, siteTypes } = await loadDocumentEditorData(client?.siteTypeId);
+  const editorSettings = quoteEditorSettings(settings);
   const language = client?.language ?? "FR";
   const issueDate = todayIso();
 

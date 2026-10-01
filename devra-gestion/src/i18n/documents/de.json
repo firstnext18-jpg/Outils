@@ -27,5 +27,18 @@
   "deposit": "Anzahlung bei Auftragserteilung",
   "vatExempt": "Nicht MWST-pflichtig",
   "vatNumber": "MWST-Nr.",
-  "page": "Seite {page} / {pages}"
+  "page": "Seite {page} / {pages}",
+  "depositInvoice": "Anzahlungsrechnung",
+  "finalInvoice": "Schlussrechnung",
+  "subscriptionInvoice": "Abonnementsrechnung",
+  "cancelled": "STORNIERT",
+  "dueDate": "Zahlbar bis",
+  "quoteReference": "Gemäss Offerte",
+  "paymentReference": "Referenz",
+  "depositLinePercent": "Anzahlung {percent} gemäss Offerte {number}",
+  "depositLineAmount": "Anzahlung gemäss Offerte {number}",
+  "depositLineVat": "{label} (MWST {rate})",
+  "deduction": "Abzüglich Anzahlung ({number})",
+  "amountDue": "Zahlbetrag",
+  "qrMessage": "Rechnung {number}"
 }

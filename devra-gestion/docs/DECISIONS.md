@@ -176,6 +176,71 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
 - **Données de démonstration** : `npm run db:seed:demo` ajoute 6 devis fictifs, un par statut,
   si la base n'en contient aucun.
 
+## Factures et paiements (phase 5)
+
+- **Numéro attribué à l'émission, pas à la création** : un brouillon de facture n'a pas de
+  numéro et peut être supprimé sans laisser de trou. L'émission attribue le numéro (même
+  requête SQL que pour les devis, dans la transaction), la référence de paiement et fige les
+  coordonnées. Les numéros suivent l'année de la date de la facture.
+- **Une facture émise ne se modifie plus** : elle s'annule avec un motif (elle garde son numéro et
+  reste dans l'historique, avec la mention « annulée » sur le PDF), puis on la duplique pour la
+  corriger. La copie d'une facture annulée reprend son type et son devis (ex. facture d'acompte
+  corrigée) ; sinon, une copie est une facture simple. Une facture qui a des paiements ne
+  s'annule pas : on supprime d'abord les paiements (saisie erronée). La note de crédit est
+  reportée après la V1 (décision validée).
+- **Statuts** : brouillon → envoyée → partiellement payée → payée, ou annulée. Le statut d'une
+  facture émise découle des paiements, mis à jour dans la même transaction qu'un paiement
+  enregistré ou supprimé (avec un verrou sur la facture : deux paiements simultanés ne peuvent pas
+  dépasser le solde). **« En retard » n'est pas enregistré** : il se calcule à l'affichage
+  (échéance dépassée, solde restant), il reste donc juste même si la tâche planifiée n'a pas
+  tourné.
+- **« Émettre » en attendant les emails** (phase 6) : l'émission vaut envoi (statut « envoyée »).
+  Elle demande une confirmation, comme l'annulation et les suppressions.
+- **Conversion d'un devis accepté** : facture simple si le devis n'a pas d'acompte ; sinon
+  facture d'acompte, puis facture finale une fois l'acompte émis. Une seule facture active de
+  chaque sorte par devis (verrou sur le devis contre les doubles clics). Un devis facturé ne
+  change plus de statut tant que ses factures ne sont pas annulées. Les lignes d'abonnement ne
+  sont pas reprises (décision validée) : elles relèveront du module Abonnements (phase 7).
+- **Facture d'acompte** : son montant est celui prévu au devis (TVA comprise). Si la TVA est
+  activée, il est réparti entre les taux au prorata et chaque part est convertie en montant hors
+  TVA, pour afficher la TVA de chaque taux ; un test vérifie que la facture retombe exactement sur
+  l'acompte du devis.
+- **Facture finale** : elle reprend toutes les prestations uniques du devis (TVA sur le montant
+  total), puis déduit les factures d'acompte émises, TVA comprise : « Total − acompte facturé =
+  montant à payer » (pratique courante en Suisse). Les acomptes sont relus à l'émission (l'un
+  d'eux a pu être annulé). Si un acompte déduit n'est pas encore payé, un avertissement
+  s'affiche : il reste dû sur sa propre facture.
+- **QR-facture** (librairie `swissqrbill`, conforme aux règles SIX) :
+  - compte : le QR-IBAN s'il est renseigné (référence **QRR** de 27 chiffres : préfixe éventuel de
+    la banque, année et numéro de la facture, clé modulo 10 récursif), sinon l'IBAN classique
+    (référence **SCOR** ISO 11649 construite sur le numéro, clé modulo 97). Les deux références
+    sont donc uniques et permettent de rapprocher un paiement de sa facture ; la variante
+    « sans référence » n'est pas proposée ;
+  - le numéro de facture figure dans les informations supplémentaires (« Facture F-2026-001 ») ;
+  - adresses structurées ; le client n'apparaît comme débiteur que si son adresse est complète
+    (sinon la case reste à remplir à la main, ce que la norme permet) ;
+  - montant = montant à payer ; pas de QR-facture sur un brouillon (ni numéro ni référence), ni
+    sur une facture annulée ou sans montant à payer ;
+  - l'émission est refusée tant que l'IBAN (ou le QR-IBAN) et l'adresse de l'entreprise manquent ;
+  - le QR code produit a été décodé et contrôlé (charge utile SPC 0200 complète).
+- **Mise en page de la QR-facture** : section paiement de 105 mm en bas de la dernière page, au
+  niveau de la perforation ; s'il ne reste pas assez de place, elle passe seule sur une nouvelle
+  page **A4** (et non sur le petit format proposé par la librairie, qui s'imprime mal). Sur cette
+  page, le pied de page se réduit à une ligne au-dessus de la section paiement. Les espacements
+  ont été resserrés pour qu'une facture courante tienne sur une page avec sa QR-facture.
+- **PDF archivé à l'émission** dans `DATA_DIR/documents/invoices/` (inclus dans les sauvegardes
+  en phase 10) : le PDF servi ensuite est exactement celui de l'émission. S'il manque, il est
+  régénéré à partir des données figées et réarchivé.
+- **Paiements** : montant entre 0.01 et le solde ; date jusqu'à aujourd'hui. Un paiement se
+  supprime (erreur de saisie), il ne se modifie pas.
+- **Fiche client** : « total facturé » = somme des montants à payer des factures émises (acompte
+  et facture finale ne se recoupent donc pas), « encaissé » = paiements, « impayé » = solde des
+  factures ouvertes ; les factures annulées ne comptent pas.
+- **Éditeur commun** : les blocs de l'éditeur (client et dates, lignes, textes, remises) sont
+  partagés entre devis et factures ; le schéma et les conversions des lignes sont dans
+  `src/modules/documents/lines.ts`. Sur une facture, toutes les lignes sont dues (option
+  `separateRecurring: false` du moteur de calcul).
+
 ## Interface
 
 - **Interface en français, sans bibliothèque de traduction.** Les traductions FR/DE ne concernent

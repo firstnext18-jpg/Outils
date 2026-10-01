@@ -1,6 +1,7 @@
 import { isoToDbDate } from "@/domain/dates";
 import { computeTotals, type DocumentTotals } from "@/domain/totals";
 import { UserError } from "@/lib/errors";
+import { lineRows, MAX_STORED_CENTS } from "@/modules/documents/lines";
 import type { QuoteData } from "@/modules/quotes/schemas";
 
 /*
@@ -8,9 +9,6 @@ import type { QuoteData } from "@/modules/quotes/schemas";
  * à partir des données validées. Module sans accès à la base : utilisé par le
  * service et par le script de données de démonstration.
  */
-
-/** Les montants sont stockés en entiers 32 bits : environ 21 millions de francs au maximum. */
-const MAX_STORED_CENTS = 2_000_000_000;
 
 export function quoteTotals(
   data: Pick<QuoteData, "lines" | "globalDiscount" | "deposit">,
@@ -73,20 +71,10 @@ export function quoteColumns(data: QuoteData, vatEnabled: boolean) {
       recurringQuarterlyCents: recurringTotal(totals, "QUARTERLY"),
       recurringYearlyCents: recurringTotal(totals, "YEARLY"),
     },
-    lines: data.lines.map((line, position) => ({
-      position,
-      catalogItemId: line.catalogItemId,
-      lineType: line.lineType,
-      periodicity: line.periodicity,
-      label: line.label,
-      description: line.description,
-      quantityMilli: line.quantityMilli,
-      unit: line.unit,
-      unitPriceCents: line.unitPriceCents,
-      discountType: line.discount?.type ?? null,
-      discountValue: line.discount?.value ?? 0,
-      vatRateBps: vatEnabled ? line.vatRateBps : null,
-      netCents: totals.lines[position]!.netCents,
-    })),
+    lines: lineRows(
+      data.lines,
+      totals.lines.map((line) => line.netCents),
+      vatEnabled,
+    ),
   };
 }

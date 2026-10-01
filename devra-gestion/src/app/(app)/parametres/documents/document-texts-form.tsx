@@ -42,6 +42,21 @@ const SECTIONS: {
     rows: 4,
   },
   {
+    title: "Introduction des factures",
+    description: "Texte placé avant les lignes de la facture. Modifiable sur chaque facture.",
+    fr: "invoiceIntroFr",
+    de: "invoiceIntroDe",
+    rows: 3,
+  },
+  {
+    title: "Conditions des factures",
+    description:
+      "Texte placé après les montants, au-dessus de la QR-facture. Modifiable sur chaque facture.",
+    fr: "invoiceConditionsFr",
+    de: "invoiceConditionsDe",
+    rows: 3,
+  },
+  {
     title: "Pied de page",
     description:
       "Une ligne au bas de chaque page des documents (facultatif), ex. « Merci de votre confiance ».",

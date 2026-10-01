@@ -1,12 +1,8 @@
 "use client";
 
 import { ArrowDownIcon, ArrowUpIcon, Trash2Icon } from "lucide-react";
-import {
-  useWatch,
-  type Control,
-  type UseFormSetValue,
-  type UseFormGetValues,
-} from "react-hook-form";
+import { useWatch } from "react-hook-form";
+import { useDocumentForm } from "@/components/documents/editor/form-context";
 import { DiscountInput } from "@/components/forms/discount-input";
 import { MoneyInput } from "@/components/forms/money-input";
 import { Button } from "@/components/ui/button";
@@ -32,14 +28,11 @@ import {
 import { formatPercent } from "@/domain/percent";
 import { UNIT_LABELS } from "@/domain/units";
 import { formatChf } from "@/lib/format";
-import type { QuoteData, QuoteInput } from "@/modules/quotes/schemas";
+import type { DocumentLineInput } from "@/modules/documents/lines";
 
 type Props = {
   index: number;
   count: number;
-  control: Control<QuoteInput, unknown, QuoteData>;
-  setValue: UseFormSetValue<QuoteInput>;
-  getValues: UseFormGetValues<QuoteInput>;
   netCents: number;
   vatEnabled: boolean;
   vatRates: number[];
@@ -47,21 +40,18 @@ type Props = {
   onRemove: () => void;
 };
 
-/** Une ligne de l'éditeur de devis. */
-export function QuoteLineRow({
+/** Une ligne de l'éditeur de devis ou de facture. */
+export function DocumentLineRow({
   index,
   count,
-  control,
-  setValue,
-  getValues,
   netCents,
   vatEnabled,
   vatRates,
   onMove,
   onRemove,
 }: Props) {
-  const name = <K extends keyof QuoteInput["lines"][number]>(field: K) =>
-    `lines.${index}.${field}` as const;
+  const { control, setValue, getValues } = useDocumentForm();
+  const name = <K extends keyof DocumentLineInput>(field: K) => `lines.${index}.${field}` as const;
   const lineType = useWatch({ control, name: name("lineType") });
   const periodicity = useWatch({ control, name: name("periodicity") });
   const units = allowedUnits(lineType, lineType === "SUBSCRIPTION" ? periodicity : null);
@@ -185,7 +175,7 @@ export function QuoteLineRow({
         />
       </div>
 
-      <div className="grid grid-cols-2 items-start gap-2 pl-7 sm:grid-cols-[5rem_8rem_9rem_10rem_1fr] sm:items-end">
+      <div className="grid grid-cols-2 items-start gap-2 pl-7 sm:grid-cols-[4.5rem_7rem_8.5rem_10rem_1fr] sm:items-end">
         {lineType === "SUBSCRIPTION" && (
           <FormField
             control={control}

@@ -1,0 +1,298 @@
+import { expect, test, type Page } from "@playwright/test";
+import { acceptInvitation, ADMIN, invite, login, logout } from "./fixtures";
+
+// Cycle de vente complet : devis → acceptation → facture (QR-facture) → paiements,
+// puis acompte et facture finale, retard, annulation et droits.
+// S'exécute après quotes.spec.ts (ordre alphabétique) : les numéros de devis
+// ne sont donc pas vérifiés ici, seulement ceux des factures.
+test.describe.configure({ mode: "serial" });
+
+const YEAR = new Intl.DateTimeFormat("fr-CH", {
+  year: "numeric",
+  timeZone: "Europe/Zurich",
+}).format(new Date());
+const F = (n: number) => `F-${YEAR}-${String(n).padStart(3, "0")}`;
+const CLIENT = "Atelier Vélo SA";
+const READER = { name: "Lou Lecture", email: "lou@e2e-sales.test", password: "Lou-Password-2026" };
+
+let firstInvoiceUrl = "";
+
+/** Date (AAAA-MM-JJ) d'il y a `days` jours, selon le calendrier de Zurich. */
+function zurichDaysAgo(days: number) {
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Zurich" }).format(new Date());
+  const date = new Date(`${today}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
+function amount(page: Page, label: string | RegExp) {
+  return page
+    .locator("dl > div")
+    .filter({ has: page.locator("dt", { hasText: label }) })
+    .locator("dd");
+}
+
+/** Fiche « Informations » : valeur d'une ligne. */
+function info(page: Page, label: string) {
+  return page.locator("dt", { hasText: label }).locator("xpath=following-sibling::dd[1]");
+}
+
+async function pickClient(page: Page) {
+  await page.getByRole("combobox", { name: "Client" }).click();
+  await page.getByPlaceholder("Rechercher un client…").fill("atelier velo");
+  await page.getByRole("option", { name: CLIENT }).click();
+}
+
+async function addFromCatalog(page: Page, names: string[]) {
+  await page.getByRole("button", { name: "Ajouter depuis le catalogue" }).click();
+  const dialog = page.getByRole("dialog");
+  for (const name of names) {
+    await dialog
+      .getByRole("option")
+      .filter({ has: page.getByText(name, { exact: true }) })
+      .click();
+  }
+  await dialog.getByRole("button", { name: "Terminé" }).click();
+}
+
+async function otherAction(page: Page, name: string) {
+  await page.getByRole("button", { name: "Autres actions" }).click();
+  await page.getByRole("menuitem", { name }).click();
+}
+
+/** Crée un devis (déjà accepté) et renvoie l'adresse de sa page. */
+async function acceptedQuote(page: Page, fill: () => Promise<void>) {
+  await page.goto("/devis/nouveau");
+  await pickClient(page);
+  await fill();
+  await page.getByRole("button", { name: "Créer le devis" }).first().click();
+  await expect(page).toHaveURL(/\/devis\/[0-9a-f-]{36}$/);
+  await page.getByRole("button", { name: "Marquer comme envoyé" }).click();
+  await expect(page.getByText("Envoyé", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Marquer comme accepté" }).click();
+  await expect(page.getByText("Accepté", { exact: true })).toBeVisible();
+  return new URL(page.url()).pathname;
+}
+
+async function issue(page: Page, number: string) {
+  await page.getByRole("button", { name: "Émettre la facture" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Émettre" }).click();
+  await expect(page.getByText(`Facture ${number} émise.`)).toBeVisible();
+}
+
+test("préparation : coordonnées de l'entreprise, IBAN et TVA désactivée", async ({ page }) => {
+  await login(page, ADMIN.email, ADMIN.password);
+  await page.goto("/parametres/entreprise");
+  await page.getByLabel("Nom de l'entreprise").fill("Devra Test");
+  await page.getByLabel("Rue").fill("Rue du Lac");
+  await page.getByLabel("Numéro").fill("12");
+  await page.getByLabel("NPA").fill("1003");
+  await page.getByLabel("Localité").fill("Lausanne");
+  await page.getByLabel("IBAN", { exact: true }).fill("CH93 0076 2011 6238 5295 7");
+  await page.getByRole("button", { name: "Enregistrer" }).click();
+  await expect(page.getByText("Informations de l'entreprise enregistrées.")).toBeVisible();
+
+  // Le test des devis a activé la TVA : on revient au réglage par défaut.
+  await page.goto("/parametres/facturation");
+  const vat = page.getByLabel("Entreprise assujettie à la TVA");
+  if (await vat.isChecked()) await vat.click();
+  await page.getByRole("button", { name: "Enregistrer" }).click();
+  await expect(page.getByText("Paramètres de facturation enregistrés.")).toBeVisible();
+
+  await page.goto("/clients/nouveau");
+  await page.getByRole("radio", { name: "Entreprise" }).click();
+  await page.getByLabel("Raison sociale").fill(CLIENT);
+  await page.getByLabel("Rue").fill("Rue du Port");
+  await page.getByLabel("Numéro").fill("3");
+  await page.getByLabel("NPA").fill("2000");
+  await page.getByLabel("Localité").fill("Neuchâtel");
+  await page.getByRole("button", { name: "Créer le client" }).click();
+  await expect(page.getByRole("heading", { name: CLIENT })).toBeVisible();
+});
+
+test("parcours complet : devis accepté → facture → paiements partiel puis total", async ({
+  page,
+}) => {
+  await login(page, ADMIN.email, ADMIN.password);
+  const quoteUrl = await acceptedQuote(page, () =>
+    addFromCatalog(page, ["Site vitrine (jusqu'à 5 pages)", "Hébergement + maintenance"]),
+  );
+
+  // Conversion en un clic : l'abonnement n'est pas repris dans la facture.
+  await expect(page.getByText(/Les abonnements \(CHF 29\.00 \/ mois\)/)).toBeVisible();
+  await page.getByRole("button", { name: "Créer la facture" }).click();
+  await expect(page).toHaveURL(/\/factures\/[0-9a-f-]{36}$/);
+  firstInvoiceUrl = new URL(page.url()).pathname;
+  await expect(page.getByRole("heading", { name: "Facture (brouillon)" })).toBeVisible();
+  await expect(page.getByText("Site vitrine (jusqu'à 5 pages)")).toBeVisible();
+  await expect(page.getByText("Hébergement + maintenance")).toHaveCount(0);
+  await expect(amount(page, /^Total$/)).toHaveText("CHF 1'490.00");
+
+  // Émission : numéro sans trou, référence SCOR (IBAN classique), facture verrouillée.
+  await issue(page, F(1));
+  await expect(page.getByRole("heading", { name: `Facture ${F(1)}` })).toBeVisible();
+  await expect(page.getByText("Envoyée", { exact: true })).toBeVisible();
+  await expect(info(page, "Référence")).toHaveText(/^RF\d{2} F\d{3}/);
+  await expect(page.getByRole("link", { name: "Modifier" })).toHaveCount(0);
+  await page.goto(`${firstInvoiceUrl}/modifier`);
+  await expect(page).toHaveURL(firstInvoiceUrl);
+
+  // PDF : nom de fichier propre.
+  const download = page.waitForEvent("download");
+  await page.getByRole("link", { name: "PDF", exact: true }).click();
+  expect((await download).suggestedFilename()).toBe(`DevraTest_Facture_${F(1)}_AtelierVeloSA.pdf`);
+
+  // Un montant supérieur au solde est refusé.
+  await page.getByRole("button", { name: "Enregistrer un paiement" }).click();
+  let dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("Montant")).toHaveValue("1'490.00");
+  await dialog.getByLabel("Montant").fill("2000");
+  await dialog.getByRole("button", { name: "Enregistrer le paiement" }).click();
+  await expect(dialog.locator('[data-slot="alert"]')).toContainText(
+    "Le montant dépasse le solde de la facture (CHF 1'490.00).",
+  );
+
+  // Paiement partiel, puis solde par TWINT.
+  await dialog.getByLabel("Montant").fill("500");
+  await dialog.getByRole("button", { name: "Enregistrer le paiement" }).click();
+  await expect(
+    page.getByText("Paiement de CHF 500.00 enregistré. Solde : CHF 990.00."),
+  ).toBeVisible();
+  await expect(page.getByText("Partiellement payée", { exact: true })).toBeVisible();
+  await expect(amount(page, "Solde")).toHaveText("CHF 990.00");
+
+  await page.getByRole("button", { name: "Enregistrer un paiement" }).click();
+  dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("Montant")).toHaveValue("990.00");
+  await dialog.getByRole("combobox", { name: "Moyen de paiement" }).click();
+  await page.getByRole("option", { name: "TWINT" }).click();
+  await dialog.getByRole("button", { name: "Enregistrer le paiement" }).click();
+  await expect(
+    page.getByText(`Paiement de CHF 990.00 enregistré : la facture ${F(1)} est payée.`),
+  ).toBeVisible();
+  await expect(page.getByText("Payée", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Enregistrer un paiement" })).toHaveCount(0);
+  await expect(page.getByText("a enregistré un paiement de CHF 990.00 (TWINT)")).toBeVisible();
+
+  // Le devis affiche sa facture et ne peut plus être refacturé.
+  await page.goto(quoteUrl);
+  await expect(page.getByRole("link", { name: new RegExp(F(1)) })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Créer la facture" })).toHaveCount(0);
+});
+
+test("devis avec acompte : facture d'acompte, puis facture finale qui le déduit", async ({
+  page,
+}) => {
+  await login(page, ADMIN.email, ADMIN.password);
+  const quoteUrl = await acceptedQuote(page, async () => {
+    await page.getByRole("button", { name: "Ligne libre" }).click();
+    await page.getByLabel("Désignation de la ligne 1").fill("Boutique en ligne");
+    await page.getByLabel("Prix unitaire de la ligne 1").fill("4000");
+    await page.getByLabel("Acompte à la commande", { exact: true }).fill("30");
+  });
+
+  await page.getByRole("button", { name: "Créer la facture d'acompte" }).click();
+  await expect(page.getByRole("heading", { name: "Facture d'acompte (brouillon)" })).toBeVisible();
+  await expect(page.getByText(/^Acompte de 30\s%\ssur le devis /)).toBeVisible();
+  await expect(amount(page, /^Total$/)).toHaveText("CHF 1'200.00");
+  await issue(page, F(2));
+
+  await page.goto(quoteUrl);
+  await page.getByRole("button", { name: "Créer la facture finale" }).click();
+  await expect(page.getByRole("heading", { name: "Facture finale (brouillon)" })).toBeVisible();
+  await expect(amount(page, /^Total$/)).toHaveText("CHF 4'000.00");
+  await expect(amount(page, `Acompte facturé (${F(2)})`)).toHaveText("CHF -1'200.00");
+  await expect(amount(page, "Montant à payer")).toHaveText("CHF 2'800.00");
+  await expect(page.getByText("Acompte pas encore entièrement payé")).toBeVisible();
+  await issue(page, F(3));
+  await expect(page.getByRole("heading", { name: `Facture finale ${F(3)}` })).toBeVisible();
+  await expect(amount(page, "Solde")).toHaveText("CHF 2'800.00");
+});
+
+test("facture directe en retard, puis annulée ; brouillon supprimé sans trou", async ({ page }) => {
+  await login(page, ADMIN.email, ADMIN.password);
+  await page.goto("/factures/nouvelle");
+  await pickClient(page);
+  const past = zurichDaysAgo(60);
+  await page.getByLabel("Date de la facture").fill(past);
+  await page.getByRole("button", { name: "Ligne libre" }).click();
+  await page.getByLabel("Désignation de la ligne 1").fill("Maintenance ponctuelle");
+  await page.getByLabel("Prix unitaire de la ligne 1").fill("180");
+  await page.getByRole("button", { name: "Créer le brouillon" }).first().click();
+  await expect(page.getByText("Brouillon de facture enregistré.")).toBeVisible();
+  await issue(page, F(4));
+  await expect(page.getByText("En retard", { exact: true })).toBeVisible();
+  await expect(page.getByText("En retard de 45 jours")).toBeVisible();
+  const overdueUrl = new URL(page.url()).pathname;
+
+  await page.goto("/factures?statut=en-retard");
+  await expect(page.getByRole("link", { name: F(4) })).toBeVisible();
+  await expect(page.getByRole("link", { name: F(1) })).toHaveCount(0);
+
+  await page.goto(overdueUrl);
+  await otherAction(page, "Annuler la facture");
+  const cancel = page.getByRole("alertdialog");
+  await cancel.getByLabel("Motif de l'annulation").fill("Prestation offerte au client");
+  await cancel.getByRole("button", { name: "Annuler la facture" }).click();
+  await expect(page.getByText(`Facture ${F(4)} annulée.`)).toBeVisible();
+  await expect(page.getByText("Motif : Prestation offerte au client")).toBeVisible();
+  await expect(page.getByText("Annulée", { exact: true })).toBeVisible();
+
+  // Un brouillon supprimé ne consomme pas de numéro.
+  await page.goto("/factures/nouvelle");
+  await pickClient(page);
+  await page.getByRole("button", { name: "Ligne libre" }).click();
+  await page.getByLabel("Désignation de la ligne 1").fill("Brouillon à supprimer");
+  await page.getByLabel("Prix unitaire de la ligne 1").fill("10");
+  await page.getByRole("button", { name: "Créer le brouillon" }).first().click();
+  await expect(page.getByRole("heading", { name: "Facture (brouillon)" })).toBeVisible();
+  await otherAction(page, "Supprimer");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+  await expect(page).toHaveURL("/factures");
+  await expect(page.getByText("Brouillon de facture supprimé.")).toBeVisible();
+
+  await page.goto("/parametres/facturation");
+  await expect(page.getByText(`Dernier numéro ${YEAR} : ${F(4)}.`)).toBeVisible();
+});
+
+test("fiche client : montants facturés, encaissés, impayés ; suppression refusée", async ({
+  page,
+}) => {
+  await login(page, ADMIN.email, ADMIN.password);
+  await page.goto("/clients?q=atelier");
+  await page.locator("table").getByRole("link", { name: CLIENT }).click();
+  // Facturé : 1'490 + 1'200 (acompte) + 2'800 (solde final) ; la facture annulée ne compte pas.
+  const tile = (label: string) =>
+    page.locator('[data-slot="card"]').filter({ hasText: label }).first();
+  await expect(tile("Total facturé")).toContainText("CHF 5'490.00");
+  await expect(tile("Encaissé")).toContainText("CHF 1'490.00");
+  await expect(tile("Impayé")).toContainText("CHF 4'000.00");
+  await expect(page.getByRole("link", { name: F(3) })).toBeVisible();
+
+  await page.getByRole("button", { name: "Autres actions" }).click();
+  await page.getByRole("menuitem", { name: "Supprimer" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Supprimer définitivement" })
+    .click();
+  await expect(
+    page.getByText("Ce client a 4 factures : il ne peut pas être supprimé."),
+  ).toBeVisible();
+});
+
+test("lecture seule : consulte les factures sans pouvoir agir", async ({ page }) => {
+  await login(page, ADMIN.email, ADMIN.password);
+  await invite(page, READER, "Lecture seule");
+  await logout(page);
+  await acceptInvitation(page, READER);
+
+  await page.goto("/factures");
+  await expect(page.getByRole("link", { name: "Nouvelle facture" })).toHaveCount(0);
+  await page.goto(firstInvoiceUrl);
+  await expect(page.getByRole("heading", { name: `Facture ${F(1)}` })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Aperçu PDF" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Autres actions" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Supprimer le paiement/ })).toHaveCount(0);
+  const pdf = await page.request.get(`/api/factures/${firstInvoiceUrl.split("/").pop()}/pdf`);
+  expect(pdf.headers()["content-type"]).toBe("application/pdf");
+});

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isQrIban, isValidSwissIban, normalizeIban } from "@/domain/iban";
 import { validateNumberFormat } from "@/domain/numbering";
 import { parsePercent } from "@/domain/percent";
+import { isValidQrrPrefix, MAX_QRR_PREFIX_LENGTH } from "@/domain/qr-reference";
 
 // Longueurs maximales alignées sur la QR-facture (normes SIX).
 const optionalText = (max: number) => z.string().trim().max(max, `${max} caractères maximum`);
@@ -46,6 +47,10 @@ export const companySettingsSchema = z.object({
       "IBAN suisse invalide (CH ou LI, 21 caractères)",
     )
     .refine((v) => v === "" || isQrIban(v), "Ce n'est pas un QR-IBAN (IID entre 30000 et 31999)"),
+  qrReferencePrefix: z
+    .string()
+    .trim()
+    .refine(isValidQrrPrefix, `Chiffres uniquement, ${MAX_QRR_PREFIX_LENGTH} au maximum`),
 });
 
 export type CompanySettingsInput = z.input<typeof companySettingsSchema>;
@@ -63,6 +68,10 @@ export const documentTextsSchema = z.object({
   quoteIntroDe: optionalText(5000),
   quoteConditionsFr: optionalText(5000),
   quoteConditionsDe: optionalText(5000),
+  invoiceIntroFr: optionalText(5000),
+  invoiceIntroDe: optionalText(5000),
+  invoiceConditionsFr: optionalText(5000),
+  invoiceConditionsDe: optionalText(5000),
   documentFooterFr: optionalText(300),
   documentFooterDe: optionalText(300),
 });
