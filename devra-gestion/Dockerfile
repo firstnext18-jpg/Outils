@@ -48,6 +48,8 @@ ENV NODE_ENV=production \
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
+# Planificateur des tâches quotidiennes (service « cron » de compose.yaml).
+COPY --chown=node:node docker/cron/scheduler.mjs ./docker/cron/scheduler.mjs
 
 RUN mkdir -p /data && chown node:node /data
 VOLUME ["/data"]

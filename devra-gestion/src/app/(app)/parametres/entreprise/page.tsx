@@ -49,6 +49,7 @@ export default async function CompanySettingsPage() {
               companyWebsite: settings.companyWebsite,
               iban: settings.iban ? formatIban(settings.iban) : "",
               qrIban: settings.qrIban ? formatIban(settings.qrIban) : "",
+              qrReferencePrefix: settings.qrReferencePrefix,
             }}
           />
         </CardContent>

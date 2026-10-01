@@ -18,6 +18,12 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   SMTP_FROM: z.string().min(1),
+  /** Secret partagé avec le conteneur « cron » (route des tâches quotidiennes). */
+  CRON_SECRET: z
+    .string()
+    .min(32, "CRON_SECRET doit contenir au moins 32 caractères")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
 });
 
 export type Env = z.infer<typeof envSchema>;

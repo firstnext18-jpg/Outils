@@ -1,6 +1,6 @@
 "use client";
 
-import { ArchiveIcon, SearchIcon, UsersIcon } from "lucide-react";
+import { ArchiveIcon, FileTextIcon, ReceiptTextIcon, SearchIcon, UsersIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,15 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { INVOICE_STATUS_LABELS } from "@/domain/invoice-status";
+import { QUOTE_STATUS_LABELS } from "@/domain/quote-status";
 import { globalSearchAction } from "@/modules/search/actions";
 
 type Results = Awaited<ReturnType<typeof globalSearchAction>>;
-type ClientHit = Extract<Results, { ok: true }>["data"]["clients"][number];
+type Hits = Extract<Results, { ok: true }>["data"];
+type ClientHit = Hits["clients"][number];
+type QuoteHit = Hits["quotes"][number];
+type InvoiceHit = Hits["invoices"][number];
 
 /** Recherche globale : bouton dans l'en-tête et raccourci Ctrl+K (⌘K sur Mac). */
 export function GlobalSearch() {
@@ -23,6 +28,8 @@ export function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [clients, setClients] = useState<ClientHit[]>([]);
+  const [quotes, setQuotes] = useState<QuoteHit[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceHit[]>([]);
   const [loading, setLoading] = useState(false);
   const requestId = useRef(0);
 
@@ -48,6 +55,8 @@ export function GlobalSearch() {
       if (id !== requestId.current) return;
       setLoading(false);
       setClients(result.ok ? result.data.clients : []);
+      setQuotes(result.ok ? result.data.quotes : []);
+      setInvoices(result.ok ? result.data.invoices : []);
     }, 200);
     return () => clearTimeout(timer);
   }, [query]);
@@ -56,6 +65,8 @@ export function GlobalSearch() {
     setOpen(false);
     setQuery("");
     setClients([]);
+    setQuotes([]);
+    setInvoices([]);
     router.push(href);
   }
 
@@ -81,23 +92,67 @@ export function GlobalSearch() {
           if (!value) setQuery("");
         }}
         title="Recherche globale"
-        description="Rechercher un client"
+        description="Rechercher un client ou un devis"
         shouldFilter={false}
       >
         <CommandInput
           value={query}
           onValueChange={(value) => {
             setQuery(value);
-            if (!value.trim()) setClients([]);
+            if (!value.trim()) {
+              setClients([]);
+              setQuotes([]);
+              setInvoices([]);
+            }
           }}
-          placeholder="Nom, localité, email…"
+          placeholder="Client, numéro de devis ou de facture…"
         />
         <CommandList>
           {trimmed && !loading && <CommandEmpty>Aucun résultat.</CommandEmpty>}
           {!trimmed && (
             <p className="text-muted-foreground px-3 py-6 text-center text-sm">
-              Tapez un nom, une localité ou un email.
+              Tapez un nom de client, une localité, un numéro de devis ou de facture.
             </p>
+          )}
+          {trimmed && invoices.length > 0 && (
+            <CommandGroup heading="Factures">
+              {invoices.map((invoice) => (
+                <CommandItem
+                  key={invoice.id}
+                  value={invoice.id}
+                  onSelect={() => go(`/factures/${invoice.id}`)}
+                >
+                  <ReceiptTextIcon />
+                  <span className="font-medium tabular-nums">{invoice.number ?? "Brouillon"}</span>
+                  <span className="text-muted-foreground flex-1 truncate">
+                    {invoice.client.displayName}
+                  </span>
+                  <span className="text-muted-foreground text-xs">
+                    {INVOICE_STATUS_LABELS[invoice.status]}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+          {trimmed && quotes.length > 0 && (
+            <CommandGroup heading="Devis">
+              {quotes.map((quote) => (
+                <CommandItem
+                  key={quote.id}
+                  value={quote.id}
+                  onSelect={() => go(`/devis/${quote.id}`)}
+                >
+                  <FileTextIcon />
+                  <span className="font-medium tabular-nums">{quote.number}</span>
+                  <span className="text-muted-foreground flex-1 truncate">
+                    {quote.client.displayName}
+                  </span>
+                  <span className="text-muted-foreground text-xs">
+                    {QUOTE_STATUS_LABELS[quote.status]}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
           )}
           {trimmed && clients.length > 0 && (
             <CommandGroup heading="Clients">
