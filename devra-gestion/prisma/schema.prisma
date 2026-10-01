@@ -53,6 +53,7 @@ model User {
   invoicesCreated Invoice[]     @relation("InvoiceCreatedBy")
   invoicesUpdated Invoice[]     @relation("InvoiceUpdatedBy")
   payments        Payment[]
+  emailsSent      EmailLog[]
 
   @@map("user")
 }
@@ -183,16 +184,26 @@ model Settings {
   vatRates   Int[]   @default([810, 260, 380])
 
   /// Textes par défaut des documents, en français et en allemand.
-  quoteIntroFr        String @default("Nous vous remercions de l'intérêt que vous portez à nos services et avons le plaisir de vous soumettre notre offre.")
-  quoteIntroDe        String @default("Vielen Dank für Ihr Interesse an unseren Dienstleistungen. Gerne unterbreiten wir Ihnen unsere Offerte.")
-  quoteConditionsFr   String @default("Les prix s'entendent en francs suisses. La facture est payable dans le délai indiqué sur celle-ci. Nous restons à votre disposition pour toute question.")
-  quoteConditionsDe   String @default("Alle Preise verstehen sich in Schweizer Franken. Die Rechnung ist innerhalb der darauf angegebenen Frist zahlbar. Für Fragen stehen wir Ihnen gerne zur Verfügung.")
-  invoiceIntroFr      String @default("Nous vous remercions de votre confiance et vous adressons notre facture.")
-  invoiceIntroDe      String @default("Vielen Dank für Ihr Vertrauen. Gerne stellen wir Ihnen unsere Leistungen in Rechnung.")
-  invoiceConditionsFr String @default("Merci de régler ce montant d'ici à l'échéance indiquée, de préférence au moyen de la QR-facture ci-dessous.")
-  invoiceConditionsDe String @default("Bitte begleichen Sie den Betrag bis zum angegebenen Fälligkeitsdatum, vorzugsweise mit der untenstehenden QR-Rechnung.")
-  documentFooterFr    String @default("")
-  documentFooterDe    String @default("")
+  quoteIntroFr          String @default("Nous vous remercions de l'intérêt que vous portez à nos services et avons le plaisir de vous soumettre notre offre.")
+  quoteIntroDe          String @default("Vielen Dank für Ihr Interesse an unseren Dienstleistungen. Gerne unterbreiten wir Ihnen unsere Offerte.")
+  quoteConditionsFr     String @default("Les prix s'entendent en francs suisses. La facture est payable dans le délai indiqué sur celle-ci. Nous restons à votre disposition pour toute question.")
+  quoteConditionsDe     String @default("Alle Preise verstehen sich in Schweizer Franken. Die Rechnung ist innerhalb der darauf angegebenen Frist zahlbar. Für Fragen stehen wir Ihnen gerne zur Verfügung.")
+  invoiceIntroFr        String @default("Nous vous remercions de votre confiance et vous adressons notre facture.")
+  invoiceIntroDe        String @default("Vielen Dank für Ihr Vertrauen. Gerne stellen wir Ihnen unsere Leistungen in Rechnung.")
+  invoiceConditionsFr   String @default("Merci de régler ce montant d'ici à l'échéance indiquée, de préférence au moyen de la QR-facture ci-dessous.")
+  invoiceConditionsDe   String @default("Bitte begleichen Sie den Betrag bis zum angegebenen Fälligkeitsdatum, vorzugsweise mit der untenstehenden QR-Rechnung.")
+  /// Modèles des emails d'envoi (variables : voir src/domain/email-template.ts).
+  quoteEmailSubjectFr   String @default("Devis {numero}")
+  quoteEmailSubjectDe   String @default("Offerte {numero}")
+  quoteEmailBodyFr      String @default("Bonjour,\n\nVeuillez trouver ci-joint notre devis {numero} d'un montant de {montant}, valable jusqu'au {echeance}.\n\nNous restons à votre disposition pour toute question.\n\nMeilleures salutations\n{entreprise}")
+  quoteEmailBodyDe      String @default("Guten Tag\n\nBeiliegend erhalten Sie unsere Offerte {numero} über {montant}, gültig bis {echeance}.\n\nFür Fragen stehen wir Ihnen gerne zur Verfügung.\n\nFreundliche Grüsse\n{entreprise}")
+  invoiceEmailSubjectFr String @default("Facture {numero}")
+  invoiceEmailSubjectDe String @default("Rechnung {numero}")
+  invoiceEmailBodyFr    String @default("Bonjour,\n\nVeuillez trouver ci-joint notre facture {numero} d'un montant de {montant}, payable d'ici au {echeance}. Le bulletin de paiement (QR-facture) figure au bas du document.\n\nNous vous remercions de votre confiance.\n\nMeilleures salutations\n{entreprise}")
+  invoiceEmailBodyDe    String @default("Guten Tag\n\nBeiliegend erhalten Sie unsere Rechnung {numero} über {montant}, zahlbar bis {echeance}. Den Einzahlungsschein (QR-Rechnung) finden Sie unten auf dem Dokument.\n\nVielen Dank für Ihr Vertrauen.\n\nFreundliche Grüsse\n{entreprise}")
+
+  documentFooterFr String @default("")
+  documentFooterDe String @default("")
 
   updatedAt   DateTime @updatedAt
   updatedById String?
@@ -486,6 +497,7 @@ model Quote {
 
   lines    QuoteLine[]
   invoices Invoice[]
+  emails   EmailLog[]
 
   @@index([clientId])
   @@index([status])
@@ -626,6 +638,7 @@ model Invoice {
 
   lines    InvoiceLine[]
   payments Payment[]
+  emails   EmailLog[]
 
   @@index([clientId])
   @@index([quoteId])
@@ -676,6 +689,41 @@ model Payment {
   @@index([invoiceId])
   @@index([date])
   @@map("payment")
+}
+
+// ---------------------------------------------------------------------------
+// Emails envoyés
+// ---------------------------------------------------------------------------
+
+enum EmailStatus {
+  SENT
+  FAILED
+}
+
+/// Historique des envois d'un devis ou d'une facture (réussis ou non).
+model EmailLog {
+  id         String      @id @default(uuid(7))
+  quoteId    String?
+  quote      Quote?      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  invoiceId  String?
+  invoice    Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  recipients String[]
+  /// Copie cachée (à l'expéditeur).
+  bcc        String[]
+  subject    String
+  body       String
+  /// Nom du PDF joint.
+  attachment String
+  status     EmailStatus
+  /// Message d'erreur du serveur SMTP en cas d'échec.
+  error      String      @default("")
+  sentById   String?
+  sentBy     User?       @relation(fields: [sentById], references: [id], onDelete: SetNull)
+  createdAt  DateTime    @default(now())
+
+  @@index([quoteId])
+  @@index([invoiceId])
+  @@map("email_log")
 }
 
 // ---------------------------------------------------------------------------

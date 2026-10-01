@@ -5,6 +5,7 @@ import {
   DownloadIcon,
   EllipsisIcon,
   EyeIcon,
+  MailIcon,
   PencilIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -22,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { SendEmailDialog, type SendEmailProps } from "@/components/documents/send-email-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -45,13 +47,15 @@ import {
 type Props = {
   quote: { id: string; number: string; status: QuoteStatus };
   canEdit: boolean;
+  email: Omit<SendEmailProps, "kind" | "documentId">;
 };
 
-/** Actions d'un devis : PDF, modification, changements de statut, duplication, suppression. */
-export function QuoteActions({ quote, canEdit }: Props) {
+/** Actions d'un devis : PDF, envoi, modification, changements de statut, duplication, suppression. */
+export function QuoteActions({ quote, canEdit, email }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
   const transitions = allowedTransitions(quote.status).filter((to) => to !== "EXPIRED") as Exclude<
     QuoteStatus,
     "EXPIRED"
@@ -93,9 +97,9 @@ export function QuoteActions({ quote, canEdit }: Props) {
   }
 
   // Action principale mise en avant : faire avancer le devis (jamais une annulation).
-  const primary = canEdit
-    ? transitions.find((t) => t === "ACCEPTED" || (t === "SENT" && quote.status === "DRAFT"))
-    : undefined;
+  // Pour un brouillon, c'est l'envoi par email ; « Marquer comme envoyé » reste dans le menu.
+  const draft = quote.status === "DRAFT";
+  const primary = canEdit ? transitions.find((t) => t === "ACCEPTED") : undefined;
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -114,6 +118,15 @@ export function QuoteActions({ quote, canEdit }: Props) {
           <Link href={`/devis/${quote.id}/modifier`}>
             <PencilIcon /> Modifier
           </Link>
+        </Button>
+      )}
+      {canEdit && (
+        <Button
+          variant={draft ? "default" : "outline"}
+          onClick={() => setEmailOpen(true)}
+          disabled={pending}
+        >
+          <MailIcon /> Envoyer par email
         </Button>
       )}
       {primary && (
@@ -149,6 +162,16 @@ export function QuoteActions({ quote, canEdit }: Props) {
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+      )}
+
+      {canEdit && (
+        <SendEmailDialog
+          kind="quote"
+          documentId={quote.id}
+          {...email}
+          open={emailOpen}
+          onOpenChange={setEmailOpen}
+        />
       )}
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>

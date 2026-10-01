@@ -241,6 +241,39 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   `src/modules/documents/lines.ts`. Sur une facture, toutes les lignes sont dues (option
   `separateRecurring: false` du moteur de calcul).
 
+## Emails (phase 6)
+
+- **Envoi depuis la fiche du document**, dans une fenêtre qui propose destinataire (email du
+  client), objet et message tirés du modèle de la langue du document ; tout reste modifiable
+  avant l'envoi. Le texte est envoyé tel quel, avec une version HTML sobre (paragraphes, nom de
+  l'entreprise en tête) et le PDF en pièce jointe.
+- **Variables** : celles du cahier des charges (`{client}`, `{numero}`, `{montant}`,
+  `{echeance}`, `{lien}`), plus **`{entreprise}`** pour signer les messages sans écrire le nom de
+  l'entreprise en dur dans les modèles par défaut. `{client}` désigne la personne de contact
+  d'une entreprise si elle est renseignée (plus naturel dans une formule de politesse), sinon le
+  nom du client. `{lien}` (acceptation en ligne) reste vide jusqu'à la phase 9. Les variables sont
+  remplacées en deux temps : à l'ouverture de la fenêtre, puis à l'envoi (pour `{numero}` d'une
+  facture pas encore émise). Une variable inconnue dans un modèle est refusée à l'enregistrement
+  (faute de frappe).
+- **Devis en brouillon** : il part comme devis définitif (coordonnées figées, sans filigrane) et
+  ne passe en « envoyé » **qu'après un envoi réussi** ; en cas d'échec, il reste un brouillon.
+- **Facture en brouillon** (« Émettre et envoyer ») : elle est d'abord émise (numéro, référence,
+  PDF archivé), puis envoyée. Si l'envoi échoue, elle reste émise et l'envoi peut être relancé :
+  envoyer l'email dans la transaction d'émission aurait risqué un numéro attribué à un email
+  parti puis annulé. « Émettre sans envoyer » et « Marquer comme envoyé » restent disponibles
+  (envoi postal, remise en main propre).
+- **Historique des envois** (table `email_log`) : destinataires, copie, objet, message, pièce
+  jointe, auteur, date, et le message d'erreur du serveur SMTP en cas d'échec. Les envois réussis
+  apparaissent aussi dans l'historique du document.
+- **Copie à l'expéditeur** en copie cachée ; **réponse** (« Reply-To ») vers l'email de
+  l'entreprise s'il est renseigné, l'expéditeur restant `SMTP_FROM` (adresse autorisée par le
+  serveur SMTP).
+- **Destinataires** : 5 au maximum, séparés par des virgules ; adresses contrôlées et
+  dédoublonnées.
+- **Tests** : les emails reçus sont vérifiés dans Mailpit (objet, texte, pièce jointe, copie,
+  Reply-To). Le mode « chaos » de Mailpit (activé dans `compose.dev.yaml`) simule un refus du
+  serveur SMTP pour tester le cas d'échec.
+
 ## Interface
 
 - **Interface en français, sans bibliothèque de traduction.** Les traductions FR/DE ne concernent

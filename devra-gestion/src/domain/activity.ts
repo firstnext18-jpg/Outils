@@ -63,6 +63,12 @@ export function describeActivity(action: string, details: unknown): string {
       }`;
     case "payment.deleted":
       return `a supprimé un paiement de ${String(data.amount ?? "")}`;
+    case "quote.emailed":
+    case "invoice.emailed": {
+      const to = Array.isArray(data.to) ? (data.to as string[]).join(", ") : "";
+      const what = action === "quote.emailed" ? "le devis" : "la facture";
+      return to ? `a envoyé ${what} par email à ${to}` : `a envoyé ${what} par email`;
+    }
     case "quote.status_changed":
       return QUOTE_STATUS_SENTENCES[String(data.to)] ?? "a changé le statut du devis";
     default:

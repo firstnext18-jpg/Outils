@@ -121,7 +121,7 @@ test("statuts : envoyé, accepté, annulation, retour en brouillon", async ({ pa
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto(firstQuoteUrl);
 
-  await page.getByRole("button", { name: "Marquer comme envoyé" }).click();
+  await otherAction(page, "Marquer comme envoyé");
   await expect(page.getByText(`Devis D-${YEAR}-001 : envoyé.`)).toBeVisible();
   await expect(page.getByText("Envoyé", { exact: true })).toBeVisible();
   // Un devis envoyé n'est plus modifiable…
@@ -181,7 +181,7 @@ test("duplication puis suppression du brouillon ; le numéro n'est pas réattrib
 test("liste : recherche et filtre par statut", async ({ page }) => {
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto(firstQuoteUrl);
-  await page.getByRole("button", { name: "Marquer comme envoyé" }).click();
+  await otherAction(page, "Marquer comme envoyé");
   await expect(page.getByText("Envoyé", { exact: true })).toBeVisible();
 
   await page.goto("/devis");
@@ -270,7 +270,7 @@ test("lecture seule : consulte les devis sans pouvoir les modifier", async ({ pa
   await expect(page.getByRole("link", { name: "Aperçu PDF" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Modifier" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Autres actions" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Marquer comme envoyé" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Envoyer par email" })).toHaveCount(0);
 });
 
 test("paramètres : format de numéro, prochain numéro, textes et TVA", async ({ page }) => {

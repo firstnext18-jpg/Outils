@@ -5,6 +5,7 @@ import { QuoteActions } from "@/app/(app)/devis/[id]/quote-actions";
 import { QuoteBilling } from "@/app/(app)/devis/[id]/quote-billing";
 import { LinesTable } from "@/components/documents/lines-table";
 import { QuoteStatusBadge } from "@/components/documents/quote-status-badge";
+import { EmailHistoryCard } from "@/components/documents/email-history-card";
 import { TotalsSummary } from "@/components/documents/totals-summary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { describeActivity } from "@/domain/activity";
@@ -16,6 +17,9 @@ import { formatChf, formatDateTime } from "@/lib/format";
 import { listQuoteInvoices } from "@/modules/invoices/service";
 import { expireQuotes, getQuote, getQuoteActivity } from "@/modules/quotes/service";
 import { storedDocumentTotals } from "@/modules/documents/lines";
+import { listEmailLogs, quoteEmailDraft } from "@/modules/emails/service";
+import { getSettings } from "@/modules/settings/service";
+import { quotePdfFileName } from "@/server/pdf/quote-pdf";
 import { requireUser } from "@/server/session";
 
 export async function generateMetadata({ params }: PageProps<"/devis/[id]">): Promise<Metadata> {
@@ -27,10 +31,12 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
   const user = await requireUser();
   const { id } = await params;
   await expireQuotes();
-  const [quote, activity, invoices] = await Promise.all([
+  const [quote, activity, invoices, emails, settings] = await Promise.all([
     getQuote(id),
     getQuoteActivity(id),
     listQuoteInvoices(id),
+    listEmailLogs({ quoteId: id }),
+    getSettings(),
   ]);
   if (!quote) notFound();
   const { totals, globalDiscount, deposit } = storedDocumentTotals(quote);
@@ -60,6 +66,15 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
         <QuoteActions
           quote={{ id: quote.id, number: quote.number, status: quote.status }}
           canEdit={canEdit(user.role)}
+          email={{
+            draft: quoteEmailDraft(quote, settings),
+            attachment: quotePdfFileName(quote, settings),
+            note:
+              quote.status === "DRAFT"
+                ? "Après l'envoi, le devis passe au statut « envoyé » et ne peut plus être modifié (sauf en le repassant en brouillon)."
+                : undefined,
+            senderEmail: user.email,
+          }}
         />
       </div>
 
@@ -98,6 +113,7 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
               </CardContent>
             </Card>
           )}
+          <EmailHistoryCard logs={emails} />
           <Card>
             <CardHeader>
               <CardTitle>Historique</CardTitle>

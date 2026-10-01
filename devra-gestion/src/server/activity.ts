@@ -42,6 +42,9 @@ export type ActivityAction =
   | "payment.recorded"
   | "payment.deleted"
   | "settings.documents_updated"
+  | "settings.emails_updated"
+  | "quote.emailed"
+  | "invoice.emailed"
   | "settings.billing_updated";
 
 export type ActivityEntry = {

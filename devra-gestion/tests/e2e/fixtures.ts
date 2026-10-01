@@ -33,6 +33,50 @@ export async function waitForEmailLink(to: string, subjectContains: string): Pro
   throw new Error(`Aucun email « ${subjectContains} » reçu par ${to}`);
 }
 
+export type MailpitMessage = {
+  Subject: string;
+  Text: string;
+  To: { Address: string }[];
+  Bcc: { Address: string }[];
+  ReplyTo: { Address: string }[];
+  Attachments: { FileName: string; ContentType: string; Size: number }[];
+};
+
+/**
+ * Attend l'email le plus récent correspondant à la recherche Mailpit
+ * (ex. `to:"client@exemple.ch"`, `bcc:"admin@exemple.ch"`) et renvoie son contenu.
+ */
+export async function waitForEmail(
+  query: string,
+  subjectContains: string,
+): Promise<MailpitMessage> {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const search = await fetch(`${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(query)}`);
+    const { messages } = (await search.json()) as { messages: MailpitSummary[] };
+    const message = messages.find((m) => m.Subject.includes(subjectContains));
+    if (message) {
+      const detail = await fetch(`${MAILPIT_URL}/api/v1/message/${message.ID}`);
+      return (await detail.json()) as MailpitMessage;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  throw new Error(`Aucun email « ${subjectContains} » pour ${query}`);
+}
+
+/**
+ * Simule un refus du serveur SMTP pour tous les destinataires (mode « chaos »
+ * de Mailpit, activé dans compose.dev.yaml).
+ */
+export async function setSmtpFailure(enabled: boolean) {
+  const response = await fetch(`${MAILPIT_URL}/api/v1/chaos`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ Recipient: { ErrorCode: 451, Probability: enabled ? 100 : 0 } }),
+  });
+  if (!response.ok) throw new Error("Mode chaos de Mailpit indisponible (MP_ENABLE_CHAOS)");
+}
+
 export async function deleteEmailsTo(to: string) {
   await fetch(`${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(`to:"${to}"`)}`, {
     method: "DELETE",

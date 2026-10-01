@@ -11,6 +11,7 @@ import {
   billingSettingsSchema,
   companySettingsSchema,
   documentTextsSchema,
+  emailTemplatesSchema,
   LOGO_MAX_BYTES,
 } from "@/modules/settings/schemas";
 import { getSettings } from "@/modules/settings/service";
@@ -79,6 +80,21 @@ export const updateDocumentTextsAction = authAction(
       entityType: "settings",
     });
     revalidatePath("/parametres/documents");
+    return null;
+  },
+);
+
+export const updateEmailTemplatesAction = authAction(
+  { role: "ADMIN", schema: emailTemplatesSchema },
+  async (input, { user }) => {
+    await getSettings();
+    await db.settings.update({ where: { id: 1 }, data: { ...input, updatedById: user.id } });
+    await logActivity({
+      userId: user.id,
+      action: "settings.emails_updated",
+      entityType: "settings",
+    });
+    revalidatePath("/parametres/emails");
     return null;
   },
 );

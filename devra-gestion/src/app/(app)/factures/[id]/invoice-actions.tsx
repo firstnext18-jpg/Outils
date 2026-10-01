@@ -6,7 +6,9 @@ import {
   DownloadIcon,
   EllipsisIcon,
   EyeIcon,
+  MailIcon,
   PencilIcon,
+  StampIcon,
   Trash2Icon,
 } from "lucide-react";
 import Link from "next/link";
@@ -24,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { SendEmailDialog, type SendEmailProps } from "@/components/documents/send-email-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -54,12 +57,13 @@ type Props = {
   canEdit: boolean;
   /** Ce qui manque dans les paramètres pour émettre (vide si tout y est). */
   issueBlockers: string[];
+  email: Omit<SendEmailProps, "kind" | "documentId" | "version">;
 };
 
-type Dialog = "issue" | "cancel" | "delete" | "payment" | null;
+type Dialog = "issue" | "cancel" | "delete" | "payment" | "email" | null;
 
-/** Actions d'une facture : PDF, modification, émission, paiement, annulation, duplication. */
-export function InvoiceActions({ invoice, canEdit, issueBlockers }: Props) {
+/** Actions d'une facture : PDF, envoi, modification, émission, paiement, annulation, duplication. */
+export function InvoiceActions({ invoice, canEdit, issueBlockers, email }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -134,13 +138,21 @@ export function InvoiceActions({ invoice, canEdit, issueBlockers }: Props) {
         </Button>
       )}
       {canEdit && draft && (
-        <Button onClick={() => setDialog("issue")} disabled={pending}>
-          Émettre la facture
+        <Button
+          onClick={() => setDialog(issueBlockers.length > 0 ? "issue" : "email")}
+          disabled={pending}
+        >
+          <MailIcon /> Émettre et envoyer
         </Button>
       )}
       {canEdit && isOpen(invoice.status) && invoice.number && (
         <Button onClick={() => setDialog("payment")} disabled={pending}>
           Enregistrer un paiement
+        </Button>
+      )}
+      {canEdit && !draft && invoice.status !== "CANCELLED" && (
+        <Button variant="outline" onClick={() => setDialog("email")} disabled={pending}>
+          <MailIcon /> Envoyer par email
         </Button>
       )}
       {canEdit && (
@@ -151,6 +163,11 @@ export function InvoiceActions({ invoice, canEdit, issueBlockers }: Props) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {draft && (
+              <DropdownMenuItem onSelect={() => setDialog("issue")}>
+                <StampIcon /> Émettre sans envoyer
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={duplicate}>
               <CopyIcon /> Dupliquer
             </DropdownMenuItem>
@@ -178,6 +195,17 @@ export function InvoiceActions({ invoice, canEdit, issueBlockers }: Props) {
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+      )}
+
+      {canEdit && invoice.status !== "CANCELLED" && (
+        <SendEmailDialog
+          kind="invoice"
+          documentId={invoice.id}
+          version={draft ? invoice.version : undefined}
+          {...email}
+          open={dialog === "email"}
+          onOpenChange={(open) => setDialog(open ? "email" : null)}
+        />
       )}
 
       {invoice.number && (

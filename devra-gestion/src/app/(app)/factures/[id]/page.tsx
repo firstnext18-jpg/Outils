@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { InvoiceActions } from "@/app/(app)/factures/[id]/invoice-actions";
 import { PaymentsCard } from "@/app/(app)/factures/[id]/payments-card";
+import { EmailHistoryCard } from "@/components/documents/email-history-card";
 import { InvoiceStatusBadge } from "@/components/documents/invoice-status-badge";
 import { LinesTable } from "@/components/documents/lines-table";
 import { TotalsSummary } from "@/components/documents/totals-summary";
@@ -24,6 +25,8 @@ import { getInvoice, getInvoiceActivity } from "@/modules/invoices/service";
 import { companySnapshot } from "@/modules/settings/documents";
 import { getSettings } from "@/modules/settings/service";
 import { db } from "@/server/db";
+import { invoiceEmailDraft, listEmailLogs } from "@/modules/emails/service";
+import { invoicePdfFileName } from "@/server/pdf/invoice-pdf";
 import { requireUser } from "@/server/session";
 
 function title(invoice: { type: keyof typeof INVOICE_TYPE_LABELS; number: string | null }) {
@@ -39,10 +42,11 @@ export async function generateMetadata({ params }: PageProps<"/factures/[id]">):
 export default async function InvoicePage({ params }: PageProps<"/factures/[id]">) {
   const user = await requireUser();
   const { id } = await params;
-  const [invoice, activity, settings] = await Promise.all([
+  const [invoice, activity, settings, emails] = await Promise.all([
     getInvoice(id),
     getInvoiceActivity(id),
     getSettings(),
+    listEmailLogs({ invoiceId: id }),
   ]);
   if (!invoice) notFound();
 
@@ -102,6 +106,17 @@ export default async function InvoicePage({ params }: PageProps<"/factures/[id]"
           }}
           canEdit={editable}
           issueBlockers={issueBlockers}
+          email={{
+            draft: invoiceEmailDraft(invoice, settings),
+            attachment: invoice.number
+              ? invoicePdfFileName(invoice, settings)
+              : "PDF de la facture (avec son numéro et sa QR-facture)",
+            note:
+              invoice.status === "DRAFT"
+                ? "La facture sera d'abord émise : elle recevra son numéro définitif et sa QR-facture, puis ne pourra plus être modifiée."
+                : undefined,
+            senderEmail: user.email,
+          }}
         />
       </div>
 
@@ -192,6 +207,7 @@ export default async function InvoicePage({ params }: PageProps<"/factures/[id]"
               </CardContent>
             </Card>
           )}
+          <EmailHistoryCard logs={emails} />
           <Card>
             <CardHeader>
               <CardTitle>Historique</CardTitle>

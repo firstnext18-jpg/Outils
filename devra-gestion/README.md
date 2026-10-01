@@ -17,7 +17,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 | 3. Catalogue                              | Prestations réutilisables                                         | ✅ Terminée |
 | 4. Devis                                  | Calculs, remises, acompte, PDF FR/DE                              | ✅ Terminée |
 | 5. Factures                               | QR-facture, paiements, acomptes                                   | ✅ Terminée |
-| 6. Emails                                 | Envoi des devis et factures                                       | À venir     |
+| 6. Emails                                 | Envoi des devis et factures                                       | ✅ Terminée |
 | 7. Relances et abonnements                | Tâches planifiées                                                 | À venir     |
 | 8. Tableau de bord                        | Indicateurs et graphiques                                         | À venir     |
 | 9. Acceptation en ligne, exports, journal |                                                                   | À venir     |
@@ -88,6 +88,17 @@ entreprise, auto-hébergé sur un Raspberry Pi.
     « en retard » s'affiche dès le lendemain de l'échéance ;
   - liste avec recherche et filtre par statut ; sur la fiche client : factures, total facturé,
     encaissé et impayé ; un client qui a des factures ne peut pas être supprimé.
+- **Envoi par email** des devis et des factures, depuis leur fiche :
+  - PDF en pièce jointe, message proposé à partir d'un modèle (français ou allemand selon la
+    langue du document), modifiable avant l'envoi ;
+  - variables `{client}`, `{numero}`, `{montant}`, `{echeance}`, `{lien}` et `{entreprise}` ;
+  - plusieurs destinataires possibles, copie optionnelle à l'expéditeur, réponses adressées à
+    l'email de l'entreprise ;
+  - un devis en brouillon passe en « envoyé » ; une facture en brouillon est émise puis envoyée
+    (« Émettre et envoyer ») ;
+  - historique des envois sur le document, échecs compris (avec le message du serveur).
+- **Paramètres → Emails** : modèles d'envoi des devis et des factures, en français et en
+  allemand ; une variable mal écrite est signalée.
 - **Recherche globale** (Ctrl+K) : clients (nom, localité, email, téléphone), devis et factures
   (numéro, objet).
 - **Navigation** latérale (repliable, en tiroir sur téléphone), thème clair / sombre / système.

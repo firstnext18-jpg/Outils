@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { unknownVariables } from "@/domain/email-template";
 import { isQrIban, isValidSwissIban, normalizeIban } from "@/domain/iban";
 import { validateNumberFormat } from "@/domain/numbering";
 import { parsePercent } from "@/domain/percent";
@@ -76,6 +77,39 @@ export const documentTextsSchema = z.object({
   documentFooterDe: optionalText(300),
 });
 export type DocumentTextsInput = z.input<typeof documentTextsSchema>;
+
+// ---------------------------------------------------------------------------
+// Modèles d'emails
+// ---------------------------------------------------------------------------
+
+/** Texte d'un modèle : obligatoire, sans variable inconnue (faute de frappe). */
+const templateText = (max: number, label: string) =>
+  z
+    .string()
+    .trim()
+    .min(1, `${label} est obligatoire`)
+    .max(max, `${max} caractères maximum`)
+    .superRefine((value, ctx) => {
+      const unknown = unknownVariables(value);
+      if (unknown.length > 0) {
+        ctx.addIssue({
+          code: "custom",
+          message: `Variable inconnue : ${unknown.map((v) => `{${v}}`).join(", ")}`,
+        });
+      }
+    });
+
+export const emailTemplatesSchema = z.object({
+  quoteEmailSubjectFr: templateText(200, "L'objet"),
+  quoteEmailSubjectDe: templateText(200, "L'objet"),
+  quoteEmailBodyFr: templateText(5000, "Le message"),
+  quoteEmailBodyDe: templateText(5000, "Le message"),
+  invoiceEmailSubjectFr: templateText(200, "L'objet"),
+  invoiceEmailSubjectDe: templateText(200, "L'objet"),
+  invoiceEmailBodyFr: templateText(5000, "Le message"),
+  invoiceEmailBodyDe: templateText(5000, "Le message"),
+});
+export type EmailTemplatesInput = z.input<typeof emailTemplatesSchema>;
 
 // ---------------------------------------------------------------------------
 // Facturation : numérotation, délais, TVA

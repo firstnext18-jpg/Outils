@@ -297,6 +297,37 @@ export async function changeQuoteStatus(actor: CurrentUser, id: string, to: Quot
   });
 }
 
+/**
+ * Devis envoyé par email. Un brouillon passe en « envoyé » avec les
+ * coordonnées figées utilisées dans le PDF joint (seulement après un envoi
+ * réussi : en cas d'échec, il reste un brouillon).
+ */
+export async function recordQuoteEmailed(
+  actor: CurrentUser,
+  quote: { id: string; number: string; status: QuoteStatus },
+  snapshots: {
+    clientSnapshot: Prisma.InputJsonValue;
+    companySnapshot: Prisma.InputJsonValue;
+  } | null,
+  recipients: string[],
+) {
+  await db.$transaction(async (tx) => {
+    if (snapshots && quote.status === "DRAFT") {
+      await tx.quote.updateMany({
+        where: { id: quote.id, status: "DRAFT" },
+        data: {
+          ...snapshots,
+          status: "SENT",
+          sentAt: new Date(),
+          updatedById: actor.id,
+          version: { increment: 1 },
+        },
+      });
+    }
+    await log(tx, actor, "quote.emailed", quote, { to: recipients });
+  });
+}
+
 /** Duplication : nouveau brouillon, nouvelles dates, mêmes lignes et textes. */
 export async function duplicateQuote(actor: CurrentUser, id: string) {
   const quote = await db.quote.findUnique({

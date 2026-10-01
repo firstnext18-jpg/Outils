@@ -704,6 +704,15 @@ export async function deletePayment(actor: CurrentUser, paymentId: string) {
   });
 }
 
+/** Facture envoyée par email (elle a été émise juste avant si c'était un brouillon). */
+export async function recordInvoiceEmailed(
+  actor: CurrentUser,
+  invoice: { id: string; number: string | null },
+  recipients: string[],
+) {
+  await log(db, actor, "invoice.emailed", invoice, { to: recipients });
+}
+
 /** Échéance proposée pour une nouvelle facture datée d'aujourd'hui. */
 export async function newInvoiceDates() {
   const settings = await getSettings();
