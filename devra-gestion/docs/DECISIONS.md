@@ -251,7 +251,7 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   `{echeance}`, `{lien}`), plus **`{entreprise}`** pour signer les messages sans écrire le nom de
   l'entreprise en dur dans les modèles par défaut. `{client}` désigne la personne de contact
   d'une entreprise si elle est renseignée (plus naturel dans une formule de politesse), sinon le
-  nom du client. `{lien}` (acceptation en ligne) reste vide jusqu'à la phase 9. Les variables sont
+  nom du client. `{lien}` : lien d'acceptation en ligne (phase 9). Les variables sont
   remplacées en deux temps : à l'ouverture de la fenêtre, puis à l'envoi (pour `{numero}` d'une
   facture pas encore émise). Une variable inconnue dans un modèle est refusée à l'enregistrement
   (faute de frappe).
@@ -361,6 +361,158 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`, puis
   appliquée avec `prisma migrate deploy`.
 
+## Tableau de bord (phase 8)
+
+- **Périodes** : mois, trimestre ou année **en cours**, du premier jour à aujourd'hui, ou période
+  personnalisée (10 ans au plus). La période choisie est dans l'adresse (`/?periode=annee`,
+  `/?periode=personnalise&du=…&au=…`) : elle se partage et fonctionne sans JavaScript.
+- **Comparaison avec la période précédente, à durée égale** : le 1er–15 octobre se compare au
+  1er–15 septembre (et non à tout septembre, ce qui ferait paraître en forte baisse une période à
+  peine commencée) ; l'année en cours au même jour de l'année précédente ; une période
+  personnalisée à la période de même durée qui la précède. Sans chiffre sur la période
+  précédente, aucun pourcentage n'est affiché.
+- **Chiffre d'affaires facturé** : montant à payer des factures émises (ni brouillons ni
+  annulées), à leur date. Une facture finale ne compte que ce qui reste après l'acompte, déjà
+  compté avec la facture d'acompte : rien n'est compté deux fois. **Encaissé** : paiements, à leur
+  date. Montants TVA comprise si elle est activée (Devra n'y est pas assujettie) ; les frais de
+  relance ne comptent pas dans le facturé.
+- **Indicateurs « photo du moment »**, indépendants de la période : factures impayées (dont en
+  retard), devis en attente (envoyés, encore valables ; « expire bientôt » = dans les 7 jours),
+  revenu récurrent (MRR des abonnements actifs, hors TVA), nombre de clients par zone et types de
+  site demandés (fiches clients actuelles, sans les archivés).
+- **Indicateurs de la période** : facturé, encaissé, taux de conversion (devis **envoyés pendant la
+  période** — date d'envoi, à Zurich — et acceptés depuis, sur le nombre de devis envoyés),
+  meilleurs clients (top 5 du facturé), chiffre d'affaires par zone et par type de site vendu.
+- **Zones d'action** d'après l'adresse **actuelle** des clients (canton, NPA et localité). La
+  carte de la Suisse par canton (« serait un plus » dans le cahier des charges) n'est pas faite :
+  elle demanderait d'embarquer les contours des cantons ; à proposer séparément.
+- **Graphiques** : Recharts pour l'évolution sur 12 mois (barres facturé / encaissé, avec un
+  tableau équivalent pour les lecteurs d'écran) ; les classements (clients, zones, types de site)
+  sont des listes avec barres horizontales en HTML, lisibles sur téléphone et accessibles. Deux
+  couleurs de graphique (`--chart-1`, `--chart-2`) suivent le thème clair / sombre.
+- **Raccourci « Enregistrer un paiement »** : choix parmi les factures ouvertes (recherche par mots
+  dans le numéro et le client, sans recherche approximative qui confondrait `F-2020-003` et
+  `F-2026-003`), puis le même formulaire que sur la fiche de la facture. Les raccourcis ne sont
+  pas affichés en lecture seule.
+- **Calculs en base** (agrégats Prisma), regroupés par mois en JavaScript : quelques requêtes
+  légères, sans table de statistiques à tenir à jour.
+
+## Acceptation en ligne, export comptable, journal (phase 9)
+
+### Acceptation des devis en ligne
+
+- **Option désactivée par défaut** (Paramètres → Facturation). Désactivée après coup, elle rend
+  aussitôt les liens déjà envoyés inutilisables.
+- **Lien secret** : jeton aléatoire de 256 bits, dont seule l'empreinte SHA-256 est enregistrée
+  (table `quote_link`) : une copie de la base ne permet pas de retrouver les liens. Un lien est
+  créé à chaque envoi du devis par email (les précédents restent valables). Il permet
+  d'accepter ou de refuser tant que le devis est « envoyé » et que sa date de validité n'est pas
+  dépassée, puis reste consultable 30 jours de plus avant d'expirer.
+- **Variable `{lien}`** : dans la fenêtre d'envoi, elle reste telle quelle (« sera remplacée à
+  l'envoi ») ; le lien n'est créé qu'au moment de l'envoi. **Sans l'option, la ligne qui contient
+  `{lien}` est retirée** du message : les modèles par défaut contiennent donc une phrase
+  « Vous pouvez le consulter et l'accepter en ligne : {lien} » qui n'apparaît que si l'option
+  est activée. Une migration l'ajoute aux modèles jamais modifiés.
+- **Page publique** `/devis-en-ligne/<jeton>`, sans compte, dans la langue du devis (français ou
+  allemand) : coordonnées figées à l'envoi, lignes, totaux, conditions, PDF. Ni indexée, ni
+  transmise en « Referer ». Acceptation : nom et prénom + case « J'ai lu ce devis et j'en accepte
+  les conditions » ; refus : nom + commentaire facultatif.
+- **Enregistrement** : statut, date, nom saisi et adresse IP (en-tête `AUTH_IP_HEADER` du reverse
+  proxy), dans une transaction qui verrouille le devis (deux décisions simultanées ne peuvent pas
+  aboutir). Le journal attribue la décision au client (« Jeanne Lumen (client, en ligne) »). Si
+  l'équipe annule ensuite la décision dans l'outil, ces informations sont effacées.
+- **Notification** : email aux admins et aux membres actifs (nom du client, montant, lien vers
+  le devis ; commentaire en cas de refus). Un échec d'envoi n'annule pas la décision.
+
+### Export comptable
+
+- Page **Factures → Export comptable**, accessible à tous les rôles (consultation), avec des
+  périodes en un clic (mois et trimestre derniers, année en cours, année dernière) ou des dates
+  choisies. Chaque export est inscrit au journal (nLPD).
+- **Factures** émises dans la période (selon leur date), **annulées comprises** avec leur statut
+  et leur motif : la suite des numéros reste complète. **Paiements** selon leur date de
+  réception. **Clients** facturés ou ayant payé pendant la période, avec facturé, encaissé et
+  solde ouvert à ce jour.
+- **Excel** : un classeur de trois feuilles, montants en nombres (format `#,##0.00`), dates en
+  dates. **CSV** (un fichier par jeu de données) : séparateur point-virgule, BOM UTF-8,
+  montants `1250.00` sans séparateur de milliers et dates `JJ.MM.AAAA`, reconnus par Excel en
+  Suisse ; protection contre l'injection de formules comme pour l'export des clients.
+- **ZIP des PDF** : PDF archivés des factures émises (dossier `factures`) et des relances
+  (dossier `relances`) de la période, tels qu'envoyés (régénérés s'ils manquent), stockés sans
+  recompression (ils sont déjà compressés), avec `fflate` (petite bibliothèque sans
+  dépendance). 500 documents au plus par archive, pour la mémoire du Raspberry Pi. Les devis ne
+  sont pas inclus (ce ne sont pas des pièces comptables).
+
+### Journal d'activité
+
+- Page **Paramètres → Journal** (admin) : phrases complètes avec l'objet concerné, recherche
+  dans le numéro ou le nom, filtres par personne, par type et par période (journées de Zurich),
+  50 lignes par page, lien « Ouvrir » vers le document s'il existe encore. Sur chaque document,
+  l'historique propre reste visible par tous.
+
+## Production (phase 10)
+
+### Sauvegardes
+
+- **Conteneur dédié** (`backup`), construit sur l'image PostgreSQL 18 : `pg_dump` et `pg_restore`
+  ont exactement la version du serveur. Plutôt qu'une crontab sur le Raspberry Pi : tout reste
+  dans Docker Compose (installation et mise à jour identiques), et le journal est dans
+  `docker compose logs backup`.
+- **Sauvegarde logique** (`pg_dump`, format « custom » compressé) plutôt qu'une copie du volume :
+  cohérente sans arrêter la base, plus petite, indépendante de l'architecture et restaurable
+  dans une version plus récente de PostgreSQL. Chaque fichier est relu (`pg_restore --list`)
+  avant d'être gardé. Les fichiers de l'application (logo, PDF archivés) sont sauvegardés à côté
+  dans une archive `tar.gz`.
+- **Planification** : le script vérifie l'heure chaque minute ; dès que l'heure prévue est
+  passée et que la sauvegarde du jour manque, il la fait (rattrapage après une coupure).
+  Chaque sauvegarde tourne dans son propre processus, pour que la moindre erreur l'interrompe
+  (`set -e`), avec un nouvel essai 30 minutes plus tard. Le service attend la fin des
+  migrations : la toute première sauvegarde contient déjà les tables.
+- **Rotation** par âge des fichiers (30 jours par défaut), puis **copie hors du Raspberry Pi**
+  avec rclone, configuré uniquement par variables d'environnement (`RCLONE_CONFIG_*` dans
+  `.env`, pas de fichier de configuration). `rclone copy` puis suppression des copies trop
+  anciennes, jamais `rclone sync` : un disque local vidé par erreur n'efface pas les copies
+  distantes. Chiffrement côté Raspberry Pi possible et conseillé (stockage `crypt`).
+- **Restauration** (`restore`, profil Compose lancé à la main) : liste, vérification dans une base
+  temporaire (`--test`, sans toucher à l'application), ou restauration. La sauvegarde est
+  d'abord restaurée dans une base à part ; une fois réussie, les noms sont échangés (connexions
+  à l'ancienne base bloquées puis coupées) : jamais de base vide ou à moitié restaurée. La base
+  et les fichiers précédents sont conservés (`…_avant_restauration`). Confirmation à taper
+  (`RESTAURER`), sauf avec `--oui`. Un contrôle « l'application est-elle arrêtée ? » par le
+  nombre de connexions a été écarté : l'application ferme ses connexions inactives après
+  quelques secondes, il laissait passer une application en marche.
+- **Testé de bout en bout** avec Docker Compose : sauvegarde, copie distante (stockage rclone
+  local), vérification, restauration après altération des données, restauration après perte
+  totale des volumes depuis la copie distante, rotation locale et distante.
+
+### Accès HTTPS
+
+- Deux fichiers Compose d'appoint, activés par `COMPOSE_FILE` dans `.env` (les commandes
+  `docker compose …` restent les mêmes) : `compose.cloudflare.yaml` (**recommandé** : aucun
+  port ouvert sur la box, adresse IP masquée) et `compose.caddy.yaml` (certificat Let's Encrypt
+  automatique, redirection HTTP → HTTPS). `AUTH_IP_HEADER` suit l'option (`cf-connecting-ip` ou
+  `x-forwarded-for`, que Caddy réécrit avec la vraie adresse du visiteur).
+- Testé avec Caddy en local (certificat interne pour `localhost`) : redirection HTTP → HTTPS,
+  cookie de session `__Secure-…` (`Secure`, `HttpOnly`), en-têtes de sécurité, et une fausse
+  adresse IP envoyée par le visiteur ignorée.
+
+### En-têtes de sécurité
+
+- **CSP** sur les pages : ressources de l'application uniquement, pas d'intégration dans un
+  cadre (`frame-ancestors 'none'`), formulaires vers l'application seulement, pas d'objets.
+  Scripts et styles « inline » autorisés : Next.js et le thème clair/sombre en ont besoin ; une
+  CSP à « nonces » demanderait un traitement de chaque page par le proxy, à envisager plus tard.
+  Pas de CSP sur `/api` : les PDF y sont affichés par le lecteur intégré du navigateur.
+- **HSTS** d'un an (sans `includeSubDomains` ni `preload`, pour ne pas engager les autres
+  sous-domaines de devra.ch). Ignoré par les navigateurs tant que le site est servi en HTTP.
+
+### Limites connues
+
+- Dans l'environnement de développement utilisé, le dépôt de paquets Alpine est inaccessible :
+  l'étape `apk add rclone` de l'image de sauvegarde n'a pas pu y être exécutée. Les scripts ont
+  été testés dans une image équivalente contenant le binaire officiel de rclone. La
+  construction des images en ARM64 se fait sur le Raspberry Pi lui-même.
+
 ## Interface
 
 - **Interface en français, sans bibliothèque de traduction.** Les traductions FR/DE ne concernent
@@ -383,8 +535,9 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   unique (`devra_gestion_e2e_…`), puis la supprime. Aucune base existante n'est jamais vidée. Les
   emails sont lus dans Mailpit.
 - **Docker : image multi-étapes** sur `node:24-bookworm-slim` (Debian, glibc : compatible avec les
-  binaires précompilés ARM64). Un service `migrate` applique les migrations et le seed, puis
-  s'arrête ; l'application ne démarre qu'après son succès.
+  binaires précompilés ARM64), exécutée avec l'utilisateur non privilégié `node`. Un service
+  `migrate` applique les migrations et le seed, puis s'arrête ; l'application ne démarre qu'après
+  son succès.
 - **ESLint** : les variables volontairement inutilisées sont préfixées par `_`.
 - **`npm audit`** : ExcelJS dépend d'une ancienne version de `uuid` (vulnérabilité « moderate »
   limitée aux fonctions v3/v5/v6 avec un tampon fourni, que nous n'utilisons pas).

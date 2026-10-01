@@ -174,11 +174,13 @@ model Settings {
   logoFile            String?
 
   /// Formats de numérotation (voir src/domain/numbering.ts).
-  quoteNumberFormat   String @default("D-{AAAA}-{NNN}")
-  invoiceNumberFormat String @default("F-{AAAA}-{NNN}")
+  quoteNumberFormat   String  @default("D-{AAAA}-{NNN}")
+  invoiceNumberFormat String  @default("F-{AAAA}-{NNN}")
   /// Délais par défaut, en jours.
-  quoteValidityDays   Int    @default(30)
-  paymentTermDays     Int    @default(15)
+  quoteValidityDays   Int     @default(30)
+  paymentTermDays     Int     @default(15)
+  /// Acceptation des devis en ligne : lien envoyé avec le devis (variable {lien}).
+  onlineAcceptance    Boolean @default(false)
 
   /// TVA : désactivée tant que l'entreprise n'y est pas assujettie.
   vatEnabled Boolean @default(false)
@@ -199,8 +201,8 @@ model Settings {
   /// Modèles des emails d'envoi (variables : voir src/domain/email-template.ts).
   quoteEmailSubjectFr   String       @default("Devis {numero}")
   quoteEmailSubjectDe   String       @default("Offerte {numero}")
-  quoteEmailBodyFr      String       @default("Bonjour,\n\nVeuillez trouver ci-joint notre devis {numero} d'un montant de {montant}, valable jusqu'au {echeance}.\n\nNous restons à votre disposition pour toute question.\n\nMeilleures salutations\n{entreprise}")
-  quoteEmailBodyDe      String       @default("Guten Tag\n\nBeiliegend erhalten Sie unsere Offerte {numero} über {montant}, gültig bis {echeance}.\n\nFür Fragen stehen wir Ihnen gerne zur Verfügung.\n\nFreundliche Grüsse\n{entreprise}")
+  quoteEmailBodyFr      String       @default("Bonjour,\n\nVeuillez trouver ci-joint notre devis {numero} d'un montant de {montant}, valable jusqu'au {echeance}.\n\nVous pouvez le consulter et l'accepter en ligne : {lien}\n\nNous restons à votre disposition pour toute question.\n\nMeilleures salutations\n{entreprise}")
+  quoteEmailBodyDe      String       @default("Guten Tag\n\nBeiliegend erhalten Sie unsere Offerte {numero} über {montant}, gültig bis {echeance}.\n\nSie können die Offerte online ansehen und annehmen: {lien}\n\nFür Fragen stehen wir Ihnen gerne zur Verfügung.\n\nFreundliche Grüsse\n{entreprise}")
   invoiceEmailSubjectFr String       @default("Facture {numero}")
   invoiceEmailSubjectDe String       @default("Rechnung {numero}")
   invoiceEmailBodyFr    String       @default("Bonjour,\n\nVeuillez trouver ci-joint notre facture {numero} d'un montant de {montant}, payable d'ici au {echeance}. Le bulletin de paiement (QR-facture) figure au bas du document.\n\nNous vous remercions de votre confiance.\n\nMeilleures salutations\n{entreprise}")
@@ -500,6 +502,11 @@ model Quote {
   sentAt          DateTime?
   /// Date d'acceptation ou de refus.
   decidedAt       DateTime?
+  /// Décision prise en ligne par le client : nom saisi, adresse IP, commentaire (refus).
+  decidedOnline   Boolean   @default(false)
+  decisionName    String    @default("")
+  decisionIp      String    @default("")
+  decisionComment String    @default("")
   /// Coordonnées du client et de l'entreprise figées à l'envoi (PDF identique ensuite).
   clientSnapshot  Json?
   companySnapshot Json?
@@ -519,11 +526,25 @@ model Quote {
   invoices      Invoice[]
   emails        EmailLog[]
   subscriptions Subscription[]
+  links         QuoteLink[]
 
   @@index([clientId])
   @@index([status])
   @@index([issueDate])
   @@map("quote")
+}
+
+/// Lien d'acceptation en ligne d'un devis. Seule l'empreinte (SHA-256) du jeton est enregistrée.
+model QuoteLink {
+  id        String   @id @default(uuid(7))
+  quoteId   String
+  quote     Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([quoteId])
+  @@map("quote_link")
 }
 
 /// Ligne de devis : copie complète des données (indépendante du catalogue).

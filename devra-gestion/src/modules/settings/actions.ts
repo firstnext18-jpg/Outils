@@ -129,7 +129,7 @@ export const updateBillingSettingsAction = authAction(
       userId: user.id,
       action: "settings.billing_updated",
       entityType: "settings",
-      details: { vatEnabled: input.vatEnabled },
+      details: { vatEnabled: input.vatEnabled, onlineAcceptance: input.onlineAcceptance },
     });
     revalidatePath("/parametres/facturation");
     return null;

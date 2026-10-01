@@ -6,7 +6,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 - Plusieurs utilisateurs avec des rôles : **Admin**, **Membre**, **Lecture seule**
 - Montants en CHF, formats suisses (`30.09.2026`, `CHF 1'250.00`)
 - Interface en français, mode clair et sombre, utilisable sur téléphone
-- Documents en français et en allemand _(à venir)_
+- Documents en français et en allemand
 
 ## Avancement
 
@@ -19,9 +19,9 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 | 5. Factures                               | QR-facture, paiements, acomptes                                   | ✅ Terminée |
 | 6. Emails                                 | Envoi des devis et factures                                       | ✅ Terminée |
 | 7. Relances et abonnements                | Relances, abonnements, tâches quotidiennes                        | ✅ Terminée |
-| 8. Tableau de bord                        | Indicateurs et graphiques                                         | À venir     |
-| 9. Acceptation en ligne, exports, journal |                                                                   | À venir     |
-| 10. Production                            | Sauvegardes, déploiement Raspberry Pi                             | À venir     |
+| 8. Tableau de bord                        | Indicateurs, graphiques, zones d'action                           | ✅ Terminée |
+| 9. Acceptation en ligne, exports, journal | Devis acceptés en ligne, export comptable, journal d'activité     | ✅ Terminée |
+| 10. Production                            | Sauvegardes, HTTPS, sécurité, déploiement Raspberry Pi            | ✅ Terminée |
 
 ## Ce qui fonctionne aujourd'hui
 
@@ -100,6 +100,17 @@ entreprise, auto-hébergé sur un Raspberry Pi.
   - historique des envois sur le document, échecs compris (avec le message du serveur).
 - **Paramètres → Emails** : modèles d'envoi des devis et des factures, en français et en
   allemand ; une variable mal écrite est signalée.
+- **Acceptation des devis en ligne** (option, Paramètres → Facturation) : le devis envoyé par
+  email contient un lien sécurisé vers une page publique, en français ou en allemand, où le
+  client consulte le devis (et son PDF) puis l'accepte (nom + case « J'accepte ») ou le refuse
+  (avec un commentaire facultatif). Le statut est mis à jour, la date, le nom et l'adresse IP
+  sont enregistrés, et l'équipe est prévenue par email.
+- **Export comptable** (Factures → Export comptable) : factures, paiements et clients d'une
+  période en Excel (un classeur de trois feuilles) ou en CSV, et les PDF des factures et des
+  relances de la période dans un fichier ZIP.
+- **Journal d'activité** (Paramètres → Journal) : « Marc a envoyé le devis D-2026-004 par email
+  à … », avec recherche, filtres par personne, par type et par période, et lien vers le
+  document.
 - **Relances** des factures impayées :
   - trois niveaux : 1er rappel, 2e rappel, mise en demeure ; délais (par défaut 10 jours après
     l'échéance, puis 15 jours entre deux relances), frais par niveau (0 par défaut) et nouveau
@@ -122,11 +133,19 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 - **Tâches quotidiennes** (devis expirés, factures d'abonnement, relances) : lancées chaque matin
   par le conteneur `cron`, ou à la main dans **Paramètres → Tâches**, qui affiche aussi les
   dernières exécutions.
+- **Tableau de bord** (page d'accueil), pour le mois, le trimestre, l'année en cours ou une
+  période choisie, comparée à la période précédente :
+  - chiffre d'affaires facturé et encaissé, graphique des 12 derniers mois ;
+  - factures impayées (dont en retard, avec la liste), devis en attente (et ceux qui expirent
+    dans les 7 jours), taux de conversion des devis ;
+  - meilleurs clients (top 5), zones d'action (CA et nombre de clients par canton et par
+    localité), types de site demandés et vendus, revenu récurrent (MRR) ;
+  - raccourcis « Nouveau devis », « Nouveau client » et « Enregistrer un paiement » (choix de la
+    facture, puis paiement).
 - **Recherche globale** (Ctrl+K) : clients (nom, localité, email, téléphone), devis et factures
   (numéro, objet).
 - **Navigation** latérale (repliable, en tiroir sur téléphone), thème clair / sombre / système.
-- Chaque action importante est enregistrée dans un **journal d'activité** (la page de consultation
-  arrive en phase 9).
+- Chaque action importante est enregistrée dans le **journal d'activité**.
 
 ## Installation en local (développement)
 
@@ -148,21 +167,37 @@ npm run dev
 - En développement, il n'y a pas de conteneur `cron` : les tâches quotidiennes se lancent depuis
   **Paramètres → Tâches** (« Lancer maintenant »).
 
-## Lancer avec Docker (comme en production)
+## Production (Raspberry Pi)
+
+Le guide pas à pas est dans [`docs/DEPLOIEMENT_RASPBERRY_PI.md`](docs/DEPLOIEMENT_RASPBERRY_PI.md) :
+installation de Raspberry Pi OS 64 bits et de Docker, fichier `.env`, accès HTTPS sur
+`gestion.devra.ch` par **Cloudflare Tunnel** (recommandé) ou **Caddy**, mises à jour, dépannage.
+
+En résumé :
 
 ```bash
-cp .env.example .env          # complétez au minimum BETTER_AUTH_SECRET, POSTGRES_PASSWORD,
-                              # APP_URL, SMTP_*, ADMIN_* et CRON_SECRET
+cp .env.example .env          # secrets, SMTP, admin, sauvegardes, option HTTPS (COMPOSE_FILE)
 docker compose up -d --build
 ```
 
-Quatre services démarrent : `db` (PostgreSQL), `migrate` (applique les migrations et crée le
-premier admin, puis s'arrête), `app` (l'application, sur `127.0.0.1:3000`) et `cron` (appelle
-chaque matin à `CRON_TIME`, 06:00 par défaut, la route des tâches quotidiennes avec
-`CRON_SECRET`, ainsi qu'au démarrage). Les images fonctionnent sur Raspberry Pi (ARM64) comme sur
-un ordinateur classique.
+| Service                  | Rôle                                                                                                 |
+| ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `db`                     | PostgreSQL                                                                                           |
+| `migrate`                | applique les migrations et crée le premier admin, puis s'arrête                                      |
+| `app`                    | l'application, sur `127.0.0.1:3000` seulement                                                        |
+| `cron`                   | tâches quotidiennes (devis expirés, factures d'abonnement, relances), à `CRON_TIME`                  |
+| `backup`                 | sauvegarde quotidienne de la base et des fichiers, rotation sur 30 jours, copie distante facultative |
+| `cloudflared` ou `caddy` | accès HTTPS depuis Internet (`compose.cloudflare.yaml` ou `compose.caddy.yaml`)                      |
 
-Le guide complet (Raspberry Pi, HTTPS sur `gestion.devra.ch`, sauvegardes) arrivera en phase 10.
+Les images fonctionnent sur Raspberry Pi (ARM64) comme sur un ordinateur classique.
+
+**Sauvegardes et restauration** : voir [`docs/SAUVEGARDES.md`](docs/SAUVEGARDES.md).
+
+```bash
+docker compose exec backup backup.sh maintenant   # sauvegarde immédiate
+docker compose run --rm restore --test            # vérifie la dernière sauvegarde
+docker compose run --rm restore derniere          # restaure (application arrêtée)
+```
 
 ## Commandes utiles
 
@@ -190,6 +225,7 @@ devra-gestion/
 │  ├─ app/
 │  │  ├─ (auth)/          connexion, mot de passe oublié, invitation
 │  │  ├─ (app)/           application connectée (navigation latérale)
+│  │  ├─ (public)/        page d'acceptation des devis en ligne (sans compte)
 │  │  └─ api/             authentification, logo, exports, PDF, tâches quotidiennes
 │  ├─ domain/             règles métier pures, sans base de données (testées)
 │  ├─ modules/<module>/   schémas Zod, services, actions serveur par module
@@ -197,11 +233,22 @@ devra-gestion/
 │  ├─ i18n/documents/     textes des documents en français et en allemand
 │  ├─ components/         composants d'interface (ui/ = shadcn/ui)
 │  └─ lib/                utilitaires (formats suisses…)
-├─ docker/cron/           planificateur des tâches quotidiennes (conteneur cron)
+├─ docker/
+│  ├─ cron/               planificateur des tâches quotidiennes (conteneur cron)
+│  ├─ backup/             sauvegarde et restauration (conteneurs backup et restore)
+│  └─ caddy/              configuration du reverse proxy HTTPS (option Caddy)
 ├─ tests/e2e/             tests Playwright
-├─ docs/                  documentation (DECISIONS.md…)
+├─ docs/                  déploiement, sauvegardes, choix techniques
 ├─ compose.yaml           production (Docker)
+├─ compose.cloudflare.yaml / compose.caddy.yaml   options d'accès HTTPS
 └─ compose.dev.yaml       développement (PostgreSQL + Mailpit)
 ```
 
-Les choix techniques et leurs raisons sont détaillés dans [`docs/DECISIONS.md`](docs/DECISIONS.md).
+## Documentation
+
+- [`docs/DEPLOIEMENT_RASPBERRY_PI.md`](docs/DEPLOIEMENT_RASPBERRY_PI.md) : installation sur le
+  Raspberry Pi, HTTPS, mises à jour, dépannage, mesures de sécurité.
+- [`docs/SAUVEGARDES.md`](docs/SAUVEGARDES.md) : fonctionnement des sauvegardes, copie hors du
+  Raspberry Pi, vérification et restauration.
+- [`docs/DECISIONS.md`](docs/DECISIONS.md) : choix techniques et leurs raisons.
+- [`.env.example`](.env.example) : toutes les variables de configuration, commentées.

@@ -8,14 +8,14 @@
 import "dotenv/config";
 import type { CantonCode } from "@/domain/cantons";
 import { clientInputSchema, EMPTY_CLIENT, type ClientInput } from "@/modules/clients/schemas";
-import { addDays, formatIsoDate, isoToDbDate, todayIso, yearOf } from "@/domain/dates";
+import { addDays, addMonths, formatIsoDate, isoToDbDate, todayIso, yearOf } from "@/domain/dates";
 import { renderTemplate } from "@/domain/email-template";
 import { statusAfterPayments, type PaymentMethod } from "@/domain/invoice-status";
 import { depositParts } from "@/domain/invoices";
 import { formatPercent } from "@/domain/percent";
 import { paymentSetup } from "@/domain/qr-bill";
 import { reminderAmounts, type ReminderLevel } from "@/domain/reminders";
-import { addMonths, duePeriods, periodStart } from "@/domain/subscriptions";
+import { duePeriods, periodStart } from "@/domain/subscriptions";
 import { documentLabels, fillLabel } from "@/i18n/documents";
 import { formatAmount, formatChf } from "@/lib/format";
 import type { DocumentLineInput } from "@/modules/documents/lines";
@@ -379,6 +379,35 @@ type DemoInvoice = {
 };
 
 const INVOICES: DemoInvoice[] = [
+  // Factures payées plus anciennes : historique du tableau de bord (12 mois).
+  {
+    client: "Atelier Nord Design",
+    subject: "Retouches de la charte graphique",
+    daysAgo: 300,
+    items: [["Modification sur demande", "2"]],
+    payments: [[290, "all", "BANK_TRANSFER"]],
+  },
+  {
+    client: "Garage du Lac SA",
+    subject: "Landing page promotionnelle",
+    daysAgo: 240,
+    items: [["Landing page"]],
+    payments: [[228, "all", "BANK_TRANSFER"]],
+  },
+  {
+    client: "Café Lumière",
+    subject: "Site vitrine",
+    daysAgo: 180,
+    items: [["Site vitrine (jusqu'à 5 pages)"]],
+    payments: [[176, "all", "TWINT"]],
+  },
+  {
+    client: "Weinhandel Seeblick GmbH",
+    subject: "Anpassungen an der Website",
+    daysAgo: 120,
+    items: [["Modification sur demande", "3"]],
+    payments: [[100, "all", "BANK_TRANSFER"]],
+  },
   {
     client: "Studio Yoga Soleil",
     subject: "Cours en ligne : mise en place",

@@ -29,3 +29,6 @@ next-env.d.ts
 .DS_Store
 *.pem
 npm-debug.log*
+
+# Sauvegardes locales (docker compose, service « backup »)
+/sauvegardes/

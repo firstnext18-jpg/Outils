@@ -12,7 +12,8 @@ import type { AppSettings } from "@/modules/settings/service";
 import { renderDocumentPdf, type TotalRow } from "@/server/pdf/document-pdf";
 import { invoiceTitleLabel } from "@/server/pdf/invoice-pdf";
 import { pdfRecipient } from "@/server/pdf/quote-pdf";
-import { readUpload } from "@/server/storage";
+import { db } from "@/server/db";
+import { readDocumentPdf, readUpload, saveDocumentPdf } from "@/server/storage";
 
 export type ReminderPdfInput = {
   invoice: InvoiceDetail;
@@ -111,4 +112,45 @@ export async function buildReminderPdf(input: ReminderPdfInput, settings: AppSet
     info: { title, subject: client.displayName },
   });
   return { buffer, fileName: reminderPdfFileName(invoice, level, settings) };
+}
+
+/**
+ * PDF d'une relance : celui archivé à l'envoi, ou régénéré à partir du texte
+ * enregistré (puis archivé) s'il manque.
+ */
+export async function reminderPdfForDownload(
+  reminder: {
+    id: string;
+    level: number;
+    date: Date;
+    dueDate: Date;
+    feeCents: number;
+    totalCents: number;
+    text: string;
+    pdfFile: string | null;
+  },
+  invoice: InvoiceDetail,
+  settings: AppSettings,
+) {
+  const level = reminder.level as ReminderLevel;
+  const fileName = reminderPdfFileName(invoice, level, settings);
+  const archived = reminder.pdfFile ? await readDocumentPdf("reminders", reminder.id) : null;
+  if (archived) return { buffer: archived, fileName };
+  // Montants de la facture au moment de la relance : frais de cette relance non encore comptés.
+  const previous = { ...invoice, feesCents: invoice.feesCents - reminder.feeCents };
+  const { buffer } = await buildReminderPdf(
+    {
+      invoice: previous,
+      level,
+      date: dbDateToIso(reminder.date),
+      dueDate: dbDateToIso(reminder.dueDate),
+      feeCents: reminder.feeCents,
+      totalCents: reminder.totalCents,
+      text: reminder.text,
+    },
+    settings,
+  );
+  const file = await saveDocumentPdf("reminders", reminder.id, buffer).catch(() => null);
+  if (file) await db.reminder.update({ where: { id: reminder.id }, data: { pdfFile: file } });
+  return { buffer, fileName };
 }

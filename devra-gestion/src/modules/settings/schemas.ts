@@ -148,6 +148,7 @@ export const billingSettingsSchema = z
     nextInvoiceNumber: nextNumberSchema,
     quoteValidityDays: daysSchema(1, "Validité"),
     paymentTermDays: daysSchema(0, "Délai de paiement"),
+    onlineAcceptance: z.boolean(),
     vatEnabled: z.boolean(),
     vatNumber: z.string().trim().max(40, "40 caractères maximum"),
     vatRates: z.array(z.string()).min(1, "Au moins un taux").max(5, "5 taux maximum"),

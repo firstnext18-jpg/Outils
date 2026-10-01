@@ -20,6 +20,7 @@ function refresh(id?: string) {
   if (id) revalidatePath(`/factures/${id}`);
   revalidatePath("/devis/[id]", "page");
   revalidatePath("/clients/[id]", "page");
+  revalidatePath("/"); // tableau de bord
 }
 
 export const createInvoiceAction = authAction(

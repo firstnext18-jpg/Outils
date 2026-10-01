@@ -54,7 +54,11 @@ export type ActivityAction =
   | "subscription.invoiced"
   | "quote.emailed"
   | "invoice.emailed"
-  | "settings.billing_updated";
+  | "settings.billing_updated"
+  | "export.accounting"
+  | "export.pdfs"
+  | "quote.accepted_online"
+  | "quote.refused_online";
 
 export type ActivityEntry = {
   userId: string | null;

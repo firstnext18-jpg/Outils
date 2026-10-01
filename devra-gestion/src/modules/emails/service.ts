@@ -16,6 +16,7 @@ import {
   type ClientSnapshot,
   type CompanySnapshot,
 } from "@/modules/settings/documents";
+import { createQuoteLink } from "@/modules/online-quotes/service";
 import { getSettings, type AppSettings } from "@/modules/settings/service";
 import { UserError } from "@/server/action";
 import { db } from "@/server/db";
@@ -58,8 +59,9 @@ function quoteValues(quote: QuoteDetail, settings: AppSettings): EmailValues {
     numero: quote.number,
     montant: quoteAmount(quote),
     echeance: formatIsoDate(dbDateToIso(quote.validUntil)),
-    // Lien d'acceptation en ligne : option prévue en phase 9.
-    lien: "",
+    // Avec l'acceptation en ligne, {lien} reste tel quel dans la fenêtre d'envoi : le
+    // lien n'est créé qu'à l'envoi. Sans elle, la ligne qui le contient est retirée.
+    ...(settings.onlineAcceptance ? {} : { lien: "" }),
     entreprise: company.name,
   };
 }
@@ -191,6 +193,9 @@ export async function sendQuoteEmail(actor: CurrentUser, data: SendEmailData) {
       : null;
   const sendable: QuoteDetail = snapshots ? { ...quote, ...snapshots, status: "SENT" } : quote;
   const values = quoteValues(sendable, settings);
+  if (settings.onlineAcceptance && `${data.subject}\n${data.body}`.includes("{lien}")) {
+    values.lien = await createQuoteLink(quote);
+  }
   const attachment = await buildQuotePdf(sendable, settings);
 
   const result = await deliver({

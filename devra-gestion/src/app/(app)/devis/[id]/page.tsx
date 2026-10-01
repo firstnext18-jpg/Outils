@@ -8,7 +8,7 @@ import { QuoteStatusBadge } from "@/components/documents/quote-status-badge";
 import { EmailHistoryCard } from "@/components/documents/email-history-card";
 import { TotalsSummary } from "@/components/documents/totals-summary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { describeActivity } from "@/domain/activity";
+import { activityActor, describeActivity } from "@/domain/activity";
 import { LANGUAGE_LABELS } from "@/domain/clients";
 import { dbDateToIso, formatIsoDate, todayIso } from "@/domain/dates";
 import { displayStatus } from "@/domain/invoice-status";
@@ -70,9 +70,14 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
             draft: quoteEmailDraft(quote, settings),
             attachment: quotePdfFileName(quote, settings),
             note:
-              quote.status === "DRAFT"
-                ? "Après l'envoi, le devis passe au statut « envoyé » et ne peut plus être modifié (sauf en le repassant en brouillon)."
-                : undefined,
+              [
+                quote.status === "DRAFT" &&
+                  "Après l'envoi, le devis passe au statut « envoyé » et ne peut plus être modifié (sauf en le repassant en brouillon).",
+                settings.onlineAcceptance &&
+                  "{lien} sera remplacé à l'envoi par le lien d'acceptation en ligne.",
+              ]
+                .filter(Boolean)
+                .join(" ") || undefined,
             senderEmail: user.email,
           }}
         />
@@ -126,7 +131,9 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
                       {formatDateTime(entry.createdAt)}
                     </time>
                     <span>
-                      <span className="font-medium">{entry.user?.name ?? "Système"}</span>{" "}
+                      <span className="font-medium">
+                        {activityActor(entry.user, entry.details)}
+                      </span>{" "}
                       {describeActivity(entry.action, entry.details)}
                     </span>
                   </li>
@@ -198,6 +205,24 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
                   <>
                     <dt className="text-muted-foreground">Envoyé le</dt>
                     <dd>{formatDateTime(quote.sentAt)}</dd>
+                  </>
+                )}
+                {quote.decidedOnline && quote.decidedAt && (
+                  <>
+                    <dt className="text-muted-foreground">
+                      {quote.status === "ACCEPTED" ? "Accepté en ligne" : "Refusé en ligne"}
+                    </dt>
+                    <dd>
+                      {formatDateTime(quote.decidedAt)} par {quote.decisionName}
+                      <span className="text-muted-foreground block text-xs">
+                        Adresse IP : {quote.decisionIp || "inconnue"}
+                      </span>
+                      {quote.decisionComment && (
+                        <span className="block whitespace-pre-wrap">
+                          « {quote.decisionComment} »
+                        </span>
+                      )}
+                    </dd>
                   </>
                 )}
                 <dt className="text-muted-foreground">Créé par</dt>

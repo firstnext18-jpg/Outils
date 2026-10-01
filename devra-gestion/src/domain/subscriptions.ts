@@ -8,7 +8,7 @@
  * jours) sans jamais facturer deux fois la même période.
  */
 import type { PeriodicityCode } from "@/domain/catalog";
-import { addDays, type IsoDate } from "@/domain/dates";
+import { addDays, addMonths, type IsoDate } from "@/domain/dates";
 import { divideRounded } from "@/domain/money";
 
 export const SUBSCRIPTION_STATUSES = ["ACTIVE", "PAUSED", "CANCELLED"] as const;
@@ -25,17 +25,6 @@ export const PERIOD_MONTHS: Record<PeriodicityCode, number> = {
   QUARTERLY: 3,
   YEARLY: 12,
 };
-
-/** Ajoute des mois en restant dans le mois visé : 31.01 + 1 mois = 28.02 (29.02 en année bissextile). */
-export function addMonths(date: IsoDate, months: number): IsoDate {
-  const [year, month, day] = date.split("-").map(Number) as [number, number, number];
-  const target = new Date(Date.UTC(year, month - 1 + months, 1));
-  const lastDay = new Date(
-    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
-  ).getUTCDate();
-  target.setUTCDate(Math.min(day, lastDay));
-  return target.toISOString().slice(0, 10);
-}
 
 /** Début de la période n° `index` (0 = la première). */
 export function periodStart(startDate: IsoDate, periodicity: PeriodicityCode, index: number) {

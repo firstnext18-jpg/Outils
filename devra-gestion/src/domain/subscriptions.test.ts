@@ -7,8 +7,8 @@ import {
   DEFAULT_REMINDER_RULES,
   type ReminderRules,
 } from "@/domain/reminders";
+import { addMonths } from "@/domain/dates";
 import {
-  addMonths,
   duePeriods,
   indexAfterPause,
   periodEnd,
