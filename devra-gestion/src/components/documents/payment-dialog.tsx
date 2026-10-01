@@ -43,7 +43,7 @@ import {
   type PaymentInput,
 } from "@/modules/invoices/schemas";
 
-type InvoiceRef = { id: string; number: string; balanceCents: number };
+export type InvoiceRef = { id: string; number: string; balanceCents: number };
 
 /** Enregistrement d'un paiement (total ou partiel). */
 export function PaymentDialog({
@@ -71,7 +71,18 @@ export function PaymentDialog({
   );
 }
 
-function PaymentForm({ invoice, onDone }: { invoice: InvoiceRef; onDone: () => void }) {
+/** Formulaire de paiement d'une facture (`onCancel` : bouton « Annuler », par défaut `onDone`). */
+export function PaymentForm({
+  invoice,
+  onDone,
+  onCancel = onDone,
+  cancelLabel = "Annuler",
+}: {
+  invoice: InvoiceRef;
+  onDone: () => void;
+  onCancel?: () => void;
+  cancelLabel?: string;
+}) {
   const [error, setError] = useState<string | null>(null);
   const defaults: PaymentInput = {
     invoiceId: invoice.id,
@@ -166,8 +177,8 @@ function PaymentForm({ invoice, onDone }: { invoice: InvoiceRef; onDone: () => v
           autoComplete="off"
         />
         <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onDone}>
-            Annuler
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            {cancelLabel}
           </Button>
           <Button type="submit" disabled={form.formState.isSubmitting}>
             {form.formState.isSubmitting ? "Enregistrement…" : "Enregistrer le paiement"}

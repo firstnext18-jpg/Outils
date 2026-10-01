@@ -19,7 +19,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 | 5. Factures                               | QR-facture, paiements, acomptes                                   | ✅ Terminée |
 | 6. Emails                                 | Envoi des devis et factures                                       | ✅ Terminée |
 | 7. Relances et abonnements                | Relances, abonnements, tâches quotidiennes                        | ✅ Terminée |
-| 8. Tableau de bord                        | Indicateurs et graphiques                                         | À venir     |
+| 8. Tableau de bord                        | Indicateurs, graphiques, zones d'action                           | ✅ Terminée |
 | 9. Acceptation en ligne, exports, journal |                                                                   | À venir     |
 | 10. Production                            | Sauvegardes, déploiement Raspberry Pi                             | À venir     |
 
@@ -122,6 +122,15 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 - **Tâches quotidiennes** (devis expirés, factures d'abonnement, relances) : lancées chaque matin
   par le conteneur `cron`, ou à la main dans **Paramètres → Tâches**, qui affiche aussi les
   dernières exécutions.
+- **Tableau de bord** (page d'accueil), pour le mois, le trimestre, l'année en cours ou une
+  période choisie, comparée à la période précédente :
+  - chiffre d'affaires facturé et encaissé, graphique des 12 derniers mois ;
+  - factures impayées (dont en retard, avec la liste), devis en attente (et ceux qui expirent
+    dans les 7 jours), taux de conversion des devis ;
+  - meilleurs clients (top 5), zones d'action (CA et nombre de clients par canton et par
+    localité), types de site demandés et vendus, revenu récurrent (MRR) ;
+  - raccourcis « Nouveau devis », « Nouveau client » et « Enregistrer un paiement » (choix de la
+    facture, puis paiement).
 - **Recherche globale** (Ctrl+K) : clients (nom, localité, email, téléphone), devis et factures
   (numéro, objet).
 - **Navigation** latérale (repliable, en tiroir sur téléphone), thème clair / sombre / système.

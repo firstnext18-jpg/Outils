@@ -361,6 +361,42 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`, puis
   appliquée avec `prisma migrate deploy`.
 
+## Tableau de bord (phase 8)
+
+- **Périodes** : mois, trimestre ou année **en cours**, du premier jour à aujourd'hui, ou période
+  personnalisée (10 ans au plus). La période choisie est dans l'adresse (`/?periode=annee`,
+  `/?periode=personnalise&du=…&au=…`) : elle se partage et fonctionne sans JavaScript.
+- **Comparaison avec la période précédente, à durée égale** : le 1er–15 octobre se compare au
+  1er–15 septembre (et non à tout septembre, ce qui ferait paraître en forte baisse une période à
+  peine commencée) ; l'année en cours au même jour de l'année précédente ; une période
+  personnalisée à la période de même durée qui la précède. Sans chiffre sur la période
+  précédente, aucun pourcentage n'est affiché.
+- **Chiffre d'affaires facturé** : montant à payer des factures émises (ni brouillons ni
+  annulées), à leur date. Une facture finale ne compte que ce qui reste après l'acompte, déjà
+  compté avec la facture d'acompte : rien n'est compté deux fois. **Encaissé** : paiements, à leur
+  date. Montants TVA comprise si elle est activée (Devra n'y est pas assujettie) ; les frais de
+  relance ne comptent pas dans le facturé.
+- **Indicateurs « photo du moment »**, indépendants de la période : factures impayées (dont en
+  retard), devis en attente (envoyés, encore valables ; « expire bientôt » = dans les 7 jours),
+  revenu récurrent (MRR des abonnements actifs, hors TVA), nombre de clients par zone et types de
+  site demandés (fiches clients actuelles, sans les archivés).
+- **Indicateurs de la période** : facturé, encaissé, taux de conversion (devis **envoyés pendant la
+  période** — date d'envoi, à Zurich — et acceptés depuis, sur le nombre de devis envoyés),
+  meilleurs clients (top 5 du facturé), chiffre d'affaires par zone et par type de site vendu.
+- **Zones d'action** d'après l'adresse **actuelle** des clients (canton, NPA et localité). La
+  carte de la Suisse par canton (« serait un plus » dans le cahier des charges) n'est pas faite :
+  elle demanderait d'embarquer les contours des cantons ; à proposer séparément.
+- **Graphiques** : Recharts pour l'évolution sur 12 mois (barres facturé / encaissé, avec un
+  tableau équivalent pour les lecteurs d'écran) ; les classements (clients, zones, types de site)
+  sont des listes avec barres horizontales en HTML, lisibles sur téléphone et accessibles. Deux
+  couleurs de graphique (`--chart-1`, `--chart-2`) suivent le thème clair / sombre.
+- **Raccourci « Enregistrer un paiement »** : choix parmi les factures ouvertes (recherche par mots
+  dans le numéro et le client, sans recherche approximative qui confondrait `F-2020-003` et
+  `F-2026-003`), puis le même formulaire que sur la fiche de la facture. Les raccourcis ne sont
+  pas affichés en lecture seule.
+- **Calculs en base** (agrégats Prisma), regroupés par mois en JavaScript : quelques requêtes
+  légères, sans table de statistiques à tenir à jour.
+
 ## Interface
 
 - **Interface en français, sans bibliothèque de traduction.** Les traductions FR/DE ne concernent

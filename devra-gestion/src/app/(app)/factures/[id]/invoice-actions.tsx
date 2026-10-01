@@ -15,7 +15,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { PaymentDialog } from "@/app/(app)/factures/[id]/payment-dialog";
+import { PaymentDialog } from "@/components/documents/payment-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
