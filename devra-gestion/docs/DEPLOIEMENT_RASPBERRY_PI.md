@@ -158,7 +158,7 @@ cd ~/Outils/devra-gestion
 (`-b main` est important : c'est la branche qui contient la version à installer.)
 
 **2. Les images.** GitHub Actions construit les images pour Raspberry Pi à chaque mise à jour de
-`main` (environ 45 minutes ; suivi dans l'onglet **Actions** du dépôt, flux « Images Raspberry
+`main` (environ 20 minutes ; suivi dans l'onglet **Actions** du dépôt, flux « Images Raspberry
 Pi ») et les publie dans GitHub Container Registry (`ghcr.io`). Vérifiez dans l'onglet Actions
 que la dernière exécution est **verte**, puis créez un jeton **Tokens (classic)** avec la seule
 permission **`read:packages`** (GitHub n'accepte pas encore les jetons « fine-grained » pour les
