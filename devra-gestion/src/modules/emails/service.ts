@@ -16,6 +16,7 @@ import {
   type ClientSnapshot,
   type CompanySnapshot,
 } from "@/modules/settings/documents";
+import { createQuoteLink } from "@/modules/online-quotes/service";
 import { getSettings, type AppSettings } from "@/modules/settings/service";
 import { UserError } from "@/server/action";
 import { db } from "@/server/db";
@@ -58,8 +59,9 @@ function quoteValues(quote: QuoteDetail, settings: AppSettings): EmailValues {
     numero: quote.number,
     montant: quoteAmount(quote),
     echeance: formatIsoDate(dbDateToIso(quote.validUntil)),
-    // Lien d'acceptation en ligne : option prévue en phase 9.
-    lien: "",
+    // Avec l'acceptation en ligne, {lien} reste tel quel dans la fenêtre d'envoi : le
+    // lien n'est créé qu'à l'envoi. Sans elle, la ligne qui le contient est retirée.
+    ...(settings.onlineAcceptance ? {} : { lien: "" }),
     entreprise: company.name,
   };
 }
@@ -117,8 +119,9 @@ export function invoiceEmailDraft(invoice: InvoiceDetail, settings: AppSettings)
 // Envoi
 // ---------------------------------------------------------------------------
 
-type Delivery = {
-  actor: CurrentUser;
+export type Delivery = {
+  /** Vide pour un envoi automatique (tâche quotidienne). */
+  actor: CurrentUser | null;
   data: SendEmailData;
   settings: AppSettings;
   companyName: string;
@@ -129,9 +132,11 @@ type Delivery = {
 };
 
 /** Envoie l'email et l'inscrit dans l'historique du document, qu'il réussisse ou non. */
-async function deliver(delivery: Delivery): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function deliver(
+  delivery: Delivery,
+): Promise<{ ok: true; logId: string } | { ok: false; error: string; logId: string }> {
   const { actor, data, settings } = delivery;
-  const bcc = data.copyToSender ? [actor.email.toLowerCase()] : [];
+  const bcc = data.copyToSender && actor ? [actor.email.toLowerCase()] : [];
   const { text, html } = renderDocumentEmail({
     companyName: delivery.companyName,
     body: delivery.body,
@@ -158,7 +163,7 @@ async function deliver(delivery: Delivery): Promise<{ ok: true } | { ok: false; 
     error = cause instanceof Error ? cause.message : String(cause);
     console.error("Envoi d'email impossible", cause);
   }
-  await db.emailLog.create({
+  const log = await db.emailLog.create({
     data: {
       ...delivery.link,
       recipients: data.to,
@@ -168,10 +173,10 @@ async function deliver(delivery: Delivery): Promise<{ ok: true } | { ok: false; 
       attachment: delivery.attachment.fileName,
       status: error ? "FAILED" : "SENT",
       error,
-      sentById: actor.id,
+      sentById: actor?.id ?? null,
     },
   });
-  return error ? { ok: false, error } : { ok: true };
+  return error ? { ok: false, error, logId: log.id } : { ok: true, logId: log.id };
 }
 
 /**
@@ -188,6 +193,9 @@ export async function sendQuoteEmail(actor: CurrentUser, data: SendEmailData) {
       : null;
   const sendable: QuoteDetail = snapshots ? { ...quote, ...snapshots, status: "SENT" } : quote;
   const values = quoteValues(sendable, settings);
+  if (settings.onlineAcceptance && `${data.subject}\n${data.body}`.includes("{lien}")) {
+    values.lien = await createQuoteLink(quote);
+  }
   const attachment = await buildQuotePdf(sendable, settings);
 
   const result = await deliver({
@@ -212,7 +220,7 @@ export async function sendQuoteEmail(actor: CurrentUser, data: SendEmailData) {
  * PDF archivé) : si l'envoi échoue ensuite, la facture reste émise et
  * l'envoi peut être relancé.
  */
-export async function sendInvoiceEmail(actor: CurrentUser, data: SendEmailData) {
+export async function sendInvoiceEmail(actor: CurrentUser | null, data: SendEmailData) {
   let invoice = await getInvoice(data.id);
   if (!invoice) throw new UserError("Cette facture n'existe plus.");
   if (invoice.status === "CANCELLED") throw new UserError("Une facture annulée ne s'envoie pas.");

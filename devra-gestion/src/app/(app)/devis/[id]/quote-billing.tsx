@@ -1,11 +1,13 @@
 "use client";
 
-import { ReceiptTextIcon } from "lucide-react";
+import { ReceiptTextIcon, RepeatIcon } from "lucide-react";
+import { QuoteSubscriptionButton } from "@/app/(app)/devis/[id]/quote-subscription-button";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { InvoiceStatusBadge } from "@/components/documents/invoice-status-badge";
+import { SubscriptionStatusBadge } from "@/components/documents/subscription-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -15,6 +17,7 @@ import {
   type InvoiceType,
 } from "@/domain/invoice-status";
 import type { QuoteStatus } from "@/domain/quote-status";
+import type { SubscriptionStatus } from "@/domain/subscriptions";
 import { formatChf } from "@/lib/format";
 import { createInvoiceFromQuoteAction } from "@/modules/invoices/actions";
 
@@ -34,6 +37,7 @@ export type QuoteInvoiceRow = {
 export function QuoteBilling({
   quote,
   invoices,
+  subscriptions,
   canEdit,
 }: {
   quote: {
@@ -45,6 +49,7 @@ export function QuoteBilling({
     recurring: string[];
   };
   invoices: QuoteInvoiceRow[];
+  subscriptions: { id: string; label: string; status: SubscriptionStatus }[];
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -130,9 +135,28 @@ export function QuoteBilling({
         {quote.recurring.length > 0 && quote.status === "ACCEPTED" && (
           <p className="text-muted-foreground text-xs">
             Les abonnements ({quote.recurring.join(", ")}) ne sont pas repris dans la facture : ils
-            seront facturés par un abonnement.
+            sont facturés par un abonnement.
           </p>
         )}
+        {subscriptions.length > 0 && (
+          <ul className="space-y-1 border-t pt-3">
+            {subscriptions.map((subscription) => (
+              <li key={subscription.id} className="flex items-center justify-between gap-2">
+                <Link href={`/abonnements/${subscription.id}`} className="truncate hover:underline">
+                  <RepeatIcon className="mr-1 inline size-3.5" />
+                  {subscription.label}
+                </Link>
+                <SubscriptionStatusBadge status={subscription.status} />
+              </li>
+            ))}
+          </ul>
+        )}
+        {canEdit &&
+          quote.status === "ACCEPTED" &&
+          quote.recurring.length > 0 &&
+          !subscriptions.some((s) => s.status !== "CANCELLED") && (
+            <QuoteSubscriptionButton quoteId={quote.id} />
+          )}
         {quote.status === "ACCEPTED" && !quote.hasOneTimeLines && (
           <p className="text-muted-foreground">
             Ce devis ne contient que des abonnements : rien à facturer en une fois.

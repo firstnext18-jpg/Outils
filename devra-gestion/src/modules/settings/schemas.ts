@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { unknownVariables } from "@/domain/email-template";
 import { isQrIban, isValidSwissIban, normalizeIban } from "@/domain/iban";
+import { parseChfInput } from "@/domain/money";
 import { validateNumberFormat } from "@/domain/numbering";
 import { parsePercent } from "@/domain/percent";
 import { isValidQrrPrefix, MAX_QRR_PREFIX_LENGTH } from "@/domain/qr-reference";
@@ -147,6 +148,7 @@ export const billingSettingsSchema = z
     nextInvoiceNumber: nextNumberSchema,
     quoteValidityDays: daysSchema(1, "Validité"),
     paymentTermDays: daysSchema(0, "Délai de paiement"),
+    onlineAcceptance: z.boolean(),
     vatEnabled: z.boolean(),
     vatNumber: z.string().trim().max(40, "40 caractères maximum"),
     vatRates: z.array(z.string()).min(1, "Au moins un taux").max(5, "5 taux maximum"),
@@ -180,3 +182,44 @@ export const billingSettingsSchema = z
 
 export type BillingSettingsInput = z.input<typeof billingSettingsSchema>;
 export type BillingSettingsOutput = z.output<typeof billingSettingsSchema>;
+
+// ---------------------------------------------------------------------------
+// Relances et abonnements
+// ---------------------------------------------------------------------------
+
+/** Frais de relance saisis en CHF (vide ou 0 = sans frais), 1'000 CHF au maximum. */
+const feeSchema = z
+  .string()
+  .trim()
+  .superRefine((value, ctx) => {
+    const cents = value === "" ? 0 : parseChfInput(value);
+    if (cents === null || cents > 100_000) {
+      ctx.addIssue({ code: "custom", message: "Montant invalide (0 à 1'000 CHF)" });
+    }
+  })
+  .transform((value) => (value === "" ? 0 : (parseChfInput(value) ?? 0)));
+
+const reminderTemplate = z.object({
+  subject: templateText(200, "L'objet"),
+  text: templateText(5000, "Le texte"),
+});
+const reminderLevelTemplates = z.object({ FR: reminderTemplate, DE: reminderTemplate });
+
+export const reminderSettingsSchema = z.object({
+  reminderMode: z.enum(["MANUAL", "AUTOMATIC"]),
+  reminderDelay1: daysSchema(1, "Délai du 1er rappel"),
+  reminderDelay2: daysSchema(1, "Délai du 2e rappel"),
+  reminderDelay3: daysSchema(1, "Délai de la mise en demeure"),
+  reminderFee1Cents: feeSchema,
+  reminderFee2Cents: feeSchema,
+  reminderFee3Cents: feeSchema,
+  reminderPaymentDays: daysSchema(1, "Délai de paiement"),
+  reminderTemplates: z.object({
+    level1: reminderLevelTemplates,
+    level2: reminderLevelTemplates,
+    level3: reminderLevelTemplates,
+  }),
+  subscriptionAutoSend: z.boolean(),
+});
+export type ReminderSettingsInput = z.input<typeof reminderSettingsSchema>;
+export type ReminderSettingsOutput = z.output<typeof reminderSettingsSchema>;

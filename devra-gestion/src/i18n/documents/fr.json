@@ -40,5 +40,18 @@
   "depositLineVat": "{label} (TVA {rate})",
   "deduction": "Acompte facturé ({number})",
   "amountDue": "Montant à payer",
-  "qrMessage": "Facture {number}"
+  "qrMessage": "Facture {number}",
+  "reminder1": "Rappel",
+  "reminder2": "2e rappel",
+  "reminder3": "Mise en demeure",
+  "reminderFile": "Rappel",
+  "invoiceDate": "Facture du",
+  "originalDueDate": "Échéance initiale",
+  "newDueDate": "Nouveau délai",
+  "invoiceAmount": "Facture {number}",
+  "alreadyPaid": "Déjà payé",
+  "previousFees": "Frais de rappel précédents",
+  "reminderFee": "Frais de rappel",
+  "reminderQrMessage": "Rappel facture {number}",
+  "period": "Période"
 }

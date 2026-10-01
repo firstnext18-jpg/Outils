@@ -12,6 +12,7 @@ import {
   companySettingsSchema,
   documentTextsSchema,
   emailTemplatesSchema,
+  reminderSettingsSchema,
   LOGO_MAX_BYTES,
 } from "@/modules/settings/schemas";
 import { getSettings } from "@/modules/settings/service";
@@ -99,6 +100,22 @@ export const updateEmailTemplatesAction = authAction(
   },
 );
 
+export const updateReminderSettingsAction = authAction(
+  { role: "ADMIN", schema: reminderSettingsSchema },
+  async (input, { user }) => {
+    await getSettings();
+    await db.settings.update({ where: { id: 1 }, data: { ...input, updatedById: user.id } });
+    await logActivity({
+      userId: user.id,
+      action: "settings.reminders_updated",
+      entityType: "settings",
+      details: { mode: input.reminderMode, autoSend: input.subscriptionAutoSend },
+    });
+    revalidatePath("/parametres/relances");
+    return null;
+  },
+);
+
 export const updateBillingSettingsAction = authAction(
   { role: "ADMIN", schema: billingSettingsSchema },
   async ({ nextQuoteNumber, nextInvoiceNumber, ...input }, { user }) => {
@@ -112,7 +129,7 @@ export const updateBillingSettingsAction = authAction(
       userId: user.id,
       action: "settings.billing_updated",
       entityType: "settings",
-      details: { vatEnabled: input.vatEnabled },
+      details: { vatEnabled: input.vatEnabled, onlineAcceptance: input.onlineAcceptance },
     });
     revalidatePath("/parametres/facturation");
     return null;

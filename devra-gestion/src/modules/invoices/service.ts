@@ -6,6 +6,8 @@ import {
   canCancel,
   INVOICE_STATUS_LABELS,
   isOpen,
+  outstandingCents,
+  owedCents,
   PAYMENT_METHOD_LABELS,
   statusAfterPayments,
 } from "@/domain/invoice-status";
@@ -87,6 +89,7 @@ const listSelect = {
   issueDate: true,
   dueDate: true,
   amountDueCents: true,
+  feesCents: true,
   paidCents: true,
   client: { select: { id: true, displayName: true } },
 } satisfies Prisma.InvoiceSelect;
@@ -136,17 +139,18 @@ export async function clientInvoiceSummary(clientId: string) {
   const [issued, open] = await Promise.all([
     db.invoice.aggregate({
       where: { clientId, status: { in: ["SENT", "PARTIALLY_PAID", "PAID"] } },
-      _sum: { amountDueCents: true, paidCents: true },
+      _sum: { amountDueCents: true, feesCents: true, paidCents: true },
     }),
     db.invoice.aggregate({
       where: { clientId, status: { in: ["SENT", "PARTIALLY_PAID"] } },
-      _sum: { amountDueCents: true, paidCents: true },
+      _sum: { amountDueCents: true, feesCents: true, paidCents: true },
     }),
   ]);
   return {
-    invoicedCents: issued._sum.amountDueCents ?? 0,
+    invoicedCents: (issued._sum.amountDueCents ?? 0) + (issued._sum.feesCents ?? 0),
     paidCents: issued._sum.paidCents ?? 0,
-    unpaidCents: (open._sum.amountDueCents ?? 0) - (open._sum.paidCents ?? 0),
+    unpaidCents:
+      (open._sum.amountDueCents ?? 0) + (open._sum.feesCents ?? 0) - (open._sum.paidCents ?? 0),
   };
 }
 
@@ -161,8 +165,13 @@ export function getInvoice(id: string) {
       },
       client: true,
       quote: { select: { id: true, number: true } },
+      subscription: { select: { id: true, label: true } },
       siteType: { select: { id: true, name: true } },
       createdBy: { select: { name: true } },
+      reminders: {
+        orderBy: { level: "asc" },
+        include: { createdBy: { select: { name: true } } },
+      },
     },
   });
 }
@@ -272,12 +281,18 @@ async function deductionsFor(tx: Tx, invoice: { type: string; quoteId: string | 
 }
 
 type CreateOptions = {
-  type?: "STANDARD" | "DEPOSIT" | "FINAL";
+  type?: "STANDARD" | "DEPOSIT" | "FINAL" | "SUBSCRIPTION";
   quoteId?: string | null;
+  subscription?: { id: string; periodStart: string; periodEnd: string };
   source?: { action: "invoice.created" | "invoice.duplicated"; details?: Prisma.InputJsonValue };
 };
 
-async function createDraft(tx: Tx, actor: CurrentUser, data: InvoiceData, options: CreateOptions) {
+async function createDraft(
+  tx: Tx,
+  actor: CurrentUser | null,
+  data: InvoiceData,
+  options: CreateOptions,
+) {
   const settings = await getSettings(tx);
   await assertClient(tx, data.clientId);
   const type = options.type ?? "STANDARD";
@@ -288,9 +303,12 @@ async function createDraft(tx: Tx, actor: CurrentUser, data: InvoiceData, option
       ...columns,
       type,
       quoteId: options.quoteId ?? null,
+      subscriptionId: options.subscription?.id ?? null,
+      periodStart: options.subscription ? isoToDbDate(options.subscription.periodStart) : null,
+      periodEnd: options.subscription ? isoToDbDate(options.subscription.periodEnd) : null,
       searchText: invoiceSearchText(null, data.subject),
-      createdById: actor.id,
-      updatedById: actor.id,
+      createdById: actor?.id ?? null,
+      updatedById: actor?.id ?? null,
       lines: { create: lines },
     },
   });
@@ -418,6 +436,66 @@ function texts(settings: AppSettings, language: "FR" | "DE") {
     : { introText: settings.invoiceIntroFr, conditionsText: settings.invoiceConditionsFr };
 }
 
+// ---------------------------------------------------------------------------
+// Factures d'abonnement
+// ---------------------------------------------------------------------------
+
+/**
+ * Facture (brouillon) d'une période d'abonnement. L'avancement de
+ * l'abonnement est enregistré dans la même transaction, à condition qu'il
+ * n'ait pas changé entre-temps ; la contrainte d'unicité (abonnement, début de
+ * période) empêche en plus de facturer deux fois la même période.
+ */
+export async function createSubscriptionInvoice(
+  subscription: {
+    id: string;
+    clientId: string;
+    label: string;
+    language: "FR" | "DE";
+    siteTypeId: string | null;
+    billedPeriods: number;
+    lines: InvoiceInput["lines"];
+  },
+  period: { index: number; start: string; end: string; nextStart: string },
+  today: string,
+) {
+  return db.$transaction(async (tx) => {
+    const advanced = await tx.subscription.updateMany({
+      where: { id: subscription.id, status: "ACTIVE", billedPeriods: subscription.billedPeriods },
+      data: {
+        billedPeriods: period.index + 1,
+        nextBillingDate: isoToDbDate(period.nextStart),
+        version: { increment: 1 },
+      },
+    });
+    if (advanced.count === 0) return null;
+    const settings = await getSettings(tx);
+    const data = invoiceInputSchema.parse({
+      clientId: subscription.clientId,
+      language: subscription.language,
+      issueDate: today,
+      dueDate: defaultDueDate(today, settings.paymentTermDays),
+      subject: subscription.label,
+      siteTypeId: subscription.siteTypeId,
+      ...texts(settings, subscription.language),
+      globalDiscountType: "PERCENT",
+      globalDiscountValue: "",
+      lines: subscription.lines,
+    } satisfies InvoiceInput);
+    return createDraft(tx, null, data, {
+      type: "SUBSCRIPTION",
+      subscription: { id: subscription.id, periodStart: period.start, periodEnd: period.end },
+      source: {
+        action: "invoice.created",
+        details: {
+          fromSubscription: subscription.label,
+          period: `${period.start} – ${period.end}`,
+        },
+      },
+    });
+  });
+}
+
 export async function createInvoiceFromQuote(
   actor: CurrentUser,
   quoteId: string,
@@ -535,7 +613,8 @@ export async function createInvoiceFromQuote(
  * transaction), sa référence de paiement et les coordonnées figées. Elle ne
  * peut plus être modifiée ensuite.
  */
-export async function issueInvoice(actor: CurrentUser, id: string, version: number) {
+/** `actor` vide : émission par la tâche quotidienne (factures d'abonnement). */
+export async function issueInvoice(actor: CurrentUser | null, id: string, version: number) {
   const issued = await db.$transaction(async (tx) => {
     const invoice = await tx.invoice.findUnique({ where: { id }, include: { client: true } });
     if (!invoice) throw new UserError("Cette facture n'existe plus.");
@@ -594,7 +673,7 @@ export async function issueInvoice(actor: CurrentUser, id: string, version: numb
         clientSnapshot: clientSnapshot(invoice.client),
         companySnapshot: company,
         searchText: invoiceSearchText(number, invoice.subject),
-        updatedById: actor.id,
+        updatedById: actor?.id ?? null,
         version: { increment: 1 },
       },
     });
@@ -656,7 +735,7 @@ export async function recordPayment(actor: CurrentUser, payment: PaymentData) {
         `Impossible d'enregistrer un paiement sur une facture « ${INVOICE_STATUS_LABELS[invoice.status].toLowerCase()} ».`,
       );
     }
-    const balance = balanceCents(invoice.amountDueCents, invoice.paidCents);
+    const balance = outstandingCents(invoice);
     if (payment.amountCents > balance) {
       throw new UserError(`Le montant dépasse le solde de la facture (${formatChf(balance)}).`);
     }
@@ -671,7 +750,7 @@ export async function recordPayment(actor: CurrentUser, payment: PaymentData) {
         createdById: actor.id,
       },
     });
-    const status = statusAfterPayments(invoice.amountDueCents, paid);
+    const status = statusAfterPayments(owedCents(invoice), paid);
     await tx.invoice.update({
       where: { id: invoice.id },
       data: { paidCents: paid, status, version: { increment: 1 } },
@@ -680,7 +759,7 @@ export async function recordPayment(actor: CurrentUser, payment: PaymentData) {
       amount: formatChf(payment.amountCents),
       method: PAYMENT_METHOD_LABELS[payment.method],
     });
-    return { status, balanceCents: balanceCents(invoice.amountDueCents, paid) };
+    return { status, balanceCents: balanceCents(owedCents(invoice), paid) };
   });
 }
 
@@ -696,7 +775,7 @@ export async function deletePayment(actor: CurrentUser, paymentId: string) {
       where: { id: invoice.id },
       data: {
         paidCents: paid,
-        status: statusAfterPayments(invoice.amountDueCents, paid),
+        status: statusAfterPayments(owedCents(invoice), paid),
         version: { increment: 1 },
       },
     });
@@ -706,7 +785,7 @@ export async function deletePayment(actor: CurrentUser, paymentId: string) {
 
 /** Facture envoyée par email (elle a été émise juste avant si c'était un brouillon). */
 export async function recordInvoiceEmailed(
-  actor: CurrentUser,
+  actor: CurrentUser | null,
   invoice: { id: string; number: string | null },
   recipients: string[],
 ) {

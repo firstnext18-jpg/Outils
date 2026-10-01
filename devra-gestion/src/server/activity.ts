@@ -43,9 +43,22 @@ export type ActivityAction =
   | "payment.deleted"
   | "settings.documents_updated"
   | "settings.emails_updated"
+  | "settings.reminders_updated"
+  | "invoice.reminded"
+  | "subscription.created"
+  | "subscription.updated"
+  | "subscription.paused"
+  | "subscription.resumed"
+  | "subscription.cancelled"
+  | "subscription.deleted"
+  | "subscription.invoiced"
   | "quote.emailed"
   | "invoice.emailed"
-  | "settings.billing_updated";
+  | "settings.billing_updated"
+  | "export.accounting"
+  | "export.pdfs"
+  | "quote.accepted_online"
+  | "quote.refused_online";
 
 export type ActivityEntry = {
   userId: string | null;

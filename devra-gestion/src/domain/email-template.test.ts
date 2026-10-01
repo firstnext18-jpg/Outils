@@ -17,8 +17,16 @@ describe("modèles d'emails", () => {
     );
   });
 
-  it("remplace une variable vide par du texte vide ({lien} sans acceptation en ligne)", () => {
-    expect(renderTemplate("Lien : {lien}.", { lien: "" })).toBe("Lien : .");
+  it("retire la ligne du lien quand il n'y a pas d'acceptation en ligne", () => {
+    const template = "Bonjour,\n\nVoici le devis.\n\nAcceptez-le en ligne : {lien}\n\nSalutations";
+    expect(renderTemplate(template, { lien: "" })).toBe(
+      "Bonjour,\n\nVoici le devis.\n\nSalutations",
+    );
+    expect(renderTemplate(template, { lien: "https://g.devra.ch/devis-en-ligne/abc" })).toBe(
+      "Bonjour,\n\nVoici le devis.\n\nAcceptez-le en ligne : https://g.devra.ch/devis-en-ligne/abc\n\nSalutations",
+    );
+    // Lien pas encore créé (fenêtre d'envoi) : la variable reste, remplacée à l'envoi.
+    expect(renderTemplate(template, {})).toContain("en ligne : {lien}");
   });
 
   it("repère les variables mal écrites", () => {
@@ -26,9 +34,9 @@ describe("modèles d'emails", () => {
       "numéro",
       "Nombre",
     ]);
-    expect(unknownVariables("{client} {numero} {montant} {echeance} {lien} {entreprise}")).toEqual(
-      [],
-    );
+    expect(
+      unknownVariables("{client} {numero} {montant} {echeance} {date} {lien} {entreprise}"),
+    ).toEqual([]);
   });
 });
 

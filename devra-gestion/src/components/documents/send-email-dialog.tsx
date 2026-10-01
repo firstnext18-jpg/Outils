@@ -31,7 +31,7 @@ import { sendDocumentEmailAction } from "@/modules/emails/actions";
 import { sendEmailSchema, type SendEmailData, type SendEmailInput } from "@/modules/emails/schemas";
 
 export type SendEmailProps = {
-  kind: "quote" | "invoice";
+  kind: "quote" | "invoice" | "reminder";
   documentId: string;
   /** Facture en brouillon : version lue (elle est émise avant l'envoi). */
   version?: number;
@@ -42,6 +42,7 @@ export type SendEmailProps = {
   /** Avertissement affiché en tête (ex. émission de la facture). */
   note?: string;
   senderEmail: string;
+  title?: string;
 };
 
 /** Envoi d'un devis ou d'une facture par email, PDF en pièce jointe. */
@@ -54,7 +55,7 @@ export function SendEmailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Envoyer par email</DialogTitle>
+          <DialogTitle>{props.title ?? "Envoyer par email"}</DialogTitle>
           <DialogDescription>
             Vous pouvez modifier le message avant l&apos;envoi. Le modèle se règle dans Paramètres →
             Emails.
@@ -104,7 +105,9 @@ function SendEmailForm({
     toast.success(
       kind === "quote"
         ? `Devis ${result.data.number} envoyé à ${recipients}.`
-        : `Facture ${result.data.number} envoyée à ${recipients}.`,
+        : kind === "reminder"
+          ? `Relance de la facture ${result.data.number} envoyée à ${recipients}.`
+          : `Facture ${result.data.number} envoyée à ${recipients}.`,
     );
     onDone();
   }

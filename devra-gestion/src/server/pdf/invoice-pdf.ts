@@ -73,6 +73,12 @@ export async function buildInvoicePdf(
     [labels.date, formatIsoDate(dbDateToIso(invoice.issueDate))],
     [labels.dueDate, formatIsoDate(dbDateToIso(invoice.dueDate))],
   ];
+  if (invoice.periodStart && invoice.periodEnd) {
+    meta.push([
+      labels.period,
+      `${formatIsoDate(dbDateToIso(invoice.periodStart))} – ${formatIsoDate(dbDateToIso(invoice.periodEnd))}`,
+    ]);
+  }
   if (invoice.quote) meta.push([labels.quoteReference, invoice.quote.number]);
   if (invoice.subject) meta.push([labels.subject, invoice.subject]);
 

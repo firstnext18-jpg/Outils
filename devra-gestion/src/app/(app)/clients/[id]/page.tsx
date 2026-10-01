@@ -9,12 +9,14 @@ import {
   MapPinIcon,
   PhoneIcon,
   ReceiptTextIcon,
+  RepeatIcon,
   UserIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClientActions } from "@/app/(app)/clients/[id]/client-actions";
 import { InvoicesList } from "@/components/documents/invoices-list";
+import { SubscriptionsList } from "@/components/documents/subscriptions-list";
 import { QuotesList } from "@/components/documents/quotes-list";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +30,7 @@ import { formatChf, formatDate, formatDateTime } from "@/lib/format";
 import { getClient, getClientActivity } from "@/modules/clients/service";
 import { clientInvoiceSummary, listClientInvoices } from "@/modules/invoices/service";
 import { listClientQuotes } from "@/modules/quotes/service";
+import { listClientSubscriptions } from "@/modules/subscriptions/service";
 import { requireUser } from "@/server/session";
 
 export async function generateMetadata({ params }: PageProps<"/clients/[id]">): Promise<Metadata> {
@@ -52,12 +55,13 @@ function Row({ icon: Icon, children }: { icon: typeof MailIcon; children: React.
 export default async function ClientPage({ params }: PageProps<"/clients/[id]">) {
   const user = await requireUser();
   const { id } = await params;
-  const [client, activity, quotes, invoices, summary] = await Promise.all([
+  const [client, activity, quotes, invoices, summary, subscriptions] = await Promise.all([
     getClient(id),
     getClientActivity(id),
     listClientQuotes(id),
     listClientInvoices(id),
     clientInvoiceSummary(id),
+    listClientSubscriptions(id),
   ]);
   if (!client) notFound();
 
@@ -243,6 +247,28 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
               ) : (
                 <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
                   <ReceiptTextIcon className="size-5" /> Aucune facture pour ce client.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Abonnements</CardTitle>
+              {canEdit(user.role) && !client.archivedAt && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/abonnements/nouveau?client=${client.id}`}>
+                    <FilePlusIcon /> Nouvel abonnement
+                  </Link>
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="text-sm">
+              {subscriptions.length > 0 ? (
+                <SubscriptionsList subscriptions={subscriptions} showClient={false} />
+              ) : (
+                <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
+                  <RepeatIcon className="size-5" /> Aucun abonnement pour ce client.
                 </div>
               )}
             </CardContent>

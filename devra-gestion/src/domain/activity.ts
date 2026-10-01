@@ -10,6 +10,17 @@ const QUOTE_STATUS_SENTENCES: Record<string, string> = {
   EXPIRED: "a constaté l'expiration du devis (date de validité dépassée)",
 };
 
+/**
+ * Auteur affiché d'une ligne du journal : la personne connectée, le client
+ * (décision prise en ligne) ou « Système » (tâches automatiques).
+ */
+export function activityActor(user: { name: string } | null, details: unknown): string {
+  if (user) return user.name;
+  const data = (details ?? {}) as { onlineName?: unknown };
+  if (typeof data.onlineName === "string") return `${data.onlineName} (client, en ligne)`;
+  return "Système";
+}
+
 export function describeActivity(action: string, details: unknown): string {
   const data = (details ?? {}) as Record<string, unknown>;
   switch (action) {
@@ -40,6 +51,9 @@ export function describeActivity(action: string, details: unknown): string {
     case "quote.deleted":
       return "a supprimé le devis";
     case "invoice.created":
+      if (typeof data.fromSubscription === "string") {
+        return `a généré la facture de l'abonnement « ${data.fromSubscription} »`;
+      }
       return typeof data.fromQuote === "string"
         ? `a créé la facture à partir du devis ${data.fromQuote}`
         : "a créé la facture";
@@ -69,6 +83,32 @@ export function describeActivity(action: string, details: unknown): string {
       const what = action === "quote.emailed" ? "le devis" : "la facture";
       return to ? `a envoyé ${what} par email à ${to}` : `a envoyé ${what} par email`;
     }
+    case "invoice.reminded":
+      return `a ${data.channel === "EMAIL" ? "envoyé par email" : "enregistré"} : ${String(
+        data.label ?? "relance",
+      ).toLowerCase()} (${String(data.amount ?? "")})`;
+    case "subscription.created":
+      return typeof data.fromQuote === "string"
+        ? `a créé l'abonnement à partir du devis ${data.fromQuote}`
+        : "a créé l'abonnement";
+    case "subscription.updated":
+      return "a modifié l'abonnement";
+    case "subscription.paused":
+      return "a mis l'abonnement en pause";
+    case "subscription.resumed":
+      return "a repris l'abonnement";
+    case "subscription.cancelled":
+      return "a résilié l'abonnement";
+    case "subscription.deleted":
+      return "a supprimé l'abonnement";
+    case "subscription.invoiced":
+      return `a généré la facture de la période ${String(data.period ?? "")}`;
+    case "quote.accepted_online":
+      return "a accepté le devis en ligne";
+    case "quote.refused_online":
+      return typeof data.comment === "string" && data.comment
+        ? `a refusé le devis en ligne : « ${data.comment} »`
+        : "a refusé le devis en ligne";
     case "quote.status_changed":
       return QUOTE_STATUS_SENTENCES[String(data.to)] ?? "a changé le statut du devis";
     default:
