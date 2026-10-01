@@ -173,12 +173,21 @@ Le guide pas à pas est dans [`docs/DEPLOIEMENT_RASPBERRY_PI.md`](docs/DEPLOIEME
 installation de Raspberry Pi OS 64 bits et de Docker, fichier `.env`, accès HTTPS sur
 `gestion.devra.ch` par **Cloudflare Tunnel** (recommandé) ou **Caddy**, mises à jour, dépannage.
 
+Le Raspberry Pi ne construit pas l'application : le flux GitHub Actions
+[`images-raspberry-pi.yml`](../.github/workflows/images-raspberry-pi.yml) construit les images
+ARM64 à chaque mise à jour de `main` et les publie dans GitHub Container Registry (`ghcr.io`) ;
+le Raspberry Pi les télécharge.
+
 En résumé :
 
 ```bash
-cp .env.example .env          # secrets, SMTP, admin, sauvegardes, option HTTPS (COMPOSE_FILE)
-docker compose up -d --build
+cp .env.example .env          # secrets, SMTP, admin, sauvegardes, IMAGE_REGISTRY, option HTTPS
+docker login ghcr.io          # une fois, avec un jeton « read:packages »
+docker compose pull && docker compose up -d --no-build
 ```
+
+Sur un serveur plus puissant, on peut aussi construire sur place : `IMAGE_REGISTRY` vide, puis
+`docker compose up -d --build`.
 
 | Service                  | Rôle                                                                                                 |
 | ------------------------ | ---------------------------------------------------------------------------------------------------- |

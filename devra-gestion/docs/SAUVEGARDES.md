@@ -166,7 +166,7 @@ Tout ce qui a été saisi **après** la sauvegarde restaurée est perdu (sauf da
 ### Tout réinstaller (Raspberry Pi ou carte SD perdus)
 
 1. Installez un Raspberry Pi neuf en suivant [DEPLOIEMENT_RASPBERRY_PI.md](DEPLOIEMENT_RASPBERRY_PI.md),
-   jusqu'au premier `docker compose up -d --build` compris, avec le même fichier `.env`.
+   jusqu'au premier lancement compris (section 9), avec le même fichier `.env`.
 2. Récupérez les sauvegardes dans `BACKUP_DIR` : branchez le disque USB, ou copiez-les depuis le
    stockage distant :
 

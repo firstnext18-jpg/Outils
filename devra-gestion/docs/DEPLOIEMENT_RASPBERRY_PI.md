@@ -1,8 +1,11 @@
 # Déploiement sur un Raspberry Pi
 
 Guide pas à pas pour installer Devra Gestion sur un Raspberry Pi, accessible en HTTPS sur
-`https://gestion.devra.ch`. Comptez environ une heure, dont 20 à 30 minutes de construction de
-l'application sur le Raspberry Pi.
+`https://gestion.devra.ch`. Comptez environ une heure.
+
+L'application n'est pas construite sur le Raspberry Pi (il faudrait plus de 2,5 Go de mémoire) :
+GitHub la construit automatiquement à chaque mise à jour de la branche `main`, et le Raspberry Pi
+télécharge les images prêtes à l'emploi (voir [section 6](#6-récupérer-lapplication)).
 
 Sommaire :
 
@@ -24,14 +27,16 @@ Sommaire :
 
 ## 1. Matériel
 
-- **Raspberry Pi 5 ou 4** avec **4 Go de mémoire au moins** (8 Go conseillé), et son
-  alimentation officielle (une alimentation trop faible provoque des plantages).
+- **Raspberry Pi 5 ou 4** avec **2 Go de mémoire au moins** (4 Go donnent plus de marge), et son
+  alimentation officielle (une alimentation trop faible provoque des plantages). En
+  fonctionnement, l'application, la base et le tunnel utilisent moins de 1 Go.
 - **Un SSD USB** (recommandé) ou une carte microSD de bonne qualité (A2, 32 Go ou plus). Une
   carte SD s'use : le SSD est nettement plus fiable pour une base de données.
 - **Un second disque USB** (ou un NAS) pour les sauvegardes.
 - Un câble Ethernet vers la box (plus stable que le Wi-Fi).
 
-Toutes les images Docker utilisées existent en ARM64 (Raspberry Pi 64 bits).
+Toutes les images Docker utilisées existent en ARM64 : le système doit être en **64 bits**
+(`uname -m` doit afficher `aarch64`).
 
 ## 2. Installer Raspberry Pi OS
 
@@ -71,13 +76,14 @@ sudo timedatectl set-timezone Europe/Zurich
 sudo apt install -y git ufw
 ```
 
-**Mémoire d'échange** (utile pour la construction de l'application sur un modèle 4 Go) : sur
-Raspberry Pi OS Bookworm, réglez 2 Go de swap.
+**Mémoire d'échange** (marge de sécurité, surtout sur un modèle 2 Go) : vérifiez avec
+`free -h` que la ligne « Swap » indique **1 Go ou plus**. Raspberry Pi OS Trixie (2025 et
+suivants) la règle tout seul. Sur Raspberry Pi OS Bookworm, si elle est plus petite :
 
 ```bash
-sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
+sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=1024/' /etc/dphys-swapfile
 sudo systemctl restart dphys-swapfile
-free -h   # la ligne « Swap » doit indiquer 2,0Gi
+free -h   # la ligne « Swap » doit indiquer 1,0Gi
 ```
 
 **Pare-feu** : seul SSH est ouvert (ajoutez 80 et 443 seulement avec l'option Caddy, plus bas).
@@ -134,16 +140,36 @@ df -h /mnt/sauvegardes
 
 ## 6. Récupérer l'application
 
-Le dépôt GitHub étant privé, créez un jeton d'accès en lecture seule : GitHub → Settings →
-Developer settings → Personal access tokens → **Fine-grained token**, limité au dépôt `Outils`,
-permission « Contents : Read-only ». Puis :
+Le Raspberry Pi a besoin de deux choses, toutes deux privées sur GitHub : le **dépôt** (fichiers
+de configuration et documentation) et les **images Docker** de l'application. Il faut donc deux
+jetons d'accès en lecture seule, à créer sur GitHub → Settings → Developer settings → Personal
+access tokens (notez leur date d'expiration : il faudra les renouveler).
+
+**1. Le dépôt.** Jeton **Fine-grained token**, limité au dépôt `Outils`, permission
+« Contents : Read-only ». Puis :
 
 ```bash
 cd ~
-git clone https://github.com/firstnext18-jpg/Outils.git
+git clone -b main https://github.com/firstnext18-jpg/Outils.git
 # Nom d'utilisateur : votre compte GitHub ; mot de passe : le jeton
 cd ~/Outils/devra-gestion
 ```
+
+(`-b main` est important : c'est la branche qui contient la version à installer.)
+
+**2. Les images.** GitHub Actions construit les images pour Raspberry Pi à chaque mise à jour de
+`main` (environ 45 minutes ; suivi dans l'onglet **Actions** du dépôt, flux « Images Raspberry
+Pi ») et les publie dans GitHub Container Registry (`ghcr.io`). Vérifiez dans l'onglet Actions
+que la dernière exécution est **verte**, puis créez un jeton **Tokens (classic)** avec la seule
+permission **`read:packages`** (GitHub n'accepte pas encore les jetons « fine-grained » pour les
+images). Sur le Raspberry Pi :
+
+```bash
+docker login ghcr.io -u firstnext18-jpg
+# Mot de passe : le jeton « read:packages »
+```
+
+Docker le mémorise (`~/.docker/config.json`) : à refaire seulement quand le jeton expire.
 
 ## 7. Configurer le fichier .env
 
@@ -164,6 +190,7 @@ Chaque variable est expliquée dans le fichier. À renseigner au minimum :
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | serveur d'envoi (ex. Infomaniak : `mail.infomaniak.com`, `465`, `true`) |
 | `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`                                      | le premier compte administrateur                                        |
 | `BACKUP_DIR`                                                                       | `/mnt/sauvegardes/devra`                                                |
+| `IMAGE_REGISTRY`                                                                   | `ghcr.io/firstnext18-jpg` (images construites par GitHub)               |
 | `AUTH_IP_HEADER`, `COMPOSE_FILE` et la suite                                       | selon l'option HTTPS choisie (section suivante)                         |
 
 Pour générer les secrets :
@@ -237,11 +264,14 @@ Caddy obtient et renouvelle seul le certificat HTTPS (Let's Encrypt).
 
 ```bash
 cd ~/Outils/devra-gestion
-docker compose up -d --build
+docker compose pull              # télécharge les images (quelques minutes la première fois)
+docker compose up -d --no-build  # démarre tout
 ```
 
-La première construction prend 20 à 30 minutes sur un Raspberry Pi 4 (moins sur un Pi 5). Les
-services démarrent ensuite dans l'ordre :
+`--no-build` garantit que rien n'est construit sur le Raspberry Pi : s'il manque une image, la
+commande s'arrête avec un message d'erreur au lieu de lancer une construction trop lourde.
+
+Les services démarrent dans l'ordre :
 
 | Service                  | Rôle                                                                 |
 | ------------------------ | -------------------------------------------------------------------- |
@@ -285,19 +315,27 @@ Tous les services redémarrent seuls après une coupure de courant (`restart: un
 
 ## 11. Mettre à jour l'application
 
+Une fois la nouvelle version fusionnée dans `main`, attendez que la construction GitHub soit
+terminée (onglet **Actions**, flux « Images Raspberry Pi » en vert), puis :
+
 ```bash
 cd ~/Outils
 git pull
 cd devra-gestion
 docker compose exec backup backup.sh maintenant   # sauvegarde avant la mise à jour
-docker compose up -d --build                       # reconstruit et redémarre
+docker compose pull                                # télécharge les nouvelles images
+docker compose up -d --no-build                    # redémarre avec la nouvelle version
 docker image prune -f                              # libère la place des anciennes images
 ```
 
-Les migrations de la base sont appliquées automatiquement (service `migrate`). En cas de
-problème, revenez à la version précédente (`git checkout <version>` puis
-`docker compose up -d --build`) et, si nécessaire, restaurez la sauvegarde faite juste avant
-([SAUVEGARDES.md](SAUVEGARDES.md)).
+Les migrations de la base sont appliquées automatiquement (service `migrate`).
+
+**Revenir à la version précédente** en cas de problème : chaque construction publie aussi les
+images sous le nom de sa version, `sha-` suivi des 7 premiers caractères du commit (visible dans
+l'onglet Actions ou avec `git log --oneline`). Dans `.env`, indiquez par exemple
+`IMAGE_TAG=sha-1a2b3c4`, puis relancez `docker compose pull` et `docker compose up -d --no-build`
+(revenez ensuite à `IMAGE_TAG=latest`, ou supprimez la ligne). Si nécessaire, restaurez la
+sauvegarde faite juste avant ([SAUVEGARDES.md](SAUVEGARDES.md)).
 
 Pensez aussi à mettre à jour le système de temps en temps : `sudo apt update && sudo apt full-upgrade -y`,
 puis `sudo reboot`.
@@ -310,20 +348,22 @@ docker compose logs --tail 100 app        # journal de l'application
 docker compose logs --tail 50 cron backup # tâches quotidiennes et sauvegardes
 docker compose restart app                # redémarrer l'application
 docker compose down                       # tout arrêter (les données sont conservées)
-docker compose up -d                      # tout redémarrer
+docker compose up -d --no-build           # tout redémarrer
 df -h / /mnt/sauvegardes                  # place disque
 ```
 
-| Problème                                              | Piste                                                                                                                    |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| La construction s'arrête (« killed », mémoire)        | Vérifiez le swap (`free -h`), section 3.                                                                                 |
-| `docker compose up` refuse : « … manquant dans .env » | La variable indiquée est obligatoire : complétez `.env`.                                                                 |
-| Erreur 502 / 1033 (Cloudflare)                        | L'application ne tourne pas (`docker compose ps`), ou l'URL du tunnel n'est pas `app:3000`.                              |
-| Certificat refusé (Caddy)                             | L'enregistrement DNS ne pointe pas vers la box, ou les ports 80/443 ne sont pas redirigés : `docker compose logs caddy`. |
-| Les emails ne partent pas                             | Réglages `SMTP_*` ; le message d'erreur du serveur figure dans l'historique des envois du document.                      |
-| Connexion impossible malgré le bon mot de passe       | Trop d'essais : attendre une minute. `APP_URL` doit être exactement l'adresse utilisée dans le navigateur (`https://…`). |
-| Heures décalées                                       | `timedatectl` doit indiquer Europe/Zurich.                                                                               |
-| Sauvegarde en échec                                   | `docker compose logs backup` ; disque des sauvegardes monté (`df -h /mnt/sauvegardes`) ?                                 |
+| Problème                                               | Piste                                                                                                                                                                                           |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docker compose pull` : « denied » ou « unauthorized » | Connexion à `ghcr.io` absente ou jeton expiré : `docker login ghcr.io` (section 6). `IMAGE_REGISTRY` exact dans `.env` ? Ne suivez pas le conseil « docker compose build » qui s'affiche alors. |
+| « manifest unknown » / « no matching manifest »        | La construction GitHub n'est pas terminée ou a échoué (onglet Actions) ; le système doit être en 64 bits (`uname -m`).                                                                          |
+| Une construction démarre sur le Raspberry Pi           | `IMAGE_REGISTRY` manque dans `.env` : arrêtez (Ctrl+C), complétez `.env`, puis utilisez `--no-build` (section 9).                                                                               |
+| `docker compose up` refuse : « … manquant dans .env »  | La variable indiquée est obligatoire : complétez `.env`.                                                                                                                                        |
+| Erreur 502 / 1033 (Cloudflare)                         | L'application ne tourne pas (`docker compose ps`), ou l'URL du tunnel n'est pas `app:3000`.                                                                                                     |
+| Certificat refusé (Caddy)                              | L'enregistrement DNS ne pointe pas vers la box, ou les ports 80/443 ne sont pas redirigés : `docker compose logs caddy`.                                                                        |
+| Les emails ne partent pas                              | Réglages `SMTP_*` ; le message d'erreur du serveur figure dans l'historique des envois du document.                                                                                             |
+| Connexion impossible malgré le bon mot de passe        | Trop d'essais : attendre une minute. `APP_URL` doit être exactement l'adresse utilisée dans le navigateur (`https://…`).                                                                        |
+| Heures décalées                                        | `timedatectl` doit indiquer Europe/Zurich.                                                                                                                                                      |
+| Sauvegarde en échec                                    | `docker compose logs backup` ; disque des sauvegardes monté (`df -h /mnt/sauvegardes`) ?                                                                                                        |
 
 ## 13. Sécurité : ce qui est en place
 

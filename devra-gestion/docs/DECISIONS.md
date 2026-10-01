@@ -510,8 +510,25 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
 
 - Dans l'environnement de développement utilisé, le dépôt de paquets Alpine est inaccessible :
   l'étape `apk add rclone` de l'image de sauvegarde n'a pas pu y être exécutée. Les scripts ont
-  été testés dans une image équivalente contenant le binaire officiel de rclone. La
-  construction des images en ARM64 se fait sur le Raspberry Pi lui-même.
+  été testés dans une image équivalente contenant le binaire officiel de rclone. Les images
+  ARM64 sont construites par GitHub Actions (voir ci-dessous).
+
+## Installation sur Raspberry Pi
+
+- **Images construites par GitHub Actions, pas sur le Raspberry Pi.** La construction de
+  l'application demande environ 2,4 Go de mémoire (mesuré) : impossible sur un Raspberry Pi de
+  2 Go, très lent avec du swap sur carte SD. Le flux `.github/workflows/images-raspberry-pi.yml`
+  construit les trois images (application, migrations, sauvegarde) en ARM64, par émulation QEMU
+  sur les machines gratuites de GitHub, et les publie dans GitHub Container Registry, privé comme
+  le dépôt. Le Raspberry Pi les télécharge (`docker compose pull`) avec un jeton
+  `read:packages`. Une seule plateforme (ARM64) : le Raspberry Pi est la seule cible.
+- **Le même `compose.yaml` sert aux deux usages.** Le nom des images dépend de
+  `IMAGE_REGISTRY` (vide : images construites sur place) et de `IMAGE_TAG` (« latest » ou
+  « sha-<commit> » pour revenir à une version). Sur le Raspberry Pi, `--no-build` empêche toute
+  construction accidentelle.
+- **Déclenchement** : à chaque mise à jour de `main` touchant `devra-gestion/` (hors
+  documentation), à la demande, et dans les pull requests qui modifient le Dockerfile, les images
+  ou les dépendances (construction seule, pour vérifier qu'elle réussit).
 
 ## Interface
 
