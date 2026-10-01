@@ -10,6 +10,17 @@ const QUOTE_STATUS_SENTENCES: Record<string, string> = {
   EXPIRED: "a constaté l'expiration du devis (date de validité dépassée)",
 };
 
+/**
+ * Auteur affiché d'une ligne du journal : la personne connectée, le client
+ * (décision prise en ligne) ou « Système » (tâches automatiques).
+ */
+export function activityActor(user: { name: string } | null, details: unknown): string {
+  if (user) return user.name;
+  const data = (details ?? {}) as { onlineName?: unknown };
+  if (typeof data.onlineName === "string") return `${data.onlineName} (client, en ligne)`;
+  return "Système";
+}
+
 export function describeActivity(action: string, details: unknown): string {
   const data = (details ?? {}) as Record<string, unknown>;
   switch (action) {
@@ -92,6 +103,12 @@ export function describeActivity(action: string, details: unknown): string {
       return "a supprimé l'abonnement";
     case "subscription.invoiced":
       return `a généré la facture de la période ${String(data.period ?? "")}`;
+    case "quote.accepted_online":
+      return "a accepté le devis en ligne";
+    case "quote.refused_online":
+      return typeof data.comment === "string" && data.comment
+        ? `a refusé le devis en ligne : « ${data.comment} »`
+        : "a refusé le devis en ligne";
     case "quote.status_changed":
       return QUOTE_STATUS_SENTENCES[String(data.to)] ?? "a changé le statut du devis";
     default:
