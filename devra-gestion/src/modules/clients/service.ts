@@ -256,13 +256,30 @@ export async function setClientArchived(actor: CurrentUser, id: string, archived
 }
 
 /**
- * Suppression définitive. Un client lié à des devis ou des factures ne pourra
- * pas être supprimé (contrainte de la base, à partir des phases 4 et 5) : il
- * faudra l'archiver.
+ * Suppression définitive, seulement pour un client sans devis ni facture
+ * (sinon : archivage). La base le garantit aussi (clé étrangère « Restrict »).
  */
 export async function deleteClient(actor: CurrentUser, id: string) {
-  const client = await db.client.findUnique({ where: { id } });
+  const client = await db.client.findUnique({
+    where: { id },
+    include: { _count: { select: { quotes: true, invoices: true, subscriptions: true } } },
+  });
   if (!client) throw new UserError("Ce client n'existe plus.");
+  if (client._count.subscriptions > 0) {
+    throw new UserError(
+      "Ce client a des abonnements : il ne peut pas être supprimé. Archivez-le plutôt.",
+    );
+  }
+  if (client._count.invoices > 0) {
+    throw new UserError(
+      `Ce client a ${client._count.invoices} facture${client._count.invoices > 1 ? "s" : ""} : il ne peut pas être supprimé. Archivez-le plutôt.`,
+    );
+  }
+  if (client._count.quotes > 0) {
+    throw new UserError(
+      `Ce client a ${client._count.quotes} devis : il ne peut pas être supprimé. Archivez-le plutôt.`,
+    );
+  }
   await db.$transaction(async (tx) => {
     await tx.client.delete({ where: { id } });
     await logActivity(
@@ -343,3 +360,16 @@ export async function exportClientData(actor: CurrentUser, id: string) {
     })),
   };
 }
+
+/** Clients proposés dans l'éditeur de devis : non archivés, les plus récents si la recherche est vide. */
+export function searchClientsForPicker(query: string, take = 10) {
+  const words = searchWords(query);
+  return db.client.findMany({
+    where: { archivedAt: null, AND: words.map((word) => ({ searchText: { contains: word } })) },
+    orderBy: words.length ? { sortName: "asc" } : { updatedAt: "desc" },
+    take,
+    select: { id: true, displayName: true, city: true, language: true, siteTypeId: true },
+  });
+}
+
+export type PickerClient = Awaited<ReturnType<typeof searchClientsForPicker>>[number];

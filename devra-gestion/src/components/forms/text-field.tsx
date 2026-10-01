@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 
 /** Champ texte d'un formulaire react-hook-form (libellé, aide, message d'erreur). */
-export function TextField<T extends FieldValues>({
+export function TextField<T extends FieldValues, TTransformed = T>({
   control,
   name,
   label,
@@ -20,7 +20,7 @@ export function TextField<T extends FieldValues>({
   className,
   ...inputProps
 }: {
-  control: Control<T>;
+  control: Control<T, unknown, TTransformed>;
   name: FieldPath<T>;
   label: string;
   description?: string;

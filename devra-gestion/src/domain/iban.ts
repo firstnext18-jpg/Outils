@@ -20,16 +20,24 @@ export function normalizeIban(value: string): string {
  */
 export function hasValidIbanChecksum(iban: string): boolean {
   if (!/^[A-Z]{2}\d{2}[A-Z0-9]+$/.test(iban)) return false;
-  const rearranged = iban.slice(4) + iban.slice(0, 4);
+  return mod97(iban.slice(4) + iban.slice(0, 4)) === 1;
+}
+
+/**
+ * Reste de la division par 97 d'une chaîne de chiffres et de lettres
+ * majuscules, chaque lettre valant un nombre (A = 10 … Z = 35). Utilisé par
+ * les IBAN (ISO 13616) et les références créancier SCOR (ISO 11649).
+ */
+export function mod97(alphanumeric: string): number {
   let remainder = 0;
-  for (const char of rearranged) {
+  for (const char of alphanumeric) {
     const digits = /[A-Z]/.test(char) ? String(char.charCodeAt(0) - 55) : char;
     // Calcul par morceaux : le nombre complet dépasserait la précision des nombres JS.
     for (const digit of digits) {
       remainder = (remainder * 10 + Number(digit)) % 97;
     }
   }
-  return remainder === 1;
+  return remainder;
 }
 
 /** IBAN suisse ou liechtensteinois valide (format et clé de contrôle). */

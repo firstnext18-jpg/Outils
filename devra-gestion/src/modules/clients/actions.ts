@@ -43,3 +43,9 @@ export const deleteClientAction = authAction(
     return null;
   },
 );
+
+/** Recherche de clients pour le choix du client d'un devis (clients non archivés). */
+export const searchClientsForPickerAction = authAction(
+  { role: "MEMBER", schema: z.object({ query: z.string().trim().max(100) }) },
+  async ({ query }) => service.searchClientsForPicker(query),
+);

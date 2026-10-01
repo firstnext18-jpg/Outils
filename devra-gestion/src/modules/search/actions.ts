@@ -3,15 +3,18 @@
 import { z } from "zod";
 import { authAction } from "@/server/action";
 import { searchClients } from "@/modules/clients/service";
+import { searchInvoices } from "@/modules/invoices/service";
+import { searchQuotes } from "@/modules/quotes/service";
 
-/**
- * Recherche globale (Ctrl+K). Les devis et factures (par numéro) s'ajouteront
- * avec les phases 4 et 5.
- */
+/** Recherche globale (Ctrl+K) : clients, devis et factures (numéro, objet, client). */
 export const globalSearchAction = authAction(
   { role: "READONLY", schema: z.object({ query: z.string().trim().max(100) }) },
   async ({ query }) => {
-    const clients = await searchClients(query);
-    return { clients };
+    const [clients, quotes, invoices] = await Promise.all([
+      searchClients(query),
+      searchQuotes(query),
+      searchInvoices(query),
+    ]);
+    return { clients, quotes, invoices };
   },
 );

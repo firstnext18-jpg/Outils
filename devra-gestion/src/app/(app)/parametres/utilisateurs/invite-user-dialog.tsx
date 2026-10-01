@@ -100,7 +100,7 @@ export function InviteUserDialog() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Rôle</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select value={field.value} onValueChange={(v) => v && field.onChange(v)}>
                     <FormControl>
                       <SelectTrigger className="w-full">
                         <SelectValue />

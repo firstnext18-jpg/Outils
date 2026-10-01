@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import {
   ArchiveIcon,
+  FilePlusIcon,
   Building2Icon,
   FileTextIcon,
   GlobeIcon,
@@ -8,11 +9,16 @@ import {
   MapPinIcon,
   PhoneIcon,
   ReceiptTextIcon,
+  RepeatIcon,
   UserIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClientActions } from "@/app/(app)/clients/[id]/client-actions";
+import { InvoicesList } from "@/components/documents/invoices-list";
+import { SubscriptionsList } from "@/components/documents/subscriptions-list";
+import { QuotesList } from "@/components/documents/quotes-list";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { describeActivity } from "@/domain/activity";
@@ -22,6 +28,9 @@ import { countryName } from "@/domain/countries";
 import { canEdit } from "@/domain/roles";
 import { formatChf, formatDate, formatDateTime } from "@/lib/format";
 import { getClient, getClientActivity } from "@/modules/clients/service";
+import { clientInvoiceSummary, listClientInvoices } from "@/modules/invoices/service";
+import { listClientQuotes } from "@/modules/quotes/service";
+import { listClientSubscriptions } from "@/modules/subscriptions/service";
 import { requireUser } from "@/server/session";
 
 export async function generateMetadata({ params }: PageProps<"/clients/[id]">): Promise<Metadata> {
@@ -46,7 +55,14 @@ function Row({ icon: Icon, children }: { icon: typeof MailIcon; children: React.
 export default async function ClientPage({ params }: PageProps<"/clients/[id]">) {
   const user = await requireUser();
   const { id } = await params;
-  const [client, activity] = await Promise.all([getClient(id), getClientActivity(id)]);
+  const [client, activity, quotes, invoices, summary, subscriptions] = await Promise.all([
+    getClient(id),
+    getClientActivity(id),
+    listClientQuotes(id),
+    listClientInvoices(id),
+    clientInvoiceSummary(id),
+    listClientSubscriptions(id),
+  ]);
   if (!client) notFound();
 
   const address = [
@@ -177,9 +193,9 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
         <div className="space-y-6 lg:col-span-2">
           <div className="grid gap-4 sm:grid-cols-3">
             {[
-              ["Total facturé", 0],
-              ["Encaissé", 0],
-              ["Impayé", 0],
+              ["Total facturé", summary.invoicedCents],
+              ["Encaissé", summary.paidCents],
+              ["Impayé", summary.unpaidCents],
             ].map(([label, amount]) => (
               <Card key={label} className="gap-2 py-4">
                 <CardHeader className="px-4">
@@ -193,16 +209,68 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
           </div>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Devis et factures</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Devis</CardTitle>
+              {canEdit(user.role) && !client.archivedAt && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/devis/nouveau?client=${client.id}`}>
+                    <FilePlusIcon /> Nouveau devis
+                  </Link>
+                </Button>
+              )}
             </CardHeader>
-            <CardContent className="grid gap-4 text-sm sm:grid-cols-2">
-              <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
-                <FileTextIcon className="size-5" /> Aucun devis pour ce client.
-              </div>
-              <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
-                <ReceiptTextIcon className="size-5" /> Aucune facture pour ce client.
-              </div>
+            <CardContent className="text-sm">
+              {quotes.length > 0 ? (
+                <QuotesList quotes={quotes} showClient={false} />
+              ) : (
+                <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
+                  <FileTextIcon className="size-5" /> Aucun devis pour ce client.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Factures</CardTitle>
+              {canEdit(user.role) && !client.archivedAt && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/factures/nouvelle?client=${client.id}`}>
+                    <FilePlusIcon /> Nouvelle facture
+                  </Link>
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="text-sm">
+              {invoices.length > 0 ? (
+                <InvoicesList invoices={invoices} showClient={false} />
+              ) : (
+                <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
+                  <ReceiptTextIcon className="size-5" /> Aucune facture pour ce client.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Abonnements</CardTitle>
+              {canEdit(user.role) && !client.archivedAt && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/abonnements/nouveau?client=${client.id}`}>
+                    <FilePlusIcon /> Nouvel abonnement
+                  </Link>
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="text-sm">
+              {subscriptions.length > 0 ? (
+                <SubscriptionsList subscriptions={subscriptions} showClient={false} />
+              ) : (
+                <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
+                  <RepeatIcon className="size-5" /> Aucun abonnement pour ce client.
+                </div>
+              )}
             </CardContent>
           </Card>
 

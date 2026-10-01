@@ -42,10 +42,22 @@ model User {
   sessions        Session[]
   accounts        Account[]
   activities      ActivityLog[]
-  invitationsSent Invitation[]  @relation("InvitedBy")
+  invitationsSent Invitation[]   @relation("InvitedBy")
   settingsUpdates Settings[]
-  clientsCreated  Client[]      @relation("ClientCreatedBy")
-  clientsUpdated  Client[]      @relation("ClientUpdatedBy")
+  clientsCreated  Client[]       @relation("ClientCreatedBy")
+  clientsUpdated  Client[]       @relation("ClientUpdatedBy")
+  catalogCreated  CatalogItem[]  @relation("CatalogItemCreatedBy")
+  catalogUpdated  CatalogItem[]  @relation("CatalogItemUpdatedBy")
+  quotesCreated   Quote[]        @relation("QuoteCreatedBy")
+  quotesUpdated   Quote[]        @relation("QuoteUpdatedBy")
+  invoicesCreated Invoice[]      @relation("InvoiceCreatedBy")
+  invoicesUpdated Invoice[]      @relation("InvoiceUpdatedBy")
+  payments        Payment[]
+  emailsSent      EmailLog[]
+  remindersSent   Reminder[]
+  subsCreated     Subscription[] @relation("SubscriptionCreatedBy")
+  subsUpdated     Subscription[] @relation("SubscriptionUpdatedBy")
+  taskRuns        TaskRun[]
 
   @@map("user")
 }
@@ -156,8 +168,62 @@ model Settings {
   iban                String  @default("")
   /// QR-IBAN (références QRR sur la QR-facture). Stocké sans espaces.
   qrIban              String  @default("")
+  /// Préfixe des références QRR imposé par certaines banques (chiffres, facultatif).
+  qrReferencePrefix   String  @default("")
   /// Nom du fichier du logo dans DATA_DIR/uploads.
   logoFile            String?
+
+  /// Formats de numérotation (voir src/domain/numbering.ts).
+  quoteNumberFormat   String  @default("D-{AAAA}-{NNN}")
+  invoiceNumberFormat String  @default("F-{AAAA}-{NNN}")
+  /// Délais par défaut, en jours.
+  quoteValidityDays   Int     @default(30)
+  paymentTermDays     Int     @default(15)
+  /// Acceptation des devis en ligne : lien envoyé avec le devis (variable {lien}).
+  onlineAcceptance    Boolean @default(false)
+
+  /// TVA : désactivée tant que l'entreprise n'y est pas assujettie.
+  vatEnabled Boolean @default(false)
+  /// Numéro TVA (ex. CHE-123.456.789 TVA), affiché sur les documents quand la TVA est activée.
+  vatNumber  String  @default("")
+  /// Taux proposés, en points de base (8,1 % = 810). Le premier est le taux par défaut.
+  vatRates   Int[]   @default([810, 260, 380])
+
+  /// Textes par défaut des documents, en français et en allemand.
+  quoteIntroFr          String       @default("Nous vous remercions de l'intérêt que vous portez à nos services et avons le plaisir de vous soumettre notre offre.")
+  quoteIntroDe          String       @default("Vielen Dank für Ihr Interesse an unseren Dienstleistungen. Gerne unterbreiten wir Ihnen unsere Offerte.")
+  quoteConditionsFr     String       @default("Les prix s'entendent en francs suisses. La facture est payable dans le délai indiqué sur celle-ci. Nous restons à votre disposition pour toute question.")
+  quoteConditionsDe     String       @default("Alle Preise verstehen sich in Schweizer Franken. Die Rechnung ist innerhalb der darauf angegebenen Frist zahlbar. Für Fragen stehen wir Ihnen gerne zur Verfügung.")
+  invoiceIntroFr        String       @default("Nous vous remercions de votre confiance et vous adressons notre facture.")
+  invoiceIntroDe        String       @default("Vielen Dank für Ihr Vertrauen. Gerne stellen wir Ihnen unsere Leistungen in Rechnung.")
+  invoiceConditionsFr   String       @default("Merci de régler ce montant d'ici à l'échéance indiquée, de préférence au moyen de la QR-facture ci-dessous.")
+  invoiceConditionsDe   String       @default("Bitte begleichen Sie den Betrag bis zum angegebenen Fälligkeitsdatum, vorzugsweise mit der untenstehenden QR-Rechnung.")
+  /// Modèles des emails d'envoi (variables : voir src/domain/email-template.ts).
+  quoteEmailSubjectFr   String       @default("Devis {numero}")
+  quoteEmailSubjectDe   String       @default("Offerte {numero}")
+  quoteEmailBodyFr      String       @default("Bonjour,\n\nVeuillez trouver ci-joint notre devis {numero} d'un montant de {montant}, valable jusqu'au {echeance}.\n\nVous pouvez le consulter et l'accepter en ligne : {lien}\n\nNous restons à votre disposition pour toute question.\n\nMeilleures salutations\n{entreprise}")
+  quoteEmailBodyDe      String       @default("Guten Tag\n\nBeiliegend erhalten Sie unsere Offerte {numero} über {montant}, gültig bis {echeance}.\n\nSie können die Offerte online ansehen und annehmen: {lien}\n\nFür Fragen stehen wir Ihnen gerne zur Verfügung.\n\nFreundliche Grüsse\n{entreprise}")
+  invoiceEmailSubjectFr String       @default("Facture {numero}")
+  invoiceEmailSubjectDe String       @default("Rechnung {numero}")
+  invoiceEmailBodyFr    String       @default("Bonjour,\n\nVeuillez trouver ci-joint notre facture {numero} d'un montant de {montant}, payable d'ici au {echeance}. Le bulletin de paiement (QR-facture) figure au bas du document.\n\nNous vous remercions de votre confiance.\n\nMeilleures salutations\n{entreprise}")
+  /// Relances : mode, délais (jours), frais (centimes), délai de paiement accordé.
+  reminderMode          ReminderMode @default(MANUAL)
+  reminderDelay1        Int          @default(10)
+  reminderDelay2        Int          @default(15)
+  reminderDelay3        Int          @default(15)
+  reminderFee1Cents     Int          @default(0)
+  reminderFee2Cents     Int          @default(0)
+  reminderFee3Cents     Int          @default(0)
+  reminderPaymentDays   Int          @default(10)
+  /// Textes des relances (objet + texte, par niveau et par langue) ; null = textes par défaut.
+  reminderTemplates     Json?
+  /// Abonnements : les factures générées partent directement par email (sinon : brouillons).
+  subscriptionAutoSend  Boolean      @default(false)
+
+  invoiceEmailBodyDe String @default("Guten Tag\n\nBeiliegend erhalten Sie unsere Rechnung {numero} über {montant}, zahlbar bis {echeance}. Den Einzahlungsschein (QR-Rechnung) finden Sie unten auf dem Dokument.\n\nVielen Dank für Ihr Vertrauen.\n\nFreundliche Grüsse\n{entreprise}")
+
+  documentFooterFr String @default("")
+  documentFooterDe String @default("")
 
   updatedAt   DateTime @updatedAt
   updatedById String?
@@ -221,7 +287,9 @@ model SiteType {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  clients Client[]
+  clients  Client[]
+  quotes   Quote[]
+  invoices Invoice[]
 
   @@map("site_type")
 }
@@ -274,12 +342,578 @@ model Client {
   updatedById String?
   updatedBy   User?    @relation("ClientUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
+  quotes        Quote[]
+  invoices      Invoice[]
+  subscriptions Subscription[]
+
   @@index([sortName])
   @@index([email])
   @@index([archivedAt])
   @@index([canton])
   @@index([tags], type: Gin)
   @@map("client")
+}
+
+// ---------------------------------------------------------------------------
+// Catalogue de prestations
+// ---------------------------------------------------------------------------
+
+/// Type de ligne d'un devis ou d'une facture.
+enum LineType {
+  /// Forfait (ex. « Site vitrine 5 pages »)
+  FLAT
+  /// À l'heure (quantité en heures)
+  HOURLY
+  /// Supplément (ex. « Page supplémentaire »)
+  EXTRA
+  /// Abonnement, facturé périodiquement (ex. « Hébergement + maintenance »)
+  SUBSCRIPTION
+}
+
+enum Periodicity {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+/// Unités des lignes, traduites sur les documents (voir src/domain/units.ts).
+enum Unit {
+  FLAT
+  HOUR
+  PIECE
+  PAGE
+  DAY
+  MONTH
+  QUARTER
+  YEAR
+}
+
+/// Prestation réutilisable dans les devis et factures. Prix hors TVA, en centimes.
+model CatalogItem {
+  id             String       @id @default(uuid(7))
+  name           String
+  /// Nom utilisé sur les documents en allemand (facultatif : sinon le nom français).
+  nameDe         String       @default("")
+  description    String       @default("")
+  descriptionDe  String       @default("")
+  category       String       @default("")
+  lineType       LineType
+  unit           Unit
+  unitPriceCents Int
+  /// Obligatoire pour un abonnement, vide sinon.
+  periodicity    Periodicity?
+  active         Boolean      @default(true)
+  /// Texte de recherche (minuscules, sans accents).
+  searchText     String       @default("")
+  version        Int          @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  createdBy   User?    @relation("CatalogItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy   User?    @relation("CatalogItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  quoteLines        QuoteLine[]
+  invoiceLines      InvoiceLine[]
+  subscriptionItems SubscriptionItem[]
+
+  @@index([active])
+  @@index([category])
+  @@map("catalog_item")
+}
+
+// ---------------------------------------------------------------------------
+// Numérotation et devis
+// ---------------------------------------------------------------------------
+
+/// Remise ou acompte : en pourcentage (points de base) ou en montant (centimes).
+enum DiscountType {
+  PERCENT
+  AMOUNT
+}
+
+enum SequenceKind {
+  QUOTE
+  INVOICE
+}
+
+/// Dernier numéro attribué, par type de document et par année. Incrémenté dans
+/// la transaction qui crée le document : deux documents ne peuvent pas recevoir
+/// le même numéro, et un numéro n'est jamais sauté.
+model NumberSequence {
+  kind      SequenceKind
+  year      Int
+  lastValue Int
+  updatedAt DateTime     @updatedAt
+
+  @@id([kind, year])
+  @@map("number_sequence")
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REFUSED
+  EXPIRED
+}
+
+model Quote {
+  id       String @id @default(uuid(7))
+  /// Ex. D-2026-001, attribué à la création.
+  number   String @unique
+  year     Int
+  sequence Int
+
+  clientId   String
+  /// Un client lié à des devis ne peut pas être supprimé (seulement archivé).
+  client     Client           @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  status     QuoteStatus      @default(DRAFT)
+  language   DocumentLanguage
+  issueDate  DateTime         @db.Date
+  validUntil DateTime         @db.Date
+  subject    String           @default("")
+  siteTypeId String?
+  siteType   SiteType?        @relation(fields: [siteTypeId], references: [id], onDelete: SetNull)
+
+  introText      String @default("")
+  conditionsText String @default("")
+
+  globalDiscountType  DiscountType?
+  /// Points de base (PERCENT) ou centimes (AMOUNT).
+  globalDiscountValue Int           @default(0)
+  depositType         DiscountType?
+  depositValue        Int           @default(0)
+  /// TVA appliquée à ce devis (reprend le paramètre au moment de l'enregistrement).
+  vatEnabled          Boolean       @default(false)
+
+  /// Totaux recalculés à chaque enregistrement (listes, statistiques).
+  subtotalCents           Int @default(0)
+  discountCents           Int @default(0)
+  vatCents                Int @default(0)
+  /// Montant unique, arrondi aux 5 centimes.
+  totalCents              Int @default(0)
+  depositCents            Int @default(0)
+  recurringMonthlyCents   Int @default(0)
+  recurringQuarterlyCents Int @default(0)
+  recurringYearlyCents    Int @default(0)
+
+  sentAt          DateTime?
+  /// Date d'acceptation ou de refus.
+  decidedAt       DateTime?
+  /// Décision prise en ligne par le client : nom saisi, adresse IP, commentaire (refus).
+  decidedOnline   Boolean   @default(false)
+  decisionName    String    @default("")
+  decisionIp      String    @default("")
+  decisionComment String    @default("")
+  /// Coordonnées du client et de l'entreprise figées à l'envoi (PDF identique ensuite).
+  clientSnapshot  Json?
+  companySnapshot Json?
+
+  /// Numéro et objet, sans accents (recherche).
+  searchText String @default("")
+  version    Int    @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  createdBy   User?    @relation("QuoteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy   User?    @relation("QuoteUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  lines         QuoteLine[]
+  invoices      Invoice[]
+  emails        EmailLog[]
+  subscriptions Subscription[]
+  links         QuoteLink[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([issueDate])
+  @@map("quote")
+}
+
+/// Lien d'acceptation en ligne d'un devis. Seule l'empreinte (SHA-256) du jeton est enregistrée.
+model QuoteLink {
+  id        String   @id @default(uuid(7))
+  quoteId   String
+  quote     Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([quoteId])
+  @@map("quote_link")
+}
+
+/// Ligne de devis : copie complète des données (indépendante du catalogue).
+model QuoteLine {
+  id            String       @id @default(uuid(7))
+  quoteId       String
+  quote         Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  position      Int
+  catalogItemId String?
+  catalogItem   CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+
+  lineType       LineType
+  periodicity    Periodicity?
+  label          String
+  description    String        @default("")
+  /// Quantité en millièmes (1,5 h = 1500).
+  quantityMilli  Int
+  unit           Unit
+  unitPriceCents Int
+  discountType   DiscountType?
+  discountValue  Int           @default(0)
+  vatRateBps     Int?
+  /// Montant net de la ligne (après remise de ligne), en centimes.
+  netCents       Int
+
+  @@index([quoteId])
+  @@map("quote_line")
+}
+
+// ---------------------------------------------------------------------------
+// Factures et paiements
+// ---------------------------------------------------------------------------
+
+enum InvoiceType {
+  STANDARD
+  /// Acompte demandé à la commande (devis avec acompte).
+  DEPOSIT
+  /// Solde après acompte : reprend tout le devis et déduit les acomptes facturés.
+  FINAL
+  /// Période d'un abonnement (phase 7).
+  SUBSCRIPTION
+}
+
+/// « En retard » n'est pas un statut enregistré : il se calcule d'après l'échéance.
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+enum ReferenceType {
+  QRR
+  SCOR
+  NON
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  TWINT
+  OTHER
+}
+
+model Invoice {
+  id       String  @id @default(uuid(7))
+  /// Ex. F-2026-001, attribué à l'émission : un brouillon supprimé ne laisse pas de trou.
+  number   String? @unique
+  year     Int?
+  sequence Int?
+
+  type       InvoiceType      @default(STANDARD)
+  status     InvoiceStatus    @default(DRAFT)
+  clientId   String
+  /// Un client qui a des factures ne peut pas être supprimé (seulement archivé).
+  client     Client           @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  /// Devis d'origine (conversion).
+  quoteId    String?
+  quote      Quote?           @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  language   DocumentLanguage
+  issueDate  DateTime         @db.Date
+  dueDate    DateTime         @db.Date
+  subject    String           @default("")
+  siteTypeId String?
+  siteType   SiteType?        @relation(fields: [siteTypeId], references: [id], onDelete: SetNull)
+
+  introText      String @default("")
+  conditionsText String @default("")
+
+  globalDiscountType  DiscountType?
+  globalDiscountValue Int           @default(0)
+  vatEnabled          Boolean       @default(false)
+
+  /// Totaux recalculés à chaque enregistrement.
+  subtotalCents  Int   @default(0)
+  discountCents  Int   @default(0)
+  vatCents       Int   @default(0)
+  /// Total de la facture, arrondi aux 5 centimes.
+  totalCents     Int   @default(0)
+  /// Facture finale : acomptes déduits [{ invoiceId, number, amountCents }].
+  deductions     Json?
+  deductedCents  Int   @default(0)
+  /// Montant à payer : total − acomptes déduits.
+  amountDueCents Int   @default(0)
+  /// Frais de relance facturés (ajoutés au solde).
+  feesCents      Int   @default(0)
+  /// Somme des paiements enregistrés.
+  paidCents      Int   @default(0)
+
+  /// Facture d'abonnement : abonnement et période facturée (jamais deux fois la même).
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  periodStart    DateTime?     @db.Date
+  periodEnd      DateTime?     @db.Date
+
+  issuedAt     DateTime?
+  cancelledAt  DateTime?
+  cancelReason String    @default("")
+
+  /// Compte, type et référence de paiement de la QR-facture, fixés à l'émission.
+  paymentAccount   String         @default("")
+  referenceType    ReferenceType?
+  paymentReference String         @default("")
+
+  /// Coordonnées du client et de l'entreprise figées à l'émission.
+  clientSnapshot  Json?
+  companySnapshot Json?
+  /// PDF archivé à l'émission (dans DATA_DIR/documents).
+  pdfFile         String?
+
+  searchText String @default("")
+  version    Int    @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  createdBy   User?    @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy   User?    @relation("InvoiceUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  lines     InvoiceLine[]
+  payments  Payment[]
+  emails    EmailLog[]
+  reminders Reminder[]
+
+  @@unique([subscriptionId, periodStart])
+  @@index([clientId])
+  @@index([quoteId])
+  @@index([status])
+  @@index([issueDate])
+  @@index([dueDate])
+  @@map("invoice")
+}
+
+/// Ligne de facture : mêmes champs qu'une ligne de devis.
+model InvoiceLine {
+  id            String       @id @default(uuid(7))
+  invoiceId     String
+  invoice       Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position      Int
+  catalogItemId String?
+  catalogItem   CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+
+  lineType       LineType
+  periodicity    Periodicity?
+  label          String
+  description    String        @default("")
+  quantityMilli  Int
+  unit           Unit
+  unitPriceCents Int
+  discountType   DiscountType?
+  discountValue  Int           @default(0)
+  vatRateBps     Int?
+  netCents       Int
+
+  @@index([invoiceId])
+  @@map("invoice_line")
+}
+
+model Payment {
+  id          String        @id @default(uuid(7))
+  invoiceId   String
+  /// Une facture qui a des paiements ne peut pas être supprimée.
+  invoice     Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  date        DateTime      @db.Date
+  amountCents Int
+  method      PaymentMethod
+  note        String        @default("")
+  createdAt   DateTime      @default(now())
+  createdById String?
+  createdBy   User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([date])
+  @@map("payment")
+}
+
+// ---------------------------------------------------------------------------
+// Relances
+// ---------------------------------------------------------------------------
+
+enum ReminderMode {
+  /// L'outil propose les relances, un utilisateur les valide.
+  MANUAL
+  /// La tâche quotidienne les envoie par email.
+  AUTOMATIC
+}
+
+enum ReminderChannel {
+  EMAIL
+  /// Envoyée autrement (courrier) : seulement enregistrée.
+  MANUAL
+}
+
+model Reminder {
+  id           String          @id @default(uuid(7))
+  invoiceId    String
+  invoice      Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  /// 1 : rappel, 2 : 2e rappel, 3 : mise en demeure.
+  level        Int
+  date         DateTime        @db.Date
+  /// Nouveau délai de paiement accordé.
+  dueDate      DateTime        @db.Date
+  /// Solde avant cette relance, frais de cette relance, total demandé.
+  balanceCents Int
+  feeCents     Int
+  totalCents   Int
+  channel      ReminderChannel
+  /// Texte de la lettre (variables remplacées), pour régénérer le PDF si besoin.
+  text         String          @default("")
+  /// PDF archivé (DATA_DIR/documents/reminders).
+  pdfFile      String?
+  /// Vide pour une relance envoyée automatiquement.
+  createdById  String?
+  createdBy    User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime        @default(now())
+
+  emails EmailLog[]
+
+  @@unique([invoiceId, level])
+  @@map("reminder")
+}
+
+// ---------------------------------------------------------------------------
+// Abonnements
+// ---------------------------------------------------------------------------
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+model Subscription {
+  id              String             @id @default(uuid(7))
+  clientId        String
+  client          Client             @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  /// Devis d'origine.
+  quoteId         String?
+  quote           Quote?             @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  status          SubscriptionStatus @default(ACTIVE)
+  periodicity     Periodicity
+  language        DocumentLanguage
+  /// Libellé court (ex. « Hébergement + maintenance »).
+  label           String
+  startDate       DateTime           @db.Date
+  /// Nombre de périodes déjà facturées et début de la prochaine.
+  billedPeriods   Int                @default(0)
+  nextBillingDate DateTime           @db.Date
+  pausedAt        DateTime?
+  /// Date de résiliation.
+  endDate         DateTime?          @db.Date
+  /// Montant d'une période, hors TVA (revenu récurrent).
+  amountCents     Int                @default(0)
+  notes           String             @default("")
+  searchText      String             @default("")
+  version         Int                @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  createdBy   User?    @relation("SubscriptionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy   User?    @relation("SubscriptionUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  items    SubscriptionItem[]
+  invoices Invoice[]
+
+  @@index([status, nextBillingDate])
+  @@index([clientId])
+  @@map("subscription")
+}
+
+model SubscriptionItem {
+  id             String        @id @default(uuid(7))
+  subscriptionId String
+  subscription   Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  position       Int
+  catalogItemId  String?
+  catalogItem    CatalogItem?  @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+  label          String
+  description    String        @default("")
+  quantityMilli  Int
+  unitPriceCents Int
+  discountType   DiscountType?
+  discountValue  Int           @default(0)
+  vatRateBps     Int?
+
+  @@index([subscriptionId])
+  @@map("subscription_item")
+}
+
+// ---------------------------------------------------------------------------
+// Tâches planifiées
+// ---------------------------------------------------------------------------
+
+/// Exécution des tâches quotidiennes (cron ou lancement manuel par un admin).
+model TaskRun {
+  id         String    @id @default(uuid(7))
+  /// "cron" ou "manual".
+  trigger    String
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  /// Compte rendu : devis expirés, factures d'abonnement, relances…
+  summary    Json?
+  error      String    @default("")
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([startedAt])
+  @@map("task_run")
+}
+
+// ---------------------------------------------------------------------------
+// Emails envoyés
+// ---------------------------------------------------------------------------
+
+enum EmailStatus {
+  SENT
+  FAILED
+}
+
+/// Historique des envois d'un devis ou d'une facture (réussis ou non).
+model EmailLog {
+  id         String      @id @default(uuid(7))
+  quoteId    String?
+  quote      Quote?      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  invoiceId  String?
+  invoice    Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  reminderId String?
+  reminder   Reminder?   @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  recipients String[]
+  /// Copie cachée (à l'expéditeur).
+  bcc        String[]
+  subject    String
+  body       String
+  /// Nom du PDF joint.
+  attachment String
+  status     EmailStatus
+  /// Message d'erreur du serveur SMTP en cas d'échec.
+  error      String      @default("")
+  sentById   String?
+  sentBy     User?       @relation(fields: [sentById], references: [id], onDelete: SetNull)
+  createdAt  DateTime    @default(now())
+
+  @@index([quoteId])
+  @@index([invoiceId])
+  @@map("email_log")
 }
 
 // ---------------------------------------------------------------------------
