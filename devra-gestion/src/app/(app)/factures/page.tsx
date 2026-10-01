@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
-import { BellRingIcon, FilePlusIcon, ReceiptTextIcon, SearchXIcon } from "lucide-react";
+import {
+  BellRingIcon,
+  FileDownIcon,
+  FilePlusIcon,
+  ReceiptTextIcon,
+  SearchXIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { InvoicesToolbar } from "@/app/(app)/factures/invoices-toolbar";
 import { InvoicesList } from "@/components/documents/invoices-list";
@@ -64,6 +70,11 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/facture
         description={`${total} facture${total > 1 ? "s" : ""}`}
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link href="/factures/export">
+                <FileDownIcon /> Export comptable
+              </Link>
+            </Button>
             {remindersButton}
             {newButton}
           </div>

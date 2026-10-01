@@ -6,7 +6,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 - Plusieurs utilisateurs avec des rôles : **Admin**, **Membre**, **Lecture seule**
 - Montants en CHF, formats suisses (`30.09.2026`, `CHF 1'250.00`)
 - Interface en français, mode clair et sombre, utilisable sur téléphone
-- Documents en français et en allemand _(à venir)_
+- Documents en français et en allemand
 
 ## Avancement
 
@@ -20,7 +20,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 | 6. Emails                                 | Envoi des devis et factures                                       | ✅ Terminée |
 | 7. Relances et abonnements                | Relances, abonnements, tâches quotidiennes                        | ✅ Terminée |
 | 8. Tableau de bord                        | Indicateurs, graphiques, zones d'action                           | ✅ Terminée |
-| 9. Acceptation en ligne, exports, journal |                                                                   | À venir     |
+| 9. Acceptation en ligne, exports, journal | Devis acceptés en ligne, export comptable, journal d'activité     | ✅ Terminée |
 | 10. Production                            | Sauvegardes, déploiement Raspberry Pi                             | À venir     |
 
 ## Ce qui fonctionne aujourd'hui
@@ -100,6 +100,17 @@ entreprise, auto-hébergé sur un Raspberry Pi.
   - historique des envois sur le document, échecs compris (avec le message du serveur).
 - **Paramètres → Emails** : modèles d'envoi des devis et des factures, en français et en
   allemand ; une variable mal écrite est signalée.
+- **Acceptation des devis en ligne** (option, Paramètres → Facturation) : le devis envoyé par
+  email contient un lien sécurisé vers une page publique, en français ou en allemand, où le
+  client consulte le devis (et son PDF) puis l'accepte (nom + case « J'accepte ») ou le refuse
+  (avec un commentaire facultatif). Le statut est mis à jour, la date, le nom et l'adresse IP
+  sont enregistrés, et l'équipe est prévenue par email.
+- **Export comptable** (Factures → Export comptable) : factures, paiements et clients d'une
+  période en Excel (un classeur de trois feuilles) ou en CSV, et les PDF des factures et des
+  relances de la période dans un fichier ZIP.
+- **Journal d'activité** (Paramètres → Journal) : « Marc a envoyé le devis D-2026-004 par email
+  à … », avec recherche, filtres par personne, par type et par période, et lien vers le
+  document.
 - **Relances** des factures impayées :
   - trois niveaux : 1er rappel, 2e rappel, mise en demeure ; délais (par défaut 10 jours après
     l'échéance, puis 15 jours entre deux relances), frais par niveau (0 par défaut) et nouveau
@@ -134,8 +145,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 - **Recherche globale** (Ctrl+K) : clients (nom, localité, email, téléphone), devis et factures
   (numéro, objet).
 - **Navigation** latérale (repliable, en tiroir sur téléphone), thème clair / sombre / système.
-- Chaque action importante est enregistrée dans un **journal d'activité** (la page de consultation
-  arrive en phase 9).
+- Chaque action importante est enregistrée dans le **journal d'activité**.
 
 ## Installation en local (développement)
 
@@ -199,6 +209,7 @@ devra-gestion/
 │  ├─ app/
 │  │  ├─ (auth)/          connexion, mot de passe oublié, invitation
 │  │  ├─ (app)/           application connectée (navigation latérale)
+│  │  ├─ (public)/        page d'acceptation des devis en ligne (sans compte)
 │  │  └─ api/             authentification, logo, exports, PDF, tâches quotidiennes
 │  ├─ domain/             règles métier pures, sans base de données (testées)
 │  ├─ modules/<module>/   schémas Zod, services, actions serveur par module

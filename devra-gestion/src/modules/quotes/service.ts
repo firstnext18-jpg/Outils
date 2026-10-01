@@ -285,6 +285,13 @@ export async function changeQuoteStatus(actor: CurrentUser, id: string, to: Quot
     data.decidedAt = null; // annulation d'une acceptation ou d'un refus
   }
   if (to === "ACCEPTED" || to === "REFUSED") data.decidedAt = now;
+  if (to === "SENT" || to === "DRAFT" || to === "ACCEPTED" || to === "REFUSED") {
+    // Une décision prise (ou annulée) dans l'outil remplace celle prise en ligne.
+    data.decidedOnline = false;
+    data.decisionName = "";
+    data.decisionIp = "";
+    data.decisionComment = "";
+  }
   if (to === "DRAFT") {
     data.sentAt = null;
     data.decidedAt = null;

@@ -20,6 +20,7 @@ export default async function BillingSettingsPage() {
         nextInvoiceNumber: "",
         quoteValidityDays: String(s.quoteValidityDays),
         paymentTermDays: String(s.paymentTermDays),
+        onlineAcceptance: s.onlineAcceptance,
         vatEnabled: s.vatEnabled,
         vatNumber: s.vatNumber,
         vatRates: s.vatRates.map(formatPercentValue),

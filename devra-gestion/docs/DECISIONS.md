@@ -251,7 +251,7 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   `{echeance}`, `{lien}`), plus **`{entreprise}`** pour signer les messages sans écrire le nom de
   l'entreprise en dur dans les modèles par défaut. `{client}` désigne la personne de contact
   d'une entreprise si elle est renseignée (plus naturel dans une formule de politesse), sinon le
-  nom du client. `{lien}` (acceptation en ligne) reste vide jusqu'à la phase 9. Les variables sont
+  nom du client. `{lien}` : lien d'acceptation en ligne (phase 9). Les variables sont
   remplacées en deux temps : à l'ouverture de la fenêtre, puis à l'envoi (pour `{numero}` d'une
   facture pas encore émise). Une variable inconnue dans un modèle est refusée à l'enregistrement
   (faute de frappe).
@@ -396,6 +396,59 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   pas affichés en lecture seule.
 - **Calculs en base** (agrégats Prisma), regroupés par mois en JavaScript : quelques requêtes
   légères, sans table de statistiques à tenir à jour.
+
+## Acceptation en ligne, export comptable, journal (phase 9)
+
+### Acceptation des devis en ligne
+
+- **Option désactivée par défaut** (Paramètres → Facturation). Désactivée après coup, elle rend
+  aussitôt les liens déjà envoyés inutilisables.
+- **Lien secret** : jeton aléatoire de 256 bits, dont seule l'empreinte SHA-256 est enregistrée
+  (table `quote_link`) : une copie de la base ne permet pas de retrouver les liens. Un lien est
+  créé à chaque envoi du devis par email (les précédents restent valables). Il permet
+  d'accepter ou de refuser tant que le devis est « envoyé » et que sa date de validité n'est pas
+  dépassée, puis reste consultable 30 jours de plus avant d'expirer.
+- **Variable `{lien}`** : dans la fenêtre d'envoi, elle reste telle quelle (« sera remplacée à
+  l'envoi ») ; le lien n'est créé qu'au moment de l'envoi. **Sans l'option, la ligne qui contient
+  `{lien}` est retirée** du message : les modèles par défaut contiennent donc une phrase
+  « Vous pouvez le consulter et l'accepter en ligne : {lien} » qui n'apparaît que si l'option
+  est activée. Une migration l'ajoute aux modèles jamais modifiés.
+- **Page publique** `/devis-en-ligne/<jeton>`, sans compte, dans la langue du devis (français ou
+  allemand) : coordonnées figées à l'envoi, lignes, totaux, conditions, PDF. Ni indexée, ni
+  transmise en « Referer ». Acceptation : nom et prénom + case « J'ai lu ce devis et j'en accepte
+  les conditions » ; refus : nom + commentaire facultatif.
+- **Enregistrement** : statut, date, nom saisi et adresse IP (en-tête `AUTH_IP_HEADER` du reverse
+  proxy), dans une transaction qui verrouille le devis (deux décisions simultanées ne peuvent pas
+  aboutir). Le journal attribue la décision au client (« Jeanne Lumen (client, en ligne) »). Si
+  l'équipe annule ensuite la décision dans l'outil, ces informations sont effacées.
+- **Notification** : email aux admins et aux membres actifs (nom du client, montant, lien vers
+  le devis ; commentaire en cas de refus). Un échec d'envoi n'annule pas la décision.
+
+### Export comptable
+
+- Page **Factures → Export comptable**, accessible à tous les rôles (consultation), avec des
+  périodes en un clic (mois et trimestre derniers, année en cours, année dernière) ou des dates
+  choisies. Chaque export est inscrit au journal (nLPD).
+- **Factures** émises dans la période (selon leur date), **annulées comprises** avec leur statut
+  et leur motif : la suite des numéros reste complète. **Paiements** selon leur date de
+  réception. **Clients** facturés ou ayant payé pendant la période, avec facturé, encaissé et
+  solde ouvert à ce jour.
+- **Excel** : un classeur de trois feuilles, montants en nombres (format `#,##0.00`), dates en
+  dates. **CSV** (un fichier par jeu de données) : séparateur point-virgule, BOM UTF-8,
+  montants `1250.00` sans séparateur de milliers et dates `JJ.MM.AAAA`, reconnus par Excel en
+  Suisse ; protection contre l'injection de formules comme pour l'export des clients.
+- **ZIP des PDF** : PDF archivés des factures émises (dossier `factures`) et des relances
+  (dossier `relances`) de la période, tels qu'envoyés (régénérés s'ils manquent), stockés sans
+  recompression (ils sont déjà compressés), avec `fflate` (petite bibliothèque sans
+  dépendance). 500 documents au plus par archive, pour la mémoire du Raspberry Pi. Les devis ne
+  sont pas inclus (ce ne sont pas des pièces comptables).
+
+### Journal d'activité
+
+- Page **Paramètres → Journal** (admin) : phrases complètes avec l'objet concerné, recherche
+  dans le numéro ou le nom, filtres par personne, par type et par période (journées de Zurich),
+  50 lignes par page, lien « Ouvrir » vers le document s'il existe encore. Sur chaque document,
+  l'historique propre reste visible par tous.
 
 ## Interface
 

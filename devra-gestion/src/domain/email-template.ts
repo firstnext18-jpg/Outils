@@ -7,7 +7,7 @@
  *   {montant}    montant (devis : total ; facture : montant à payer)
  *   {echeance}   date (devis : fin de validité ; facture : échéance ; relance : nouveau délai)
  *   {date}       date du document (devis, facture)
- *   {lien}       lien d'acceptation en ligne du devis (option de la phase 9 ; vide sinon)
+ *   {lien}       lien d'acceptation en ligne du devis (option ; sinon sa ligne est retirée)
  *   {entreprise} nom de l'entreprise (Paramètres → Entreprise)
  */
 
@@ -30,7 +30,7 @@ export const EMAIL_VARIABLE_DESCRIPTIONS: Record<EmailVariable, string> = {
     "montant du devis, montant de la facture, ou montant à payer d'une relance (frais compris)",
   echeance: "fin de validité du devis, échéance de la facture, ou nouveau délai d'une relance",
   date: "date du devis ou de la facture",
-  lien: "lien d'acceptation en ligne du devis (vide tant que l'option n'est pas activée)",
+  lien: "lien d'acceptation en ligne du devis (sans l'option, la ligne qui le contient est retirée)",
   entreprise: "nom de l'entreprise",
 };
 
@@ -39,10 +39,20 @@ const VARIABLE = /\{([a-z]+)\}/g;
 /**
  * Remplace les variables connues dont la valeur est fournie ; les autres
  * restent telles quelles (ex. {numero} d'une facture pas encore émise,
- * remplacé au moment de l'envoi).
+ * remplacé au moment de l'envoi). Sans lien d'acceptation (`lien` vide), la
+ * ligne qui contient {lien} est retirée : la phrase qui l'annonce disparaît avec.
  */
 export function renderTemplate(template: string, values: EmailValues): string {
-  return template.replace(VARIABLE, (match, name: string) => {
+  const text =
+    values.lien === ""
+      ? template
+          .split("\n")
+          .filter((line) => !line.includes("{lien}"))
+          .join("\n")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim()
+      : template;
+  return text.replace(VARIABLE, (match, name: string) => {
     const value = values[name as EmailVariable];
     return value === undefined ? match : value;
   });
