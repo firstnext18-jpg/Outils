@@ -72,6 +72,8 @@ export type PdfDocumentData = {
   conditions: string;
   /** Données de la QR-facture (factures émises avec un montant à payer). */
   qrBill?: QrBillData | null;
+  /** Relance : récapitulatif des montants à la place des totaux calculés. */
+  summaryRows?: TotalRow[];
   /** Métadonnées du fichier PDF. */
   info: { title: string; subject: string };
   /** Test uniquement : flux non compressés pour pouvoir lire le texte. */
@@ -353,6 +355,7 @@ function drawLines(
   startY: number,
 ): number {
   let y = startY;
+  if (data.lines.length === 0) return y;
   if (y + 60 > bottomLimit()) y = newPage(doc);
   y = drawTableHeader(doc, labels, y);
 
@@ -402,7 +405,7 @@ function drawLines(
 // Totaux
 // ---------------------------------------------------------------------------
 
-type TotalRow = {
+export type TotalRow = {
   label: string;
   value: string;
   bold?: boolean;
@@ -411,6 +414,7 @@ type TotalRow = {
 };
 
 function totalRows(data: PdfDocumentData, labels: DocumentLabels): TotalRow[] {
+  if (data.summaryRows) return data.summaryRows;
   const { oneTime, recurring, depositCents } = data.totals;
   const rows: TotalRow[] = [];
   const chf = (cents: number) => `${labels.currency} ${formatAmount(cents)}`;

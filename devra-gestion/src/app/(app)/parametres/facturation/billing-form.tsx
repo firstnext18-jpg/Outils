@@ -146,6 +146,32 @@ export function BillingForm({
 
         <Card>
           <CardHeader>
+            <CardTitle>Acceptation des devis en ligne</CardTitle>
+            <CardDescription>
+              Le devis envoyé par email contient un lien sécurisé (variable {"{lien}"}) : le client
+              y consulte le devis et l&apos;accepte (nom et case à cocher) ou le refuse. Le statut
+              est mis à jour et l&apos;équipe est prévenue par email. L&apos;adresse de
+              l&apos;application (APP_URL) doit être accessible depuis Internet.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FormField
+              control={control}
+              name="onlineAcceptance"
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-3">
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                  <FormLabel className="!mt-0">Activer l&apos;acceptation en ligne</FormLabel>
+                </FormItem>
+              )}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>TVA</CardTitle>
             <CardDescription>
               Tant que la TVA est désactivée, les documents portent la mention « Non soumis à la TVA

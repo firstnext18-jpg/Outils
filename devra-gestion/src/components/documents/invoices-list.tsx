@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { dbDateToIso, formatIsoDate, todayIso } from "@/domain/dates";
-import { balanceCents, displayStatus, INVOICE_TYPE_LABELS } from "@/domain/invoice-status";
+import { displayStatus, INVOICE_TYPE_LABELS, outstandingCents } from "@/domain/invoice-status";
 import { formatChf } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { InvoiceListRow } from "@/modules/invoices/service";
@@ -20,7 +20,7 @@ function status(invoice: InvoiceListRow, today: string) {
 
 function Amount({ invoice }: { invoice: InvoiceListRow }) {
   const open = invoice.status === "SENT" || invoice.status === "PARTIALLY_PAID";
-  const balance = balanceCents(invoice.amountDueCents, invoice.paidCents);
+  const balance = outstandingCents(invoice);
   return (
     <div className="text-right tabular-nums">
       <div className={cn("font-medium", invoice.status === "CANCELLED" && "line-through")}>

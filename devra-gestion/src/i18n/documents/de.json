@@ -40,5 +40,18 @@
   "depositLineVat": "{label} (MWST {rate})",
   "deduction": "Abzüglich Anzahlung ({number})",
   "amountDue": "Zahlbetrag",
-  "qrMessage": "Rechnung {number}"
+  "qrMessage": "Rechnung {number}",
+  "reminder1": "Zahlungserinnerung",
+  "reminder2": "2. Mahnung",
+  "reminder3": "Letzte Mahnung",
+  "reminderFile": "Mahnung",
+  "invoiceDate": "Rechnung vom",
+  "originalDueDate": "Ursprünglich fällig am",
+  "newDueDate": "Neue Zahlungsfrist",
+  "invoiceAmount": "Rechnung {number}",
+  "alreadyPaid": "Bereits bezahlt",
+  "previousFees": "Frühere Mahngebühren",
+  "reminderFee": "Mahngebühr",
+  "reminderQrMessage": "Mahnung Rechnung {number}",
+  "period": "Zeitraum"
 }

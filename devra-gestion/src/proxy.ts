@@ -6,7 +6,14 @@ import { getSessionCookie } from "better-auth/cookies";
  * n'est présent. Ce n'est qu'un confort : la vraie vérification (session
  * valide, rôle) est faite côté serveur dans chaque page et chaque action.
  */
-const PUBLIC_PATHS = ["/connexion", "/mot-de-passe-oublie", "/reinitialiser", "/invitation"];
+const PUBLIC_PATHS = [
+  "/connexion",
+  "/mot-de-passe-oublie",
+  "/reinitialiser",
+  "/invitation",
+  // Page d'acceptation des devis en ligne : le jeton du lien fait office d'autorisation.
+  "/devis-en-ligne",
+];
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { InvoiceActions } from "@/app/(app)/factures/[id]/invoice-actions";
 import { PaymentsCard } from "@/app/(app)/factures/[id]/payments-card";
+import { RemindersCard } from "@/app/(app)/factures/[id]/reminders-card";
+import { EmailHistoryCard } from "@/components/documents/email-history-card";
 import { InvoiceStatusBadge } from "@/components/documents/invoice-status-badge";
 import { LinesTable } from "@/components/documents/lines-table";
 import { TotalsSummary } from "@/components/documents/totals-summary";
@@ -13,7 +15,7 @@ import { describeActivity } from "@/domain/activity";
 import { LANGUAGE_LABELS } from "@/domain/clients";
 import { daysBetween, dbDateToIso, formatIsoDate, todayIso } from "@/domain/dates";
 import { formatIban } from "@/domain/iban";
-import { balanceCents, displayStatus, INVOICE_TYPE_LABELS } from "@/domain/invoice-status";
+import { displayStatus, INVOICE_TYPE_LABELS, outstandingCents } from "@/domain/invoice-status";
 import type { Deduction } from "@/domain/invoices";
 import { missingQrRequirements } from "@/domain/qr-bill";
 import { formatReference } from "@/domain/qr-reference";
@@ -24,6 +26,11 @@ import { getInvoice, getInvoiceActivity } from "@/modules/invoices/service";
 import { companySnapshot } from "@/modules/settings/documents";
 import { getSettings } from "@/modules/settings/service";
 import { db } from "@/server/db";
+import { invoiceEmailDraft, listEmailLogs } from "@/modules/emails/service";
+import { invoicePdfFileName } from "@/server/pdf/invoice-pdf";
+import { reminderPdfFileName } from "@/server/pdf/reminder-pdf";
+import { invoiceNextReminder, reminderEmailDraft } from "@/modules/reminders/service";
+import type { ReminderLevel } from "@/domain/reminders";
 import { requireUser } from "@/server/session";
 
 function title(invoice: { type: keyof typeof INVOICE_TYPE_LABELS; number: string | null }) {
@@ -39,10 +46,11 @@ export async function generateMetadata({ params }: PageProps<"/factures/[id]">):
 export default async function InvoicePage({ params }: PageProps<"/factures/[id]">) {
   const user = await requireUser();
   const { id } = await params;
-  const [invoice, activity, settings] = await Promise.all([
+  const [invoice, activity, settings, emails] = await Promise.all([
     getInvoice(id),
     getInvoiceActivity(id),
     getSettings(),
+    listEmailLogs({ invoiceId: id }),
   ]);
   if (!invoice) notFound();
 
@@ -51,7 +59,7 @@ export default async function InvoicePage({ params }: PageProps<"/factures/[id]"
   const status = displayStatus(invoice.status, dueDate, today);
   const { totals, globalDiscount } = storedDocumentTotals(invoice, { separateRecurring: false });
   const deductions = (invoice.deductions as Deduction[] | null) ?? [];
-  const balance = balanceCents(invoice.amountDueCents, invoice.paidCents);
+  const balance = outstandingCents(invoice);
   const editable = canEdit(user.role);
 
   // Avant l'émission : ce qui manque pour produire la QR-facture.
@@ -60,6 +68,13 @@ export default async function InvoicePage({ params }: PageProps<"/factures/[id]"
     invoice.status === "DRAFT" && invoice.amountDueCents > 0
       ? missingQrRequirements({ ...company, iban: settings.iban, qrIban: settings.qrIban })
       : [];
+
+  // Relances : la prochaine peut être faite dès que la facture est échue.
+  const nextReminder = invoiceNextReminder(invoice, settings, today);
+  const reminderDraft =
+    editable && nextReminder && status === "OVERDUE"
+      ? await reminderEmailDraft(invoice, settings)
+      : null;
 
   // Facture finale : acomptes déduits pas encore entièrement payés.
   const unpaidDeposits =
@@ -102,6 +117,17 @@ export default async function InvoicePage({ params }: PageProps<"/factures/[id]"
           }}
           canEdit={editable}
           issueBlockers={issueBlockers}
+          email={{
+            draft: invoiceEmailDraft(invoice, settings),
+            attachment: invoice.number
+              ? invoicePdfFileName(invoice, settings)
+              : "PDF de la facture (avec son numéro et sa QR-facture)",
+            note:
+              invoice.status === "DRAFT"
+                ? "La facture sera d'abord émise : elle recevra son numéro définitif et sa QR-facture, puis ne pourra plus être modifiée."
+                : undefined,
+            senderEmail: user.email,
+          }}
         />
       </div>
 
@@ -167,6 +193,30 @@ export default async function InvoicePage({ params }: PageProps<"/factures/[id]"
               }))}
             />
           )}
+          <RemindersCard
+            invoiceId={invoice.id}
+            reminders={invoice.reminders.map((reminder) => ({
+              id: reminder.id,
+              level: reminder.level as ReminderLevel,
+              date: dbDateToIso(reminder.date),
+              dueDate: dbDateToIso(reminder.dueDate),
+              totalCents: reminder.totalCents,
+              feeCents: reminder.feeCents,
+              channel: reminder.channel,
+              createdBy: reminder.createdBy?.name ?? null,
+            }))}
+            next={nextReminder}
+            email={
+              reminderDraft && nextReminder
+                ? {
+                    draft: reminderDraft,
+                    attachment: reminderPdfFileName(invoice, nextReminder.level, settings),
+                    note: `Montant demandé : ${formatChf(reminderDraft.totalCents)}${reminderDraft.feeCents > 0 ? `, dont ${formatChf(reminderDraft.feeCents)} de frais` : ""}. Le PDF joint contient une QR-facture de ce montant.`,
+                    senderEmail: user.email,
+                  }
+                : null
+            }
+          />
           {(invoice.introText || invoice.conditionsText) && (
             <Card>
               <CardHeader>
@@ -192,6 +242,7 @@ export default async function InvoicePage({ params }: PageProps<"/factures/[id]"
               </CardContent>
             </Card>
           )}
+          <EmailHistoryCard logs={emails} />
           <Card>
             <CardHeader>
               <CardTitle>Historique</CardTitle>
@@ -229,6 +280,12 @@ export default async function InvoicePage({ params }: PageProps<"/factures/[id]"
               />
               {invoice.status !== "DRAFT" && invoice.status !== "CANCELLED" && (
                 <dl className="bg-muted/60 space-y-1.5 rounded-md p-3 text-sm">
+                  {invoice.feesCents > 0 && (
+                    <div className="flex justify-between gap-4">
+                      <dt>Frais de relance</dt>
+                      <dd className="tabular-nums">{formatChf(invoice.feesCents)}</dd>
+                    </div>
+                  )}
                   <div className="flex justify-between gap-4">
                     <dt>Payé</dt>
                     <dd className="tabular-nums">{formatChf(invoice.paidCents)}</dd>
@@ -263,6 +320,28 @@ export default async function InvoicePage({ params }: PageProps<"/factures/[id]"
                 </dd>
                 <dt className="text-muted-foreground">Langue</dt>
                 <dd>{LANGUAGE_LABELS[invoice.language]}</dd>
+                {invoice.subscription && (
+                  <>
+                    <dt className="text-muted-foreground">Abonnement</dt>
+                    <dd>
+                      <Link
+                        href={`/abonnements/${invoice.subscription.id}`}
+                        className="hover:underline"
+                      >
+                        {invoice.subscription.label}
+                      </Link>
+                    </dd>
+                  </>
+                )}
+                {invoice.periodStart && invoice.periodEnd && (
+                  <>
+                    <dt className="text-muted-foreground">Période</dt>
+                    <dd>
+                      {formatIsoDate(dbDateToIso(invoice.periodStart))} –{" "}
+                      {formatIsoDate(dbDateToIso(invoice.periodEnd))}
+                    </dd>
+                  </>
+                )}
                 {invoice.quote && (
                   <>
                     <dt className="text-muted-foreground">Devis</dt>

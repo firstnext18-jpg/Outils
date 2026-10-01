@@ -98,6 +98,10 @@ export function getQuote(id: string) {
       siteType: { select: { id: true, name: true } },
       createdBy: { select: { name: true } },
       updatedBy: { select: { name: true } },
+      subscriptions: {
+        orderBy: { createdAt: "asc" },
+        select: { id: true, label: true, status: true },
+      },
     },
   });
 }
@@ -281,6 +285,13 @@ export async function changeQuoteStatus(actor: CurrentUser, id: string, to: Quot
     data.decidedAt = null; // annulation d'une acceptation ou d'un refus
   }
   if (to === "ACCEPTED" || to === "REFUSED") data.decidedAt = now;
+  if (to === "SENT" || to === "DRAFT" || to === "ACCEPTED" || to === "REFUSED") {
+    // Une décision prise (ou annulée) dans l'outil remplace celle prise en ligne.
+    data.decidedOnline = false;
+    data.decisionName = "";
+    data.decisionIp = "";
+    data.decisionComment = "";
+  }
   if (to === "DRAFT") {
     data.sentAt = null;
     data.decidedAt = null;
@@ -294,6 +305,37 @@ export async function changeQuoteStatus(actor: CurrentUser, id: string, to: Quot
     if (result.count === 0)
       throw new UserError("Le statut de ce devis vient de changer. Rechargez la page.");
     await log(tx, actor, "quote.status_changed", quote, { from: quote.status, to });
+  });
+}
+
+/**
+ * Devis envoyé par email. Un brouillon passe en « envoyé » avec les
+ * coordonnées figées utilisées dans le PDF joint (seulement après un envoi
+ * réussi : en cas d'échec, il reste un brouillon).
+ */
+export async function recordQuoteEmailed(
+  actor: CurrentUser,
+  quote: { id: string; number: string; status: QuoteStatus },
+  snapshots: {
+    clientSnapshot: Prisma.InputJsonValue;
+    companySnapshot: Prisma.InputJsonValue;
+  } | null,
+  recipients: string[],
+) {
+  await db.$transaction(async (tx) => {
+    if (snapshots && quote.status === "DRAFT") {
+      await tx.quote.updateMany({
+        where: { id: quote.id, status: "DRAFT" },
+        data: {
+          ...snapshots,
+          status: "SENT",
+          sentAt: new Date(),
+          updatedById: actor.id,
+          version: { increment: 1 },
+        },
+      });
+    }
+    await log(tx, actor, "quote.emailed", quote, { to: recipients });
   });
 }
 
@@ -331,7 +373,7 @@ export async function deleteQuote(actor: CurrentUser, id: string) {
 
 /**
  * Passe en « expiré » les devis envoyés dont la validité est dépassée.
- * Appelé à l'affichage des devis (et, dès la phase 7, chaque matin par le cron).
+ * Appelé à l'affichage des devis et chaque matin par les tâches quotidiennes.
  */
 export async function expireQuotes(today = todayIso()) {
   const expired = await db.quote.findMany({
