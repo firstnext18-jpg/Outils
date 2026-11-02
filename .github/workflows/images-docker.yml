@@ -1,13 +1,14 @@
-# Construit les images Docker de Devra Gestion pour Raspberry Pi (ARM64) et les publie
-# dans GitHub Container Registry (ghcr.io/<compte>/devra-gestion…). Le Raspberry Pi les
-# télécharge au lieu de les construire (trop peu de mémoire pour la construction).
-# Voir devra-gestion/docs/DEPLOIEMENT_RASPBERRY_PI.md.
+# Construit les images Docker de Devra Gestion pour Raspberry Pi (ARM64) et pour un
+# serveur classique (x86-64), et les publie dans GitHub Container Registry
+# (ghcr.io/<compte>/devra-gestion…). Le Raspberry Pi ou le serveur les télécharge au lieu
+# de les construire. Voir devra-gestion/docs/DEPLOIEMENT_RASPBERRY_PI.md et
+# devra-gestion/docs/DEPLOIEMENT_SERVEUR.md.
 #
 # - à chaque mise à jour de main touchant devra-gestion/ : construction et publication
 #   (étiquettes « latest » et « sha-<commit> », pour pouvoir revenir à une version) ;
 # - dans une pull request modifiant les images : construction seule, pour vérification ;
-# - à la demande : onglet Actions → « Images Raspberry Pi » → « Run workflow ».
-name: Images Raspberry Pi
+# - à la demande : onglet Actions → « Images Docker » → « Run workflow ».
+name: Images Docker
 
 on:
   push:
@@ -15,18 +16,18 @@ on:
     paths:
       - "devra-gestion/**"
       - "!devra-gestion/**/*.md"
-      - ".github/workflows/images-raspberry-pi.yml"
+      - ".github/workflows/images-docker.yml"
   pull_request:
     paths:
       - "devra-gestion/Dockerfile"
       - "devra-gestion/docker/**"
       - "devra-gestion/package-lock.json"
-      - ".github/workflows/images-raspberry-pi.yml"
+      - ".github/workflows/images-docker.yml"
   workflow_dispatch:
 
 # Une seule construction à la fois par branche : la plus récente l'emporte.
 concurrency:
-  group: images-raspberry-pi-${{ github.ref }}
+  group: images-docker-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -35,9 +36,9 @@ permissions:
 
 jobs:
   images:
-    name: Construire les images ARM64
+    name: Construire les images (ARM64 et x86-64)
     runs-on: ubuntu-latest
-    # Construction émulée (QEMU) : bien plus lente qu'en natif.
+    # ARM64 : construction émulée (QEMU), bien plus lente qu'en natif.
     timeout-minutes: 150
     env:
       PUSH: ${{ github.event_name != 'pull_request' }}
@@ -69,7 +70,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: devra-gestion/docker/backup
-          platforms: linux/arm64
+          platforms: linux/amd64,linux/arm64
           push: ${{ env.PUSH }}
           provenance: false
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -84,7 +85,7 @@ jobs:
         with:
           context: devra-gestion
           target: runner
-          platforms: linux/arm64
+          platforms: linux/amd64,linux/arm64
           push: ${{ env.PUSH }}
           provenance: false
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -99,7 +100,7 @@ jobs:
         with:
           context: devra-gestion
           target: tools
-          platforms: linux/arm64
+          platforms: linux/amd64,linux/arm64
           push: ${{ env.PUSH }}
           provenance: false
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -117,5 +118,7 @@ jobs:
             echo ""
             echo "Version : \`${{ steps.names.outputs.version }}\` (et \`latest\`)"
             echo ""
-            echo "Sur le Raspberry Pi : \`docker compose pull && docker compose up -d --no-build\`"
+            echo "Raspberry Pi : \`docker compose pull && docker compose up -d --no-build\`"
+            echo ""
+            echo "Serveur : \`sudo /usr/local/sbin/claude-devra update\`"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -8,7 +8,7 @@
 name: devra-gestion
 
 # Images de l'application : construites sur place (« --build »), ou téléchargées depuis
-# IMAGE_REGISTRY (ex. ghcr.io/<compte-github>, voir .github/workflows/images-raspberry-pi.yml).
+# IMAGE_REGISTRY (ex. ghcr.io/<compte-github>, voir .github/workflows/images-docker.yml).
 x-images:
   app: &app-image ${IMAGE_REGISTRY:+${IMAGE_REGISTRY}/}devra-gestion:${IMAGE_TAG:-latest}
   tools: &tools-image ${IMAGE_REGISTRY:+${IMAGE_REGISTRY}/}devra-gestion-tools:${IMAGE_TAG:-latest}
@@ -59,10 +59,10 @@ services:
     environment: *app-env
     volumes:
       - app-data:/data
-    # Accessible uniquement depuis le Raspberry Pi lui-même : l'accès depuis
-    # Internet passe par Cloudflare Tunnel ou Caddy (HTTPS).
+    # Accessible uniquement depuis la machine elle-même (port APP_PORT, 3000 par
+    # défaut) : l'accès depuis Internet passe par Cloudflare Tunnel ou Caddy (HTTPS).
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
     depends_on:
       migrate:
         condition: service_completed_successfully

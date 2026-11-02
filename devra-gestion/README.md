@@ -174,9 +174,13 @@ installation de Raspberry Pi OS 64 bits et de Docker, fichier `.env`, accès HTT
 `gestion.devra.ch` par **Cloudflare Tunnel** (recommandé) ou **Caddy**, mises à jour, dépannage.
 
 Le Raspberry Pi ne construit pas l'application : le flux GitHub Actions
-[`images-raspberry-pi.yml`](../.github/workflows/images-raspberry-pi.yml) construit les images
-ARM64 à chaque mise à jour de `main` et les publie dans GitHub Container Registry (`ghcr.io`) ;
-le Raspberry Pi les télécharge.
+[`images-docker.yml`](../.github/workflows/images-docker.yml) construit les images (ARM64 et
+x86-64) à chaque mise à jour de `main` et les publie dans GitHub Container Registry
+(`ghcr.io`) ; le Raspberry Pi les télécharge.
+
+**Sur un serveur Linux** dont l'administrateur délègue l'exploitation à un agent (compte
+restreint) : voir [`docs/DEPLOIEMENT_SERVEUR.md`](docs/DEPLOIEMENT_SERVEUR.md) (installation
+unique en root avec `deploy/serveur/installer.sh`, puis commande `claude-devra` pour l'agent).
 
 En résumé :
 
@@ -257,6 +261,8 @@ devra-gestion/
 
 - [`docs/DEPLOIEMENT_RASPBERRY_PI.md`](docs/DEPLOIEMENT_RASPBERRY_PI.md) : installation sur le
   Raspberry Pi, HTTPS, mises à jour, dépannage, mesures de sécurité.
+- [`docs/DEPLOIEMENT_SERVEUR.md`](docs/DEPLOIEMENT_SERVEUR.md) : installation sur un serveur
+  Linux exploité par un agent (compte restreint, commande `claude-devra`).
 - [`docs/SAUVEGARDES.md`](docs/SAUVEGARDES.md) : fonctionnement des sauvegardes, copie hors du
   Raspberry Pi, vérification et restauration.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) : choix techniques et leurs raisons.

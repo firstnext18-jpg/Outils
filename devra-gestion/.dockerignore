@@ -16,3 +16,4 @@ playwright.config.ts
 vitest.config.mts
 **/*.test.ts
 sauvegardes
+deploy
