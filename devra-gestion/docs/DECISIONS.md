@@ -510,8 +510,34 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
 
 - Dans l'environnement de développement utilisé, le dépôt de paquets Alpine est inaccessible :
   l'étape `apk add rclone` de l'image de sauvegarde n'a pas pu y être exécutée. Les scripts ont
-  été testés dans une image équivalente contenant le binaire officiel de rclone. La
-  construction des images en ARM64 se fait sur le Raspberry Pi lui-même.
+  été testés dans une image équivalente contenant le binaire officiel de rclone. Les images
+  ARM64 sont construites par GitHub Actions (voir ci-dessous).
+
+## Installation sur Raspberry Pi ou serveur
+
+- **Images construites par GitHub Actions, pas sur la machine de production.** La construction
+  de l'application demande environ 2,4 Go de mémoire (mesuré) : impossible sur un Raspberry Pi
+  de 2 Go, très lent avec du swap sur carte SD. Le flux `.github/workflows/images-docker.yml`
+  construit les trois images (application, migrations, sauvegarde) pour ARM64 (Raspberry Pi, par
+  émulation QEMU) et x86-64 (serveur), sur les machines gratuites de GitHub, et les publie dans
+  GitHub Container Registry, privé comme le dépôt. La machine de production les télécharge avec
+  un jeton `read:packages`.
+- **Le même `compose.yaml` sert aux deux usages.** Le nom des images dépend de
+  `IMAGE_REGISTRY` (vide : images construites sur place) et de `IMAGE_TAG` (« latest » ou
+  « sha-<commit> » pour revenir à une version). Sur le Raspberry Pi, `--no-build` empêche toute
+  construction accidentelle.
+- **Déclenchement** : à chaque mise à jour de `main` touchant `devra-gestion/` (hors
+  documentation), à la demande, et dans les pull requests qui modifient le Dockerfile, les images
+  ou les dépendances (construction seule, pour vérifier qu'elle réussit).
+- **Serveur (iMac Linux) piloté par un agent au compte restreint** : Docker Compose, comme sur le
+  Raspberry Pi, et non le bac à sable « claude-app » du serveur (400 Mo de mémoire, aucun accès
+  réseau sortant, système de fichiers en lecture seule, pas de `.env`) : il exclut PostgreSQL,
+  l'envoi d'emails et les sauvegardes. L'administrateur lance une fois `deploy/serveur/installer.sh`
+  (root) : fichiers dans `/opt/devra-gestion` (root seul), secrets générés, `docker login`, et
+  une commande `/usr/local/sbin/claude-devra` autorisée par sudo au compte de l'agent. Elle
+  n'accepte qu'une liste fermée d'actions (état, journaux, mise à jour par version, sauvegarde,
+  vérification, démarrage/arrêt) : l'agent ne peut ni lire les secrets, ni modifier les fichiers
+  compose (ce qui équivaudrait à un accès root via Docker), ni restaurer ou supprimer des données.
 
 ## Interface
 

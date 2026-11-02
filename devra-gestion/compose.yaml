@@ -1,8 +1,18 @@
 # Déploiement de production (Raspberry Pi ou tout serveur Docker).
-#   docker compose up -d --build
+#   Raspberry Pi : images construites par GitHub Actions (IMAGE_REGISTRY dans .env)
+#     docker compose pull && docker compose up -d --no-build
+#   Autre serveur : construction sur place
+#     docker compose up -d --build
 # Accès HTTPS depuis Internet : ajouter compose.cloudflare.yaml ou compose.caddy.yaml
 # (variable COMPOSE_FILE dans .env). Voir docs/DEPLOIEMENT_RASPBERRY_PI.md.
 name: devra-gestion
+
+# Images de l'application : construites sur place (« --build »), ou téléchargées depuis
+# IMAGE_REGISTRY (ex. ghcr.io/<compte-github>, voir .github/workflows/images-docker.yml).
+x-images:
+  app: &app-image ${IMAGE_REGISTRY:+${IMAGE_REGISTRY}/}devra-gestion:${IMAGE_TAG:-latest}
+  tools: &tools-image ${IMAGE_REGISTRY:+${IMAGE_REGISTRY}/}devra-gestion-tools:${IMAGE_TAG:-latest}
+  backup: &backup-image ${IMAGE_REGISTRY:+${IMAGE_REGISTRY}/}devra-gestion-backup:${IMAGE_TAG:-latest}
 
 x-app-env: &app-env # La base est joignable sous le nom « db » sur le réseau interne de Docker.
   DATABASE_URL: postgresql://${POSTGRES_USER:-devra}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .env}@db:5432/${POSTGRES_DB:-devra_gestion}
@@ -31,7 +41,7 @@ services:
     build:
       context: .
       target: tools
-    image: devra-gestion-tools:latest
+    image: *tools-image
     env_file: .env
     environment: *app-env
     depends_on:
@@ -43,16 +53,16 @@ services:
     build:
       context: .
       target: runner
-    image: devra-gestion:latest
+    image: *app-image
     restart: unless-stopped
     env_file: .env
     environment: *app-env
     volumes:
       - app-data:/data
-    # Accessible uniquement depuis le Raspberry Pi lui-même : l'accès depuis
-    # Internet passe par Cloudflare Tunnel ou Caddy (HTTPS).
+    # Accessible uniquement depuis la machine elle-même (port APP_PORT, 3000 par
+    # défaut) : l'accès depuis Internet passe par Cloudflare Tunnel ou Caddy (HTTPS).
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -60,7 +70,7 @@ services:
   # Tâches quotidiennes (devis expirés, factures d'abonnement, relances) :
   # appelle l'application chaque matin à CRON_TIME. Même image que l'application.
   cron:
-    image: devra-gestion:latest
+    image: *app-image
     restart: unless-stopped
     command: ["node", "docker/cron/scheduler.mjs"]
     # Le contrôle de santé de l'image vérifie le serveur web, absent de ce conteneur.
@@ -81,7 +91,7 @@ services:
   backup:
     build:
       context: docker/backup
-    image: devra-gestion-backup:latest
+    image: *backup-image
     restart: unless-stopped
     env_file: .env # variables RCLONE_CONFIG_* de la copie hors du Raspberry Pi
     environment: &backup-env
@@ -105,7 +115,7 @@ services:
   #   docker compose run --rm restore            liste les sauvegardes
   #   docker compose run --rm restore --test     vérifie la dernière sauvegarde
   restore:
-    image: devra-gestion-backup:latest
+    image: *backup-image
     profiles: ["restauration"]
     entrypoint: ["restore.sh"]
     environment: *backup-env

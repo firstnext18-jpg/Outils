@@ -1,0 +1,123 @@
+#!/bin/bash
+#
+# Devra Gestion sur le serveur : les seules commandes Docker permises au compte
+# de l'agent, par sudo. Installé par installer.sh dans /usr/local/sbin/claude-devra.
+# Voir docs/DEPLOIEMENT_SERVEUR.md.
+#
+#   claude-devra status                état des services, de l'application et de la dernière sauvegarde
+#   claude-devra logs [service] [n]    n dernières lignes du journal d'un service (app, 100 par défaut)
+#   claude-devra update [version]      sauvegarde, téléchargement des images, redémarrage
+#                                      (version : latest, ou sha-<7 caractères> pour revenir en arrière)
+#   claude-devra backup                sauvegarde immédiate
+#   claude-devra check-backup          vérifie que la dernière sauvegarde peut être restaurée
+#   claude-devra start | stop | restart
+#
+# Volontairement absents : la restauration, la modification de la configuration
+# (.env, fichiers compose) et la suppression de données, réservées à l'administrateur.
+set -euo pipefail
+umask 077
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+DIR=/opt/devra-gestion
+SERVICES="app cron backup db migrate cloudflared"
+
+die() {
+  echo "claude-devra : $*" >&2
+  exit 1
+}
+
+[ "$(id -u)" -eq 0 ] || die "à lancer avec sudo : sudo /usr/local/sbin/claude-devra $*"
+[ -f "$DIR/.env" ] || die "$DIR/.env absent : l'administrateur doit d'abord lancer installer.sh"
+cd "$DIR"
+
+# Valeur d'une variable du fichier .env (dernière occurrence, sans les guillemets).
+env_value() {
+  sed -n "s/^$1=//p" .env | tail -n 1 | sed -e "s/^'\(.*\)'\$/\1/" -e 's/^"\(.*\)"$/\1/'
+}
+
+# Remplace (ou ajoute) une variable simple du fichier .env.
+set_env() {
+  local tmp
+  tmp=$(mktemp "$DIR/.env.XXXXXX")
+  if grep -q "^$1=" .env; then
+    sed "s|^$1=.*|$1=$2|" .env >"$tmp"
+  else
+    cat .env >"$tmp"
+    echo "$1=$2" >>"$tmp"
+  fi
+  chmod 600 "$tmp"
+  mv "$tmp" .env
+}
+
+backup_running() {
+  [ -n "$(docker compose ps -q --status running backup 2>/dev/null)" ]
+}
+
+status() {
+  docker compose ps --format 'table {{.Service}}\t{{.State}}\t{{.Status}}'
+  local port code backups
+  port=$(env_value APP_PORT)
+  port=${port:-3000}
+  code=$(curl -s -o /dev/null -m 10 -w '%{http_code}' "http://127.0.0.1:$port/connexion" || true)
+  echo
+  echo "Application (http://127.0.0.1:$port/connexion) : HTTP $code"
+  echo "Version des images : $(env_value IMAGE_TAG | grep . || echo latest)"
+  backups=$(env_value BACKUP_DIR)
+  if [ -f "${backups:-./sauvegardes}/derniere-sauvegarde.txt" ]; then
+    echo "Dernière sauvegarde : $(head -n 3 "${backups:-./sauvegardes}/derniere-sauvegarde.txt" | tr '\n' ' ')"
+  else
+    echo "Dernière sauvegarde : aucune pour l'instant"
+  fi
+}
+
+logs() {
+  local service=${1:-app} lines=${2:-100}
+  [[ " $SERVICES " == *" $service "* ]] || die "service inconnu : $service (choix : $SERVICES)"
+  [[ $lines =~ ^[0-9]{1,4}$ ]] || die "nombre de lignes invalide : $lines"
+  docker compose logs --no-color --tail "$lines" "$service"
+}
+
+update() {
+  local version=${1:-latest} registry image
+  [[ $version =~ ^(latest|sha-[0-9a-f]{7})$ ]] ||
+    die "version invalide : $version (latest, ou sha- suivi des 7 premiers caractères du commit)"
+  registry=$(env_value IMAGE_REGISTRY)
+  [ -n "$registry" ] || die "IMAGE_REGISTRY est vide dans $DIR/.env"
+  if backup_running; then
+    echo "Sauvegarde avant la mise à jour…"
+    docker compose exec -T backup backup.sh maintenant
+  fi
+  echo "Téléchargement des images (version $version)…"
+  # Une à une : « docker compose pull » ignore les erreurs des images constructibles.
+  for image in $(IMAGE_TAG=$version docker compose --profile restauration config --images | sort -u); do
+    docker pull --quiet "$image" && continue
+    # Images de l'application : obligatoires. Autres (PostgreSQL, cloudflared) : la
+    # version déjà présente suffit si le registre est momentanément indisponible.
+    [[ $image != "$registry"/* ]] && docker image inspect "$image" >/dev/null 2>&1 ||
+      die "impossible de télécharger $image : mise à jour annulée, rien n'a été modifié"
+    echo "  $image : version locale conservée"
+  done
+  set_env IMAGE_TAG "$version"
+  docker compose up -d --no-build --remove-orphans
+  docker image prune -f >/dev/null
+  echo
+  status
+}
+
+case "${1:-}" in
+  status) status ;;
+  logs) logs "${2:-}" "${3:-}" ;;
+  update) update "${2:-}" ;;
+  backup)
+    backup_running || die "le service backup ne tourne pas (claude-devra start)"
+    docker compose exec -T backup backup.sh maintenant
+    ;;
+  check-backup) docker compose run --rm -T restore --test ;;
+  start) docker compose up -d --no-build --remove-orphans ;;
+  stop) docker compose stop ;;
+  restart) docker compose restart ;;
+  *)
+    sed -n '7,13p' "$0" | sed 's/^# \{0,3\}//'
+    exit 2
+    ;;
+esac

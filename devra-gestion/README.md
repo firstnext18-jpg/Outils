@@ -173,12 +173,25 @@ Le guide pas à pas est dans [`docs/DEPLOIEMENT_RASPBERRY_PI.md`](docs/DEPLOIEME
 installation de Raspberry Pi OS 64 bits et de Docker, fichier `.env`, accès HTTPS sur
 `gestion.devra.ch` par **Cloudflare Tunnel** (recommandé) ou **Caddy**, mises à jour, dépannage.
 
+Le Raspberry Pi ne construit pas l'application : le flux GitHub Actions
+[`images-docker.yml`](../.github/workflows/images-docker.yml) construit les images (ARM64 et
+x86-64) à chaque mise à jour de `main` et les publie dans GitHub Container Registry
+(`ghcr.io`) ; le Raspberry Pi les télécharge.
+
+**Sur un serveur Linux** dont l'administrateur délègue l'exploitation à un agent (compte
+restreint) : voir [`docs/DEPLOIEMENT_SERVEUR.md`](docs/DEPLOIEMENT_SERVEUR.md) (installation
+unique en root avec `deploy/serveur/installer.sh`, puis commande `claude-devra` pour l'agent).
+
 En résumé :
 
 ```bash
-cp .env.example .env          # secrets, SMTP, admin, sauvegardes, option HTTPS (COMPOSE_FILE)
-docker compose up -d --build
+cp .env.example .env          # secrets, SMTP, admin, sauvegardes, IMAGE_REGISTRY, option HTTPS
+docker login ghcr.io          # une fois, avec un jeton « read:packages »
+docker compose pull && docker compose up -d --no-build
 ```
+
+Sur un serveur plus puissant, on peut aussi construire sur place : `IMAGE_REGISTRY` vide, puis
+`docker compose up -d --build`.
 
 | Service                  | Rôle                                                                                                 |
 | ------------------------ | ---------------------------------------------------------------------------------------------------- |
@@ -248,6 +261,8 @@ devra-gestion/
 
 - [`docs/DEPLOIEMENT_RASPBERRY_PI.md`](docs/DEPLOIEMENT_RASPBERRY_PI.md) : installation sur le
   Raspberry Pi, HTTPS, mises à jour, dépannage, mesures de sécurité.
+- [`docs/DEPLOIEMENT_SERVEUR.md`](docs/DEPLOIEMENT_SERVEUR.md) : installation sur un serveur
+  Linux exploité par un agent (compte restreint, commande `claude-devra`).
 - [`docs/SAUVEGARDES.md`](docs/SAUVEGARDES.md) : fonctionnement des sauvegardes, copie hors du
   Raspberry Pi, vérification et restauration.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) : choix techniques et leurs raisons.
