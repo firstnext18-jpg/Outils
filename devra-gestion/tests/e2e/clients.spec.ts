@@ -262,7 +262,7 @@ test("types de sites : ajout, puis désactivation", async ({ page }) => {
 
   await page.goto("/parametres/types-de-sites");
   await page.getByRole("switch", { name: "Application web proposé sur les fiches" }).click();
-  await expect(page.getByText("Désactivé")).toBeVisible();
+  await expect(page.getByText("Désactivé", { exact: true })).toBeVisible();
   await openNewClientForm(page);
   await page.getByRole("combobox", { name: "Type de site demandé" }).click();
   await expect(page.getByRole("option", { name: "Application web" })).toHaveCount(0);
