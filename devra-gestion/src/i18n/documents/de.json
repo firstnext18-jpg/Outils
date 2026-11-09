@@ -53,5 +53,7 @@
   "previousFees": "Frühere Mahngebühren",
   "reminderFee": "Mahngebühr",
   "reminderQrMessage": "Mahnung Rechnung {number}",
-  "period": "Zeitraum"
+  "period": "Zeitraum",
+  "emailPdfAttached": "PDF im Anhang",
+  "emailViewQuoteOnline": "Offerte online ansehen"
 }

@@ -15,6 +15,8 @@ import { logActivity } from "@/server/activity";
 import { db } from "@/server/db";
 import { env } from "@/server/env";
 import { sendMail } from "@/server/mailer";
+import { emailBranding } from "@/server/emails/branding";
+import { renderSimpleEmail } from "@/server/emails/layout";
 
 /** Empreinte enregistrée en base : le jeton lui-même n'est connu que du client. */
 function hashToken(token: string): string {
@@ -137,17 +139,21 @@ async function notifyTeam(quote: QuoteDetail, input: OnlineDecision) {
     (quote.clientSnapshot as ClientSnapshot | null)?.displayName || quote.client.displayName;
   const accepted = input.decision === "ACCEPTED";
   const verb = accepted ? "accepté" : "refusé";
-  const lines = [
-    "Bonjour,",
-    "",
-    `Le devis ${quote.number} (${client}, ${formatChf(quote.totalCents)}) a été ${verb} en ligne par ${input.name}, le ${formatDateTime(new Date())}.`,
-  ];
-  if (!accepted && input.comment) lines.push("", `Commentaire du client : ${input.comment}`);
-  if (accepted) lines.push("", "Il peut maintenant être converti en facture.");
-  lines.push("", `Voir le devis : ${env().APP_URL.replace(/\/+$/, "")}/devis/${quote.id}`);
-  await sendMail({
-    to: users.map((u) => u.email),
-    subject: `Devis ${quote.number} ${verb} en ligne`,
-    text: lines.join("\n"),
+  const subject = `Devis ${quote.number} ${verb} en ligne`;
+  const { branding, attachments } = await emailBranding(await getSettings());
+  const { text, html } = renderSimpleEmail({
+    branding,
+    title: subject,
+    greeting: "Bonjour,",
+    paragraphs: [
+      `Le devis ${quote.number} (${client}, ${formatChf(quote.totalCents)}) a été ${verb} en ligne par ${input.name}, le ${formatDateTime(new Date())}.`,
+      ...(!accepted && input.comment ? [`Commentaire du client : ${input.comment}`] : []),
+      ...(accepted ? ["Il peut maintenant être converti en facture."] : []),
+    ],
+    action: {
+      label: "Voir le devis",
+      url: `${env().APP_URL.replace(/\/+$/, "")}/devis/${quote.id}`,
+    },
   });
+  await sendMail({ to: users.map((u) => u.email), subject, text, html, attachments });
 }
