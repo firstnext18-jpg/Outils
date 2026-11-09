@@ -53,5 +53,7 @@
   "previousFees": "Frais de rappel précédents",
   "reminderFee": "Frais de rappel",
   "reminderQrMessage": "Rappel facture {number}",
-  "period": "Période"
+  "period": "Période",
+  "emailPdfAttached": "PDF joint",
+  "emailViewQuoteOnline": "Consulter le devis en ligne"
 }

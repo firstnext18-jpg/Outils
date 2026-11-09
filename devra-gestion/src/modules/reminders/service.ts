@@ -16,6 +16,7 @@ import {
   reminderAmounts,
   type ReminderLevel,
 } from "@/domain/reminders";
+import { documentLabels } from "@/i18n/documents";
 import { formatChf } from "@/lib/format";
 import { deliver } from "@/modules/emails/service";
 import type { SendEmailData } from "@/modules/emails/schemas";
@@ -30,6 +31,7 @@ import { getSettings, type AppSettings } from "@/modules/settings/service";
 import { logActivity } from "@/server/activity";
 import { UserError } from "@/server/action";
 import { db } from "@/server/db";
+import { invoiceTitleLabel } from "@/server/pdf/invoice-pdf";
 import { buildReminderPdf } from "@/server/pdf/reminder-pdf";
 import type { CurrentUser } from "@/server/session";
 import { saveDocumentPdf } from "@/server/storage";
@@ -257,13 +259,20 @@ export async function sendReminderEmail(actor: CurrentUser | null, data: SendEma
   const text = renderTemplate(data.body, prepared.values);
   const attachment = await buildReminderPdf({ ...prepared, text }, settings);
 
+  const labels = documentLabels(prepared.invoice.language);
   const result = await deliver({
     actor,
     data,
     settings,
-    companyName: settings.companyName.trim(),
+    language: prepared.invoice.language,
     subject,
     body: text,
+    summary: {
+      title: `${labels[`reminder${prepared.level}`]} – ${invoiceTitleLabel(prepared.invoice.type, labels)} ${prepared.invoice.number}`,
+      amount: prepared.values.montant ?? "",
+      dateLabel: labels.newDueDate,
+      date: prepared.values.echeance ?? "",
+    },
     attachment,
     link: { invoiceId: prepared.invoice.id },
   });

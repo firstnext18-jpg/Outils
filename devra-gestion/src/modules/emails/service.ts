@@ -16,13 +16,15 @@ import {
   type ClientSnapshot,
   type CompanySnapshot,
 } from "@/modules/settings/documents";
+import { documentLabels } from "@/i18n/documents";
 import { createQuoteLink } from "@/modules/online-quotes/service";
 import { getSettings, type AppSettings } from "@/modules/settings/service";
 import { UserError } from "@/server/action";
 import { db } from "@/server/db";
-import { renderDocumentEmail } from "@/server/emails/document-email";
+import { emailBranding } from "@/server/emails/branding";
+import { renderDocumentEmail, type DocumentEmailSummary } from "@/server/emails/document-email";
 import { sendMail } from "@/server/mailer";
-import { invoicePdfForDownload } from "@/server/pdf/invoice-pdf";
+import { invoicePdfForDownload, invoiceTitleLabel } from "@/server/pdf/invoice-pdf";
 import { buildQuotePdf } from "@/server/pdf/quote-pdf";
 import type { CurrentUser } from "@/server/session";
 
@@ -124,9 +126,14 @@ export type Delivery = {
   actor: CurrentUser | null;
   data: SendEmailData;
   settings: AppSettings;
-  companyName: string;
+  /** Langue du document : libellés du récapitulatif et du bouton. */
+  language: "FR" | "DE";
   subject: string;
   body: string;
+  /** Récapitulatif en tête de l'email (le libellé de la pièce jointe est ajouté ici). */
+  summary: Omit<DocumentEmailSummary, "attachmentLabel">;
+  /** Lien d'acceptation du devis en ligne, s'il figure dans le texte. */
+  onlineLink?: string;
   attachment: { fileName: string; buffer: Buffer };
   link: { quoteId: string } | { invoiceId: string };
 };
@@ -137,9 +144,17 @@ export async function deliver(
 ): Promise<{ ok: true; logId: string } | { ok: false; error: string; logId: string }> {
   const { actor, data, settings } = delivery;
   const bcc = data.copyToSender && actor ? [actor.email.toLowerCase()] : [];
+  const labels = documentLabels(delivery.language);
+  const { branding, attachments: brandingAttachments } = await emailBranding(settings);
   const { text, html } = renderDocumentEmail({
-    companyName: delivery.companyName,
+    language: delivery.language,
+    branding,
+    subject: delivery.subject,
     body: delivery.body,
+    summary: { ...delivery.summary, attachmentLabel: labels.emailPdfAttached },
+    ...(delivery.onlineLink
+      ? { onlineLink: { label: labels.emailViewQuoteOnline, url: delivery.onlineLink } }
+      : {}),
   });
   let error = "";
   try {
@@ -157,6 +172,7 @@ export async function deliver(
           content: delivery.attachment.buffer,
           contentType: "application/pdf",
         },
+        ...brandingAttachments,
       ],
     });
   } catch (cause) {
@@ -198,13 +214,21 @@ export async function sendQuoteEmail(actor: CurrentUser, data: SendEmailData) {
   }
   const attachment = await buildQuotePdf(sendable, settings);
 
+  const labels = documentLabels(quote.language);
   const result = await deliver({
     actor,
     data,
     settings,
-    companyName: values.entreprise ?? "",
+    language: quote.language,
     subject: renderTemplate(data.subject, values),
     body: renderTemplate(data.body, values),
+    summary: {
+      title: `${labels.quote} ${quote.number}`,
+      amount: values.montant ?? "",
+      dateLabel: labels.validUntil,
+      date: values.echeance ?? "",
+    },
+    ...(values.lien ? { onlineLink: values.lien } : {}),
     attachment,
     link: { quoteId: quote.id },
   });
@@ -235,13 +259,20 @@ export async function sendInvoiceEmail(actor: CurrentUser | null, data: SendEmai
   const values = invoiceValues(invoice, settings);
   const attachment = await invoicePdfForDownload(invoice, settings);
 
+  const labels = documentLabels(invoice.language);
   const result = await deliver({
     actor,
     data,
     settings,
-    companyName: values.entreprise ?? "",
+    language: invoice.language,
     subject: renderTemplate(data.subject, values),
     body: renderTemplate(data.body, values),
+    summary: {
+      title: `${invoiceTitleLabel(invoice.type, labels)} ${invoice.number}`,
+      amount: values.montant ?? "",
+      dateLabel: labels.dueDate,
+      date: values.echeance ?? "",
+    },
     attachment,
     link: { invoiceId: invoice.id },
   });

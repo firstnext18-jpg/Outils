@@ -245,8 +245,18 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
 
 - **Envoi depuis la fiche du document**, dans une fenêtre qui propose destinataire (email du
   client), objet et message tirés du modèle de la langue du document ; tout reste modifiable
-  avant l'envoi. Le texte est envoyé tel quel, avec une version HTML sobre (paragraphes, nom de
-  l'entreprise en tête) et le PDF en pièce jointe.
+  avant l'envoi. Le texte est envoyé tel quel (version texte), avec une version HTML mise en page
+  et le PDF en pièce jointe.
+- **Mise en page HTML des emails** (devis, factures, relances, invitations, mot de passe,
+  notifications) : en-tête avec le logo de l'entreprise (ou son nom), récapitulatif du document
+  (titre, montant, échéance, « PDF joint »), le texte saisi, et coordonnées de l'entreprise en
+  pied, le tout tiré de Paramètres → Entreprise. Tableaux et styles en ligne uniquement (Gmail,
+  Outlook, Apple Mail). Le logo est **joint à l'email** (image « en ligne », `cid:`) plutôt que
+  chargé depuis le serveur : il s'affiche sans que le destinataire autorise les images
+  distantes, et l'application n'a pas à exposer son logo publiquement ; sa taille est lue dans
+  l'en-tête du PNG ou du JPEG (Outlook ignore les tailles en CSS). Le lien d'acceptation en ligne
+  devient un bouton, à l'endroit où `{lien}` figure dans le texte ; s'il a été retiré du texte,
+  pas de bouton.
 - **Variables** : celles du cahier des charges (`{client}`, `{numero}`, `{montant}`,
   `{echeance}`, `{lien}`), plus **`{entreprise}`** pour signer les messages sans écrire le nom de
   l'entreprise en dur dans les modèles par défaut. `{client}` désigne la personne de contact
