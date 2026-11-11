@@ -93,16 +93,25 @@ export async function getDiscussion(id: string, options: { all?: boolean } = {})
     },
   });
   if (!discussion) return null;
-  const messages = await db.discussionMessage.findMany({
-    where: { discussionId: id },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    ...(options.all ? {} : { take: MESSAGES_PAGE }),
-    include: { author: { select: { id: true, name: true } } },
-  });
+  const [messages, reads] = await Promise.all([
+    db.discussionMessage.findMany({
+      where: { discussionId: id },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      ...(options.all ? {} : { take: MESSAGES_PAGE }),
+      include: { author: { select: { id: true, name: true } } },
+    }),
+    // Dernière lecture de chaque utilisateur actif : accusés de lecture.
+    db.discussionRead.findMany({
+      where: { discussionId: id, user: { active: true } },
+      orderBy: { user: { name: "asc" } },
+      select: { userId: true, lastReadAt: true, user: { select: { name: true } } },
+    }),
+  ]);
   return {
     ...discussion,
     general: isGeneralDiscussion(discussion.id),
     messages: messages.reverse(),
+    reads: reads.map((r) => ({ userId: r.userId, name: r.user.name, lastReadAt: r.lastReadAt })),
     hiddenCount: Math.max(0, discussion._count.messages - messages.length),
   };
 }

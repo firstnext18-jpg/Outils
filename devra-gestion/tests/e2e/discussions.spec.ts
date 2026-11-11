@@ -111,6 +111,8 @@ test("un autre utilisateur voit les messages non lus et répond ; le fil se met 
   // L'admin garde la discussion ouverte pendant que Marc répond.
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto(discussionUrl);
+  // Accusé de lecture sous son propre message : personne ne l'a encore lu.
+  await expect(page.getByText("Pas encore lu")).toBeVisible();
 
   const marc = await session(browser, MEMBER);
   await expect(sidebarBadge(marc.page)).toHaveText("2");
@@ -139,6 +141,7 @@ test("un autre utilisateur voit les messages non lus et répond ; le fil se met 
     { timeout: 15_000 },
   );
   await expect(page.getByRole("list", { name: "Messages" })).toContainText(MEMBER.name);
+  await expect(page.getByText(`Lu par ${MEMBER.name}`)).toBeVisible();
 });
 
 test("lecture seule : lit les discussions sans pouvoir écrire", async ({ page }) => {
@@ -150,6 +153,8 @@ test("lecture seule : lit les discussions sans pouvoir écrire", async ({ page }
   await expect(page.getByRole("list", { name: "Messages" })).toContainText("Plutôt clair");
   await expect(page.getByLabel("Votre message")).toHaveCount(0);
   await expect(page.getByText("Accès en lecture seule")).toBeVisible();
+  // Les accusés de lecture ne sont montrés qu'à l'auteur des messages.
+  await expect(page.getByText(/^(Lu par|Pas encore lu)/)).toHaveCount(0);
   // Lire suffit à marquer la discussion comme lue.
   await expect(async () => {
     await page.goto("/discussions");
@@ -161,6 +166,8 @@ test("lecture seule : lit les discussions sans pouvoir écrire", async ({ page }
 
 test("journal, notifications et suppression d'un client avec ses discussions", async ({ page }) => {
   await login(page, ADMIN.email, ADMIN.password);
+  await page.goto(discussionUrl);
+  await expect(page.getByText(`Lu par ${MEMBER.name} et ${READER.name}`)).toBeVisible();
   await page.goto("/parametres/journal?type=discussions");
   await expect(
     page.getByText(`a démarré la discussion « Choix du thème » sur le client « ${CLIENT} »`),

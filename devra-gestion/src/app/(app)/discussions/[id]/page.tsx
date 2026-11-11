@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Composer } from "@/app/(app)/discussions/[id]/composer";
 import { Thread, type ThreadMessage } from "@/app/(app)/discussions/[id]/thread";
 import { AutoRefresh } from "@/components/discussions/auto-refresh";
+import { readReceiptLabel } from "@/domain/discussions";
 import { canEdit } from "@/domain/roles";
 import { formatDateTime } from "@/lib/format";
 import { getDiscussion, type DiscussionDetail } from "@/modules/discussions/service";
@@ -13,21 +14,39 @@ import { requireUser } from "@/server/session";
 /** Messages d'une même personne à moins de 5 minutes d'intervalle : regroupés. */
 const GROUP_MS = 5 * 60 * 1000;
 
+type Message = DiscussionDetail["messages"][number];
+
+/** `m` prolonge-t-il `previous` (même auteur, peu après) ? */
+function continues(previous: Message | undefined, m: Message | undefined) {
+  return Boolean(
+    previous &&
+    m &&
+    previous.authorId === m.authorId &&
+    m.createdAt.getTime() - previous.createdAt.getTime() < GROUP_MS,
+  );
+}
+
 function threadMessages(discussion: DiscussionDetail, userId: string): ThreadMessage[] {
   return discussion.messages.map((m, i) => {
     const previous = discussion.messages[i - 1];
+    const next = discussion.messages[i + 1];
+    const mine = m.authorId === userId;
+    // Accusé de lecture : pour l'auteur seulement, sous le dernier message de chaque groupe.
+    const readers = discussion.reads
+      .filter((r) => r.userId !== userId && r.lastReadAt >= m.createdAt)
+      .map((r) => r.name);
     return {
       id: m.id,
       author: m.author?.name ?? "Ancien utilisateur",
-      mine: m.authorId === userId,
+      mine,
       body: m.body,
       time: formatDateTime(m.createdAt),
       iso: m.createdAt.toISOString(),
-      continued: Boolean(
-        previous &&
-        previous.authorId === m.authorId &&
-        m.createdAt.getTime() - previous.createdAt.getTime() < GROUP_MS,
-      ),
+      continued: continues(previous, m),
+      receipt:
+        mine && !continues(m, next)
+          ? { read: readers.length > 0, label: readReceiptLabel(readers) }
+          : null,
     };
   });
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckCheckIcon, CheckIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { messageParts, nameInitials } from "@/domain/discussions";
@@ -16,6 +17,8 @@ export type ThreadMessage = {
   iso: string;
   /** Suite d'un message de la même personne : sans répéter le nom. */
   continued: boolean;
+  /** Accusé de lecture, montré à l'auteur seulement (dernier message de chaque groupe). */
+  receipt: { read: boolean; label: string } | null;
 };
 
 function MessageBody({ body }: { body: string }) {
@@ -107,6 +110,16 @@ export function Thread({
                 </div>
               )}
               <MessageBody body={m.body} />
+              {m.receipt && (
+                <p className="text-muted-foreground mt-0.5 flex items-center gap-1 text-xs">
+                  {m.receipt.read ? (
+                    <CheckCheckIcon className="text-primary size-3.5" aria-hidden />
+                  ) : (
+                    <CheckIcon className="size-3.5" aria-hidden />
+                  )}
+                  {m.receipt.label}
+                </p>
+              )}
             </div>
           </li>
         ))}
