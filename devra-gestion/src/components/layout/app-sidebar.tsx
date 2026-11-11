@@ -13,6 +13,7 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
@@ -24,9 +25,15 @@ import type { CurrentUser } from "@/server/session";
 export function AppSidebar({
   user,
   company,
+  badges,
+  pushPublicKey,
 }: {
   user: CurrentUser;
   company: { name: string; logoFile: string | null };
+  /** Pastilles par entrée du menu, ex. discussions non lues. */
+  badges: Partial<Record<string, number>>;
+  /** Clé publique des notifications ; null si elles ne sont pas configurées. */
+  pushPublicKey: string | null;
 }) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -55,6 +62,11 @@ export function AppSidebar({
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
+                  {(badges[item.href] ?? 0) > 0 && (
+                    <SidebarMenuBadge aria-label={`${badges[item.href]} non lu(s)`}>
+                      {badges[item.href]}
+                    </SidebarMenuBadge>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
@@ -62,7 +74,7 @@ export function AppSidebar({
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <UserMenu user={user} />
+        <UserMenu user={user} pushPublicKey={pushPublicKey} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

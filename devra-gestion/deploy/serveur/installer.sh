@@ -59,6 +59,24 @@ ask_secret() {
   done
 }
 
+# Paire de clés VAPID des notifications (P-256), en base64url, sans autre outil
+# qu'openssl : la clé SEC1 (DER, 121 octets) contient la clé privée (octets 7 à 38)
+# puis la clé publique (65 derniers octets).
+b64url() { base64 -w0 | tr '+/' '-_' | tr -d '='; }
+hex2bin() {
+  local hex=$1 out="" i
+  for ((i = 0; i < ${#hex}; i += 2)); do out+="\\x${hex:i:2}"; done
+  printf '%b' "$out"
+}
+generate_vapid() {
+  local der
+  der=$(openssl ecparam -name prime256v1 -genkey -noout | openssl ec -outform DER 2>/dev/null |
+    od -An -v -tx1 | tr -d ' \n')
+  [ ${#der} -eq 242 ] || return 1
+  VAPID_PRIVATE=$(hex2bin "${der:14:64}" | b64url)
+  VAPID_PUBLIC=$(hex2bin "${der: -130}" | b64url)
+}
+
 yes_no() { # yes_no "Question" o|n (défaut)
   local answer
   read -r -p "$1 [$([ "$2" = o ] && echo O/n || echo o/N)] : " answer || answer=
@@ -94,6 +112,16 @@ NEW_ENV=false
 ADMIN_TEMP_PASSWORD=
 if [ -f "$DIR/.env" ]; then
   echo "Configuration existante conservée : $DIR/.env"
+  # Installation antérieure aux notifications : on ajoute leurs clés.
+  if ! grep -Eq "^VAPID_PUBLIC_KEY=['\"]?[A-Za-z0-9_-]{20,}" "$DIR/.env" && generate_vapid; then
+    tmp=$(mktemp "$DIR/.env.XXXXXX")
+    grep -Ev "^VAPID_(PUBLIC|PRIVATE)_KEY=" "$DIR/.env" >"$tmp" || true
+    printf "\n# Notifications (Web Push), ajoutées par installer.sh\nVAPID_PUBLIC_KEY='%s'\nVAPID_PRIVATE_KEY='%s'\n" \
+      "$VAPID_PUBLIC" "$VAPID_PRIVATE" >>"$tmp"
+    chmod 600 "$tmp"
+    mv "$tmp" "$DIR/.env"
+    echo "Clés des notifications ajoutées à $DIR/.env."
+  fi
 else
   NEW_ENV=true
   say "Configuration (les secrets sont générés automatiquement)"
@@ -161,6 +189,10 @@ else
   VALUES[POSTGRES_PASSWORD]=$(openssl rand -hex 24)
   VALUES[CRON_SECRET]=$(openssl rand -base64 32)
   VALUES[AUTH_RATE_LIMIT]=true
+  if generate_vapid; then
+    VALUES[VAPID_PUBLIC_KEY]=$VAPID_PUBLIC
+    VALUES[VAPID_PRIVATE_KEY]=$VAPID_PRIVATE
+  fi
 
   # .env = .env.example avec ces valeurs (entre apostrophes : pris tels quels par Docker Compose).
   tmp=$(mktemp "$DIR/.env.XXXXXX")

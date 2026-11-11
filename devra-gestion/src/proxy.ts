@@ -13,6 +13,8 @@ const PUBLIC_PATHS = [
   "/invitation",
   // Page d'acceptation des devis en ligne : le jeton du lien fait office d'autorisation.
   "/devis-en-ligne",
+  // Service worker des notifications : chargé par le navigateur, sans page affichée.
+  "/sw.js",
 ];
 
 export function proxy(request: NextRequest) {

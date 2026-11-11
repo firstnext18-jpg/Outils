@@ -46,6 +46,7 @@ export type ActivityAction =
   | "settings.reminders_updated"
   | "invoice.reminded"
   | "subscription.created"
+  | "discussion.created"
   | "subscription.updated"
   | "subscription.paused"
   | "subscription.resumed"

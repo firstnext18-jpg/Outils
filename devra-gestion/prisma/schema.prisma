@@ -59,6 +59,11 @@ model User {
   subsUpdated     Subscription[] @relation("SubscriptionUpdatedBy")
   taskRuns        TaskRun[]
 
+  discussionsCreated Discussion[]        @relation("DiscussionCreatedBy")
+  discussionMessages DiscussionMessage[]
+  discussionReads    DiscussionRead[]
+  pushSubscriptions  PushSubscription[]
+
   @@map("user")
 }
 
@@ -345,6 +350,7 @@ model Client {
   quotes        Quote[]
   invoices      Invoice[]
   subscriptions Subscription[]
+  discussions   Discussion[]
 
   @@index([sortName])
   @@index([email])
@@ -937,4 +943,73 @@ model ActivityLog {
   @@index([createdAt])
   @@index([entityType, entityId])
   @@map("activity_log")
+}
+
+// ---------------------------------------------------------------------------
+// Discussions entre utilisateurs (canal général et discussions par client)
+// ---------------------------------------------------------------------------
+
+/// Discussion : le canal général (sans client, identifiant fixe « general »,
+/// voir src/domain/discussions.ts) ou une discussion sur un client.
+model Discussion {
+  id            String   @id @default(uuid(7))
+  /// Client concerné ; vide pour le canal général.
+  clientId      String?
+  client        Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title         String
+  createdById   String?
+  createdBy     User?    @relation("DiscussionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  /// Date du dernier message : tri des discussions et repérage des messages non lus.
+  lastMessageAt DateTime @default(now())
+
+  messages DiscussionMessage[]
+  reads    DiscussionRead[]
+
+  @@index([clientId])
+  @@index([lastMessageAt])
+  @@map("discussion")
+}
+
+model DiscussionMessage {
+  id           String     @id @default(uuid(7))
+  discussionId String
+  discussion   Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  authorId     String?
+  author       User?      @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  body         String
+  createdAt    DateTime   @default(now())
+
+  @@index([discussionId, createdAt])
+  @@map("discussion_message")
+}
+
+/// Jusqu'où chaque utilisateur a lu chaque discussion (messages non lus).
+model DiscussionRead {
+  discussionId String
+  discussion   Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt   DateTime
+
+  @@id([discussionId, userId])
+  @@index([userId])
+  @@map("discussion_read")
+}
+
+/// Appareil abonné aux notifications (Web Push : Windows, macOS, Android…).
+model PushSubscription {
+  id        String   @id @default(uuid(7))
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Adresse du service de notification du navigateur (une par navigateur et appareil).
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  /// Navigateur et système, ex. « Chrome · Windows ».
+  device    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscription")
 }

@@ -151,6 +151,23 @@ Si une nouvelle version modifie `compose.yaml` ou `compose.cloudflare.yaml` (la 
 signale), l'agent redépose le kit (étape 1) et l'administrateur relance `installer.sh` : la
 configuration existante est conservée.
 
+## Notifications sur Windows (chaque utilisateur)
+
+Les nouveaux messages des **Discussions** peuvent s'afficher en notification Windows (ou macOS,
+Android), même quand l'application n'est pas ouverte :
+
+1. Ouvrir l'application dans Chrome, Edge ou Firefox, sur l'ordinateur concerné.
+2. Menu utilisateur (en bas à gauche) → **« Activer les notifications »**, puis **Autoriser**
+   dans la fenêtre du navigateur. Une notification « Notifications activées » confirme le
+   réglage.
+3. À refaire sur chaque ordinateur et chaque navigateur utilisé. « Désactiver les
+   notifications » au même endroit.
+
+Si rien ne s'affiche : Windows → Paramètres → Système → Notifications : le navigateur doit être
+autorisé, et le mode « Ne pas déranger » désactivé. Le navigateur doit tourner (Chrome et Edge
+continuent en arrière-plan par défaut). « Notifications non configurées » : les clés `VAPID_*`
+manquent dans `.env` (section « Réservé à l'administrateur »).
+
 ## Surveillance (agent)
 
 - Une fois par semaine : `claude-devra status` (dernière sauvegarde « OK » et datée du jour).
@@ -176,6 +193,27 @@ cd /opt/devra-gestion
   (section « Restaurer »), lancées depuis `/opt/devra-gestion`.
 - **Renouveler le jeton GitHub** quand il expire : relancer `installer.sh` et répondre « o » à
   « Se reconnecter ? ».
+- **Activer les notifications** (installation antérieure à leur arrivée) : après la mise à jour
+  de l'application (`claude-devra update`), créer les clés puis redémarrer :
+
+  ```bash
+  docker compose run --rm --no-deps app node docker/vapid-keys.mjs >> .env
+  claude-devra start
+  ```
+
+  (Relancer un `installer.sh` récent les ajoute aussi.) Ne pas recommencer ensuite : de nouvelles
+  clés obligeraient chaque appareil à réactiver les notifications.
+
+- **Repartir de zéro en gardant les paramètres** (clients, devis, factures, paiements,
+  abonnements, relances, discussions, journal et numérotation effacés ; entreprise, IBAN, logo,
+  modèles, catalogue et comptes conservés) :
+
+  ```bash
+  claude-devra backup
+  docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "TRUNCATE client, quote, quote_line, quote_link, invoice, invoice_line, payment, reminder, subscription, subscription_item, email_log, activity_log, task_run, number_sequence, discussion, discussion_message, discussion_read RESTART IDENTITY"'
+  docker compose exec app rm -rf /data/documents
+  ```
+
 - **Retirer l'agent** : `rm /etc/sudoers.d/claude-devra`.
 - **Désinstaller** : `docker compose down` (les données restent dans les volumes Docker et les
   sauvegardes) ; `docker compose down -v` efface aussi la base et les fichiers, définitivement.

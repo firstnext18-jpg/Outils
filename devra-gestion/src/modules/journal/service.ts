@@ -57,13 +57,16 @@ export async function listJournal(params: JournalParams) {
   // Les objets supprimés depuis n'ont plus de page : pas de lien.
   const ids = (type: string) =>
     entries.filter((e) => e.entityType === type && e.entityId).map((e) => e.entityId!);
-  const [clients, quotes, invoices, subscriptions] = await Promise.all([
+  const [clients, quotes, invoices, subscriptions, discussions] = await Promise.all([
     db.client.findMany({ where: { id: { in: ids("client") } }, select: { id: true } }),
     db.quote.findMany({ where: { id: { in: ids("quote") } }, select: { id: true } }),
     db.invoice.findMany({ where: { id: { in: ids("invoice") } }, select: { id: true } }),
     db.subscription.findMany({ where: { id: { in: ids("subscription") } }, select: { id: true } }),
+    db.discussion.findMany({ where: { id: { in: ids("discussion") } }, select: { id: true } }),
   ]);
-  const existing = new Set([...clients, ...quotes, ...invoices, ...subscriptions].map((r) => r.id));
+  const existing = new Set(
+    [...clients, ...quotes, ...invoices, ...subscriptions, ...discussions].map((r) => r.id),
+  );
 
   return {
     total,

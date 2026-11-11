@@ -22,6 +22,9 @@ describe("phrases du journal d'activité", () => {
     expect(sentence("subscription.paused", "Hébergement")).toBe(
       "a mis l'abonnement « Hébergement » en pause",
     );
+    expect(sentence("discussion.created", "Choix du thème", { client: "Café Lumière" })).toBe(
+      "a démarré la discussion « Choix du thème » sur le client « Café Lumière »",
+    );
   });
 
   it("décrit les utilisateurs, les paramètres et les exports", () => {
@@ -55,6 +58,7 @@ describe("phrases du journal d'activité", () => {
   it("donne le lien de l'objet quand il a une page", () => {
     expect(journalHref("quote", "abc")).toBe("/devis/abc");
     expect(journalHref("invoice", "abc")).toBe("/factures/abc");
+    expect(journalHref("discussion", "abc")).toBe("/discussions/abc");
     expect(journalHref("settings", "abc")).toBeNull();
     expect(journalHref("client", null)).toBeNull();
   });

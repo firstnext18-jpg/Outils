@@ -22,6 +22,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 | 8. Tableau de bord                        | Indicateurs, graphiques, zones d'action                           | ✅ Terminée |
 | 9. Acceptation en ligne, exports, journal | Devis acceptés en ligne, export comptable, journal d'activité     | ✅ Terminée |
 | 10. Production                            | Sauvegardes, HTTPS, sécurité, déploiement Raspberry Pi            | ✅ Terminée |
+| 11. Discussions                           | Canal général, discussions par client, notifications              | ✅ Terminée |
 
 ## Ce qui fonctionne aujourd'hui
 
@@ -142,6 +143,16 @@ entreprise, auto-hébergé sur un Raspberry Pi.
     localité), types de site demandés et vendus, revenu récurrent (MRR) ;
   - raccourcis « Nouveau devis », « Nouveau client » et « Enregistrer un paiement » (choix de la
     facture, puis paiement).
+- **Discussions** entre utilisateurs (menu « Discussions ») :
+  - un **canal général**, ouvert à tous, et des **discussions par client** (sujet + messages),
+    démarrées depuis la fiche du client ou la page Discussions ;
+  - pastilles des **messages non lus** (menu, liste, fiche client), mise à jour automatique des
+    fils ouverts (toutes les 5 secondes), liens cliquables ;
+  - **lecture seule** : consulte les discussions sans y écrire ; supprimer un client supprime
+    ses discussions ; elles figurent dans l'export de ses données (nLPD).
+- **Notifications** de l'ordinateur ou du téléphone (Windows, macOS, Android) pour les nouveaux
+  messages, même application fermée : menu utilisateur → « Activer les notifications », sur
+  chaque appareil (Web Push, clés `VAPID_*` dans `.env`).
 - **Recherche globale** (Ctrl+K) : clients (nom, localité, email, téléphone), devis et factures
   (numéro, objet).
 - **Navigation** latérale (repliable, en tiroir sur téléphone), thème clair / sombre / système.
