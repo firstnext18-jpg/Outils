@@ -151,6 +151,8 @@ entreprise, auto-hébergé sur un Raspberry Pi.
     démarrées depuis la fiche du client ou la page Discussions ;
   - pastilles des **messages non lus** (menu, liste, fiche client), mise à jour automatique des
     fils ouverts (toutes les 5 secondes), liens cliquables ;
+  - **accusés de lecture** : sous ses propres messages, l'auteur voit « Lu par Marc et Rita »
+    ou « Pas encore lu » ;
   - **lecture seule** : consulte les discussions sans y écrire ; supprimer un client supprime
     ses discussions ; elles figurent dans l'export de ses données (nLPD).
 - **Notifications** de l'ordinateur ou du téléphone (Windows, macOS, Android) pour les nouveaux

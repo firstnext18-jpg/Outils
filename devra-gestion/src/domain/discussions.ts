@@ -33,6 +33,20 @@ export function nameInitials(name: string): string {
     .join("");
 }
 
+const READERS_SHOWN = 6;
+const nameList = new Intl.ListFormat("fr", { type: "conjunction" });
+
+/**
+ * Accusé de lecture d'un message, vu par son auteur : « Lu par Léa, Marc et
+ * Rita », « Lu par Léa, … et 3 autres », ou « Pas encore lu ».
+ */
+export function readReceiptLabel(readers: string[]): string {
+  if (readers.length === 0) return "Pas encore lu";
+  if (readers.length <= READERS_SHOWN) return `Lu par ${nameList.format(readers)}`;
+  const others = readers.length - READERS_SHOWN;
+  return `Lu par ${readers.slice(0, READERS_SHOWN).join(", ")} et ${others} autre${others > 1 ? "s" : ""}`;
+}
+
 /** Morceaux d'un message : texte, ou adresse web à rendre cliquable. */
 export function messageParts(body: string): { text: string; url?: string }[] {
   const parts: { text: string; url?: string }[] = [];

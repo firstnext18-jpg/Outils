@@ -4,6 +4,7 @@ import {
   messageExcerpt,
   messageParts,
   nameInitials,
+  readReceiptLabel,
 } from "@/domain/discussions";
 import { createDiscussionSchema, postMessageSchema } from "@/modules/discussions/schemas";
 
@@ -23,6 +24,15 @@ describe("discussions", () => {
   it("donne les initiales d'un nom", () => {
     expect(nameInitials("Léa Martin")).toBe("LM");
     expect(nameInitials("  jean  ")).toBe("J");
+  });
+
+  it("indique à l'auteur qui a lu son message", () => {
+    expect(readReceiptLabel([])).toBe("Pas encore lu");
+    expect(readReceiptLabel(["Marc Dubois"])).toBe("Lu par Marc Dubois");
+    expect(readReceiptLabel(["Léa", "Marc", "Rita"])).toBe("Lu par Léa, Marc et Rita");
+    expect(readReceiptLabel(["A", "B", "C", "D", "E", "F", "G", "H"])).toBe(
+      "Lu par A, B, C, D, E, F et 2 autres",
+    );
   });
 
   it("repère les adresses web d'un message", () => {

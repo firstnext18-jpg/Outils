@@ -565,6 +565,11 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   les 5 secondes, 15 sur la liste, seulement quand l'onglet est visible) plutôt que par
   WebSocket : quelques utilisateurs, rien à ajouter au serveur ni au tunnel Cloudflare, et la
   saisie en cours n'est pas perdue.
+- **Accusés de lecture** (« Lu par Marc et Rita ») déduits des mêmes dates de dernière lecture :
+  un message est lu par une personne si elle a affiché la discussion depuis son envoi. Montrés à
+  l'auteur seulement, sous le dernier message de chacun de ses groupes de messages (un message
+  lu implique les précédents), sans heure : la date retenue est celle de la dernière lecture,
+  pas celle de la première. Utilisateurs désactivés exclus.
 - **Lecture seule** : consulte et lit (marquage « lu »), n'écrit pas ni ne démarre de discussion.
 - **Journal** : la création d'une discussion y figure (catégorie « Discussions ») ; pas chaque
   message, qui noierait le journal.
