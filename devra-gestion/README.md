@@ -58,6 +58,9 @@ entreprise, auto-hébergé sur un Raspberry Pi.
   - nom et description en allemand facultatifs, repris sur les documents en allemand ;
   - regroupement par catégorie, recherche, filtres, duplication, désactivation ;
   - pré-rempli avec 11 exemples aux prix fictifs, à ajuster.
+- **Tarifs publics pour le site vitrine** : `<APP_URL>/tarif.php` renvoie en JSON toutes les
+  prestations actives du catalogue (prix, unités, catégories, FR/DE), sans connexion. Voir
+  [`docs/TARIFS_SITE_VITRINE.md`](docs/TARIFS_SITE_VITRINE.md).
 - **Devis** :
   - éditeur : client (recherche), dates, langue FR/DE, type de site, lignes du catalogue ou
     libres (quantités décimales, unité, prix, remise en % ou en CHF), ordre modifiable, textes
@@ -276,5 +279,7 @@ devra-gestion/
   Linux exploité par un agent (compte restreint, commande `claude-devra`).
 - [`docs/SAUVEGARDES.md`](docs/SAUVEGARDES.md) : fonctionnement des sauvegardes, copie hors du
   Raspberry Pi, vérification et restauration.
+- [`docs/TARIFS_SITE_VITRINE.md`](docs/TARIFS_SITE_VITRINE.md) : tarifs publics (`/tarif.php`)
+  pour le site vitrine, format et exemples PHP / JavaScript.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) : choix techniques et leurs raisons.
 - [`.env.example`](.env.example) : toutes les variables de configuration, commentées.

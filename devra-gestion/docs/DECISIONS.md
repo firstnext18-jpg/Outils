@@ -583,6 +583,21 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   openssl seul), et `docker/vapid-keys.mjs` dans l'image permet de les créer sur une
   installation existante.
 
+## Tarifs publics (site vitrine)
+
+- **Adresse `/tarif.php`**, demandée telle quelle pour le site vitrine ; c'est une route de
+  l'application (Next.js), pas un fichier PHP. Réponse **JSON** (choix de l'utilisateur) :
+  le site vitrine garde son propre design.
+- **Toutes les prestations actives du catalogue** sont publiées (choix de l'utilisateur, plutôt
+  qu'une case « publier » par prestation) : désactiver une prestation la retire du site.
+  Seuls les champs utiles au site sont exposés (pas d'auteur, de recherche, de version).
+- **Public et lisible depuis n'importe quel site** (`Access-Control-Allow-Origin: *`) : ce sont
+  des prix destinés à être affichés publiquement. Cache navigateur de 5 minutes.
+- Textes prêts à afficher (`prixTexte` : « CHF 90.00 / h », « CHF 29.00 par mois ») calculés
+  avec les mêmes libellés que les documents, en plus des valeurs brutes (francs, centimes,
+  unité, périodicité) ; informations de TVA pour présenter les prix correctement (hors TVA si
+  l'entreprise est assujettie).
+
 ## Interface
 
 - **Interface en français, sans bibliothèque de traduction.** Les traductions FR/DE ne concernent

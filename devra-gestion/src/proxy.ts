@@ -15,6 +15,8 @@ const PUBLIC_PATHS = [
   "/devis-en-ligne",
   // Service worker des notifications : chargé par le navigateur, sans page affichée.
   "/sw.js",
+  // Tarifs publics, lus par le site vitrine (voir docs/TARIFS_SITE_VITRINE.md).
+  "/tarif.php",
 ];
 
 export function proxy(request: NextRequest) {
