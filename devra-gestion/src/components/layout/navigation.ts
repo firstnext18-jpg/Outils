@@ -1,6 +1,7 @@
 import {
   FileTextIcon,
   LayoutDashboardIcon,
+  MessagesSquareIcon,
   PackageIcon,
   ReceiptTextIcon,
   RepeatIcon,
@@ -20,6 +21,7 @@ export type NavItem = {
 
 export const NAV_ITEMS: NavItem[] = [
   { title: "Tableau de bord", href: "/", icon: LayoutDashboardIcon, role: "READONLY" },
+  { title: "Discussions", href: "/discussions", icon: MessagesSquareIcon, role: "READONLY" },
   { title: "Clients", href: "/clients", icon: UsersIcon, role: "READONLY" },
   { title: "Devis", href: "/devis", icon: FileTextIcon, role: "READONLY" },
   { title: "Factures", href: "/factures", icon: ReceiptTextIcon, role: "READONLY" },

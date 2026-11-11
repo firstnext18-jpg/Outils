@@ -4,7 +4,9 @@ import { GlobalSearch } from "@/components/layout/global-search";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { unreadDiscussionCount } from "@/modules/discussions/service";
 import { displayCompanyName, getSettings } from "@/modules/settings/service";
+import { pushPublicKey } from "@/server/push";
 import { requireUser } from "@/server/session";
 
 // Pages lues en base à chaque requête : jamais pré-générées au build (pas de base à ce moment-là).
@@ -13,7 +15,11 @@ export const dynamic = "force-dynamic";
 /** Mise en page de l'application connectée : navigation latérale + contenu. */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const [settings, cookieStore] = await Promise.all([getSettings(), cookies()]);
+  const [settings, cookieStore, unreadDiscussions] = await Promise.all([
+    getSettings(),
+    cookies(),
+    unreadDiscussionCount(user.id),
+  ]);
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
   return (
@@ -21,6 +27,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <AppSidebar
         user={user}
         company={{ name: displayCompanyName(settings), logoFile: settings.logoFile }}
+        badges={{ "/discussions": unreadDiscussions }}
+        pushPublicKey={pushPublicKey()}
       />
       <SidebarInset>
         <header className="bg-background/95 sticky top-0 z-10 flex h-14 items-center gap-2 border-b px-4 backdrop-blur">

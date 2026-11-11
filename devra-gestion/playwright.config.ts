@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { ADMIN, CRON_SECRET } from "./tests/e2e/fixtures";
+import { ADMIN, CRON_SECRET, VAPID_TEST_KEYS } from "./tests/e2e/fixtures";
 import { testDatabaseUrl } from "./tests/e2e/test-database";
 
 /**
@@ -60,6 +60,8 @@ export default defineConfig({
       ADMIN_EMAIL: ADMIN.email,
       ADMIN_PASSWORD: ADMIN.password,
       CRON_SECRET,
+      VAPID_PUBLIC_KEY: VAPID_TEST_KEYS.publicKey,
+      VAPID_PRIVATE_KEY: VAPID_TEST_KEYS.privateKey,
     },
   },
 });

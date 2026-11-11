@@ -24,6 +24,14 @@ const envSchema = z.object({
     .min(32, "CRON_SECRET doit contenir au moins 32 caractères")
     .optional()
     .or(z.literal("").transform(() => undefined)),
+  /**
+   * Notifications Web Push (Windows, macOS, Android…) : paire de clés VAPID.
+   * Facultatif : sans ces clés, les notifications sont simplement désactivées.
+   */
+  VAPID_PUBLIC_KEY: z.string().trim().optional(),
+  VAPID_PRIVATE_KEY: z.string().trim().optional(),
+  /** Contact transmis aux services de notification (https:// ou mailto:). */
+  VAPID_SUBJECT: z.string().trim().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -22,6 +22,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 | 8. Tableau de bord                        | Indicateurs, graphiques, zones d'action                           | ✅ Terminée |
 | 9. Acceptation en ligne, exports, journal | Devis acceptés en ligne, export comptable, journal d'activité     | ✅ Terminée |
 | 10. Production                            | Sauvegardes, HTTPS, sécurité, déploiement Raspberry Pi            | ✅ Terminée |
+| 11. Discussions                           | Canal général, discussions par client, notifications              | ✅ Terminée |
 
 ## Ce qui fonctionne aujourd'hui
 
@@ -57,6 +58,9 @@ entreprise, auto-hébergé sur un Raspberry Pi.
   - nom et description en allemand facultatifs, repris sur les documents en allemand ;
   - regroupement par catégorie, recherche, filtres, duplication, désactivation ;
   - pré-rempli avec 11 exemples aux prix fictifs, à ajuster.
+- **Tarifs publics pour le site vitrine** : `<APP_URL>/tarif.php` renvoie en JSON toutes les
+  prestations actives du catalogue (prix, unités, catégories, FR/DE), sans connexion. Voir
+  [`docs/TARIFS_SITE_VITRINE.md`](docs/TARIFS_SITE_VITRINE.md).
 - **Devis** :
   - éditeur : client (recherche), dates, langue FR/DE, type de site, lignes du catalogue ou
     libres (quantités décimales, unité, prix, remise en % ou en CHF), ordre modifiable, textes
@@ -142,6 +146,16 @@ entreprise, auto-hébergé sur un Raspberry Pi.
     localité), types de site demandés et vendus, revenu récurrent (MRR) ;
   - raccourcis « Nouveau devis », « Nouveau client » et « Enregistrer un paiement » (choix de la
     facture, puis paiement).
+- **Discussions** entre utilisateurs (menu « Discussions ») :
+  - un **canal général**, ouvert à tous, et des **discussions par client** (sujet + messages),
+    démarrées depuis la fiche du client ou la page Discussions ;
+  - pastilles des **messages non lus** (menu, liste, fiche client), mise à jour automatique des
+    fils ouverts (toutes les 5 secondes), liens cliquables ;
+  - **lecture seule** : consulte les discussions sans y écrire ; supprimer un client supprime
+    ses discussions ; elles figurent dans l'export de ses données (nLPD).
+- **Notifications** de l'ordinateur ou du téléphone (Windows, macOS, Android) pour les nouveaux
+  messages, même application fermée : menu utilisateur → « Activer les notifications », sur
+  chaque appareil (Web Push, clés `VAPID_*` dans `.env`).
 - **Recherche globale** (Ctrl+K) : clients (nom, localité, email, téléphone), devis et factures
   (numéro, objet).
 - **Navigation** latérale (repliable, en tiroir sur téléphone), thème clair / sombre / système.
@@ -265,5 +279,7 @@ devra-gestion/
   Linux exploité par un agent (compte restreint, commande `claude-devra`).
 - [`docs/SAUVEGARDES.md`](docs/SAUVEGARDES.md) : fonctionnement des sauvegardes, copie hors du
   Raspberry Pi, vérification et restauration.
+- [`docs/TARIFS_SITE_VITRINE.md`](docs/TARIFS_SITE_VITRINE.md) : tarifs publics (`/tarif.php`)
+  pour le site vitrine, format et exemples PHP / JavaScript.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) : choix techniques et leurs raisons.
 - [`.env.example`](.env.example) : toutes les variables de configuration, commentées.

@@ -6,6 +6,13 @@ export const ADMIN = {
   password: "Admin-E2E-Password",
 };
 
+/** Clés VAPID de test (notifications) : générées pour les tests, sans valeur ailleurs. */
+export const VAPID_TEST_KEYS = {
+  publicKey:
+    "BIELAdX7eaaw55gZUrTvd-M9sXKQZlEzw0s8GH9o_DU9tRRJVT4-61yV4QyyyvcSj95Jl-s_Mu5TcVAye_ENwW0",
+  privateKey: "ChK1Hod3Lk7QC-lW1W08_hpBAfBpDBYcw95s3TWV8O4",
+};
+
 /** Secret de la route des tâches quotidiennes (appelée par le conteneur cron). */
 export const CRON_SECRET = "e2e-cron-secret-0123456789abcdef0123456789";
 

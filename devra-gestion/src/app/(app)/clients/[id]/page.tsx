@@ -7,6 +7,8 @@ import {
   GlobeIcon,
   MailIcon,
   MapPinIcon,
+  MessageSquareIcon,
+  MessageSquarePlusIcon,
   PhoneIcon,
   ReceiptTextIcon,
   RepeatIcon,
@@ -15,6 +17,7 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClientActions } from "@/app/(app)/clients/[id]/client-actions";
+import { DiscussionList } from "@/components/discussions/discussion-list";
 import { InvoicesList } from "@/components/documents/invoices-list";
 import { SubscriptionsList } from "@/components/documents/subscriptions-list";
 import { QuotesList } from "@/components/documents/quotes-list";
@@ -28,6 +31,7 @@ import { countryName } from "@/domain/countries";
 import { canEdit } from "@/domain/roles";
 import { formatChf, formatDate, formatDateTime } from "@/lib/format";
 import { getClient, getClientActivity } from "@/modules/clients/service";
+import { listDiscussions } from "@/modules/discussions/service";
 import { clientInvoiceSummary, listClientInvoices } from "@/modules/invoices/service";
 import { listClientQuotes } from "@/modules/quotes/service";
 import { listClientSubscriptions } from "@/modules/subscriptions/service";
@@ -55,14 +59,16 @@ function Row({ icon: Icon, children }: { icon: typeof MailIcon; children: React.
 export default async function ClientPage({ params }: PageProps<"/clients/[id]">) {
   const user = await requireUser();
   const { id } = await params;
-  const [client, activity, quotes, invoices, summary, subscriptions] = await Promise.all([
-    getClient(id),
-    getClientActivity(id),
-    listClientQuotes(id),
-    listClientInvoices(id),
-    clientInvoiceSummary(id),
-    listClientSubscriptions(id),
-  ]);
+  const [client, activity, quotes, invoices, summary, subscriptions, discussions] =
+    await Promise.all([
+      getClient(id),
+      getClientActivity(id),
+      listClientQuotes(id),
+      listClientInvoices(id),
+      clientInvoiceSummary(id),
+      listClientSubscriptions(id),
+      listDiscussions(user.id, { clientId: id }),
+    ]);
   if (!client) notFound();
 
   const address = [
@@ -269,6 +275,28 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
               ) : (
                 <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
                   <RepeatIcon className="size-5" /> Aucun abonnement pour ce client.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Discussions</CardTitle>
+              {canEdit(user.role) && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/discussions/nouvelle?client=${client.id}`}>
+                    <MessageSquarePlusIcon /> Nouvelle discussion
+                  </Link>
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="text-sm">
+              {discussions.length > 0 ? (
+                <DiscussionList discussions={discussions} showClient={false} />
+              ) : (
+                <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
+                  <MessageSquareIcon className="size-5" /> Aucune discussion sur ce client.
                 </div>
               )}
             </CardContent>

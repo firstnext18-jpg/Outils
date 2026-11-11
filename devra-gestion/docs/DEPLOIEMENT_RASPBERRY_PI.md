@@ -181,17 +181,18 @@ nano .env
 
 Chaque variable est expliquée dans le fichier. À renseigner au minimum :
 
-| Variable                                                                           | Valeur                                                                  |
-| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `APP_URL`                                                                          | `https://gestion.devra.ch`                                              |
-| `BETTER_AUTH_SECRET`                                                               | `openssl rand -base64 32`                                               |
-| `POSTGRES_PASSWORD`                                                                | `openssl rand -hex 24` (lettres et chiffres uniquement)                 |
-| `CRON_SECRET`                                                                      | `openssl rand -base64 32`                                               |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | serveur d'envoi (ex. Infomaniak : `mail.infomaniak.com`, `465`, `true`) |
-| `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`                                      | le premier compte administrateur                                        |
-| `BACKUP_DIR`                                                                       | `/mnt/sauvegardes/devra`                                                |
-| `IMAGE_REGISTRY`                                                                   | `ghcr.io/firstnext18-jpg` (images construites par GitHub)               |
-| `AUTH_IP_HEADER`, `COMPOSE_FILE` et la suite                                       | selon l'option HTTPS choisie (section suivante)                         |
+| Variable                                                                           | Valeur                                                                      |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `APP_URL`                                                                          | `https://gestion.devra.ch`                                                  |
+| `BETTER_AUTH_SECRET`                                                               | `openssl rand -base64 32`                                                   |
+| `POSTGRES_PASSWORD`                                                                | `openssl rand -hex 24` (lettres et chiffres uniquement)                     |
+| `CRON_SECRET`                                                                      | `openssl rand -base64 32`                                                   |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | serveur d'envoi (ex. Infomaniak : `mail.infomaniak.com`, `465`, `true`)     |
+| `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`                                      | le premier compte administrateur                                            |
+| `BACKUP_DIR`                                                                       | `/mnt/sauvegardes/devra`                                                    |
+| `IMAGE_REGISTRY`                                                                   | `ghcr.io/firstnext18-jpg` (images construites par GitHub)                   |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`                                            | notifications des discussions : voir section 10, après le premier lancement |
+| `AUTH_IP_HEADER`, `COMPOSE_FILE` et la suite                                       | selon l'option HTTPS choisie (section suivante)                             |
 
 Pour générer les secrets :
 
@@ -312,6 +313,16 @@ Tous les services redémarrent seuls après une coupure de courant (`restart: un
 
 8. Faites un devis de test et envoyez-le-vous par email, puis une facture : scannez la
    QR-facture avec l'application de votre banque (sans valider le paiement).
+9. **Notifications des discussions** (facultatif) : créez les clés, puis redémarrez :
+
+   ```bash
+   docker compose run --rm --no-deps app node docker/vapid-keys.mjs >> .env
+   docker compose up -d --no-build
+   ```
+
+   Chaque utilisateur les active ensuite sur ses appareils : menu utilisateur → « Activer les
+   notifications ». Ne régénérez pas ces clés par la suite (chaque appareil devrait les
+   réactiver).
 
 ## 11. Mettre à jour l'application
 

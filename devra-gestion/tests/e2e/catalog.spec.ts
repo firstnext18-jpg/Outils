@@ -129,3 +129,46 @@ test("lecture seule : consulte le catalogue sans pouvoir le modifier", async ({ 
   await expect(page.getByRole("button", { name: "Nouvelle prestation" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Actions pour/ })).toHaveCount(0);
 });
+
+test("tarifs publics : /tarif.php sans connexion, prestations actives seulement", async ({
+  page,
+  request,
+}) => {
+  type PriceList = {
+    devise: string;
+    tva: { assujettie: boolean };
+    categories: {
+      categorie: string | null;
+      prestations: { nom: string; nomDe: string; prix: number; prixTexte: string }[];
+    }[];
+  };
+  const prices = async () => {
+    const response = await request.get("/tarif.php");
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toContain("application/json");
+    expect(response.headers()["access-control-allow-origin"]).toBe("*");
+    const list = (await response.json()) as PriceList;
+    return list.categories.flatMap((c) =>
+      c.prestations.map((p) => ({ ...p, categorie: c.categorie })),
+    );
+  };
+
+  const published = await prices();
+  expect(published.find((p) => p.nom === "Formation WordPress")).toMatchObject({
+    categorie: "Prestations à l'heure",
+    nomDe: "WordPress-Schulung",
+    // Prix modifié par le test « modification et duplication ».
+    prix: 135,
+    prixTexte: "CHF 135.00 / h",
+  });
+  // Supprimée plus haut : absente.
+  expect(published.find((p) => p.nom === "Formation WordPress avancée")).toBeUndefined();
+
+  // Désactivée : retirée de la liste publique.
+  await login(page, ADMIN.email, ADMIN.password);
+  await page.goto("/catalogue");
+  await openActions(page, "Formation WordPress");
+  await page.getByRole("menuitem", { name: "Désactiver" }).click();
+  await expect(page.getByText("Prestation désactivée.")).toBeVisible();
+  expect((await prices()).find((p) => p.nom === "Formation WordPress")).toBeUndefined();
+});

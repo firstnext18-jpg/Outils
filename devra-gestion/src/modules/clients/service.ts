@@ -324,11 +324,26 @@ export async function exportClientData(actor: CurrentUser, id: string) {
     },
   });
   if (!client) return null;
-  const activity = await db.activityLog.findMany({
-    where: { entityType: "client", entityId: id },
-    orderBy: { createdAt: "asc" },
-    select: { action: true, createdAt: true, details: true, user: { select: { name: true } } },
-  });
+  const [activity, discussions] = await Promise.all([
+    db.activityLog.findMany({
+      where: { entityType: "client", entityId: id },
+      orderBy: { createdAt: "asc" },
+      select: { action: true, createdAt: true, details: true, user: { select: { name: true } } },
+    }),
+    // Les discussions internes sur le client contiennent aussi des données le concernant.
+    db.discussion.findMany({
+      where: { clientId: id },
+      orderBy: { createdAt: "asc" },
+      select: {
+        title: true,
+        createdAt: true,
+        messages: {
+          orderBy: { createdAt: "asc" },
+          select: { createdAt: true, body: true, author: { select: { name: true } } },
+        },
+      },
+    }),
+  ]);
   await logActivity({
     userId: actor.id,
     action: "client.data_exported",
@@ -357,6 +372,15 @@ export async function exportClientData(actor: CurrentUser, id: string) {
       action: entry.action,
       user: entry.user?.name ?? null,
       details: entry.details,
+    })),
+    discussions: discussions.map((discussion) => ({
+      title: discussion.title,
+      date: discussion.createdAt.toISOString(),
+      messages: discussion.messages.map((message) => ({
+        date: message.createdAt.toISOString(),
+        author: message.author?.name ?? null,
+        body: message.body,
+      })),
     })),
   };
 }

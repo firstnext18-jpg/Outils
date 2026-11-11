@@ -37,6 +37,27 @@ export function listCatalogItems(params: CatalogListParams) {
 
 export type CatalogItemRow = Awaited<ReturnType<typeof listCatalogItems>>[number];
 
+/** Prestations actives publiées sur /tarif.php (site vitrine). */
+export function listPublicCatalogItems() {
+  return db.catalogItem.findMany({
+    where: { active: true },
+    orderBy: [{ category: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      nameDe: true,
+      description: true,
+      descriptionDe: true,
+      category: true,
+      lineType: true,
+      unit: true,
+      unitPriceCents: true,
+      periodicity: true,
+      updatedAt: true,
+    },
+  });
+}
+
 export async function listCatalogCategories(): Promise<string[]> {
   const rows = await db.catalogItem.findMany({
     where: { category: { not: "" } },

@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NotificationsMenuItem } from "@/components/layout/notifications-menu-item";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { ROLE_LABELS } from "@/domain/roles";
 import { authClient } from "@/lib/auth-client";
@@ -26,7 +27,13 @@ function initials(name: string): string {
     .join("");
 }
 
-export function UserMenu({ user }: { user: CurrentUser }) {
+export function UserMenu({
+  user,
+  pushPublicKey,
+}: {
+  user: CurrentUser;
+  pushPublicKey: string | null;
+}) {
   const router = useRouter();
 
   async function signOut() {
@@ -69,6 +76,7 @@ export function UserMenu({ user }: { user: CurrentUser }) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <NotificationsMenuItem publicKey={pushPublicKey} />
             <DropdownMenuItem onSelect={signOut}>
               <LogOutIcon /> Se déconnecter
             </DropdownMenuItem>

@@ -22,6 +22,7 @@ export const JOURNAL_CATEGORIES = {
   utilisateurs: { label: "Utilisateurs", prefixes: ["user."] },
   parametres: { label: "Paramètres", prefixes: ["settings."] },
   exports: { label: "Exports", prefixes: ["export."] },
+  discussions: { label: "Discussions", prefixes: ["discussion."] },
 } as const;
 
 export type JournalCategory = keyof typeof JOURNAL_CATEGORIES;
@@ -154,6 +155,12 @@ export function journalSentence(entry: JournalEntry): string {
     case "payment.deleted":
       return `a supprimé un paiement de ${text(data.amount)} sur la facture ${label}`;
 
+    // Discussions
+    case "discussion.created":
+      return data.client
+        ? `a démarré la discussion ${quoted} sur le client « ${text(data.client)} »`
+        : `a démarré la discussion ${quoted}`;
+
     // Abonnements
     case "subscription.created":
       return data.fromQuote
@@ -231,6 +238,8 @@ export function journalHref(entityType: string | null, entityId: string | null):
       return `/factures/${entityId}`;
     case "subscription":
       return `/abonnements/${entityId}`;
+    case "discussion":
+      return `/discussions/${entityId}`;
     default:
       return null;
   }

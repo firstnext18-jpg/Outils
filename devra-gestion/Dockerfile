@@ -50,6 +50,8 @@ COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
 # Planificateur des tâches quotidiennes (service « cron » de compose.yaml).
 COPY --chown=node:node docker/cron/scheduler.mjs ./docker/cron/scheduler.mjs
+# Génération des clés des notifications (voir docs/DEPLOIEMENT_SERVEUR.md).
+COPY --chown=node:node docker/vapid-keys.mjs ./docker/vapid-keys.mjs
 
 RUN mkdir -p /data && chown node:node /data
 VOLUME ["/data"]

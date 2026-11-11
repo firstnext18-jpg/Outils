@@ -549,6 +549,55 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   vérification, démarrage/arrêt) : l'agent ne peut ni lire les secrets, ni modifier les fichiers
   compose (ce qui équivaudrait à un accès root via Docker), ni restaurer ou supprimer des données.
 
+## Discussions et notifications
+
+- **Deux sortes de discussions** dans une même table : le **canal général** (sans client,
+  identifiant fixe `general`, recréé s'il manque, par exemple après une remise à zéro) et les
+  discussions **sur un client** (sujet + premier message), aussi nombreuses que nécessaire.
+  Supprimer un client supprime ses discussions (le dialogue de suppression le dit).
+- **Messages non lus** : pour chaque utilisateur et chaque discussion, la date de dernière
+  lecture (`discussion_read`). Sont non lus les messages des autres écrits depuis ; pour une
+  discussion jamais ouverte, depuis la création du compte (un nouvel utilisateur ne reçoit pas
+  tout l'historique en « non lu »). La discussion est marquée lue quand son fil s'affiche dans un
+  onglet visible (action appelée par la page, pas au rendu serveur, pour qu'un préchargement de
+  lien ne la marque pas lue).
+- **Mise à jour des fils** par rafraîchissement régulier de la page (`router.refresh()` toutes
+  les 5 secondes, 15 sur la liste, seulement quand l'onglet est visible) plutôt que par
+  WebSocket : quelques utilisateurs, rien à ajouter au serveur ni au tunnel Cloudflare, et la
+  saisie en cours n'est pas perdue.
+- **Lecture seule** : consulte et lit (marquage « lu »), n'écrit pas ni ne démarre de discussion.
+- **Journal** : la création d'une discussion y figure (catégorie « Discussions ») ; pas chaque
+  message, qui noierait le journal.
+- **Notifications Web Push** (standard des navigateurs, bibliothèque `web-push`) : elles
+  arrivent comme des notifications Windows (ou macOS, Android) même quand l'application n'est
+  pas ouverte, tant que le navigateur tourne. Chaque appareil s'abonne depuis le menu
+  utilisateur ; le service worker (`public/sw.js`) affiche la notification et ouvre la
+  discussion au clic, sauf si elle est déjà affichée devant l'utilisateur. Le contenu (client,
+  sujet, début du message) est chiffré de bout en bout jusqu'au navigateur (RFC 8291) : le
+  service de notification du navigateur (Google, Microsoft, Mozilla) ne peut pas le lire.
+  Envoi après la réponse (`after()`), pour que l'envoi d'un message reste immédiat ; abonnements
+  expirés supprimés automatiquement.
+- **Clés VAPID dans `.env`** (secrets) : sans elles, les notifications sont simplement
+  désactivées (menu « Notifications non configurées ») ; des clés invalides sont signalées dans
+  le journal du serveur sans empêcher l'application de démarrer. `installer.sh` les génère (avec
+  openssl seul), et `docker/vapid-keys.mjs` dans l'image permet de les créer sur une
+  installation existante.
+
+## Tarifs publics (site vitrine)
+
+- **Adresse `/tarif.php`**, demandée telle quelle pour le site vitrine ; c'est une route de
+  l'application (Next.js), pas un fichier PHP. Réponse **JSON** (choix de l'utilisateur) :
+  le site vitrine garde son propre design.
+- **Toutes les prestations actives du catalogue** sont publiées (choix de l'utilisateur, plutôt
+  qu'une case « publier » par prestation) : désactiver une prestation la retire du site.
+  Seuls les champs utiles au site sont exposés (pas d'auteur, de recherche, de version).
+- **Public et lisible depuis n'importe quel site** (`Access-Control-Allow-Origin: *`) : ce sont
+  des prix destinés à être affichés publiquement. Cache navigateur de 5 minutes.
+- Textes prêts à afficher (`prixTexte` : « CHF 90.00 / h », « CHF 29.00 par mois ») calculés
+  avec les mêmes libellés que les documents, en plus des valeurs brutes (francs, centimes,
+  unité, périodicité) ; informations de TVA pour présenter les prix correctement (hors TVA si
+  l'entreprise est assujettie).
+
 ## Interface
 
 - **Interface en français, sans bibliothèque de traduction.** Les traductions FR/DE ne concernent
