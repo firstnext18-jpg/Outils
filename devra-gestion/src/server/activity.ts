@@ -59,7 +59,14 @@ export type ActivityAction =
   | "export.accounting"
   | "export.pdfs"
   | "quote.accepted_online"
-  | "quote.refused_online";
+  | "quote.refused_online"
+  | "portal.access_created"
+  | "portal.password_regenerated"
+  | "portal.access_disabled"
+  | "portal.access_enabled"
+  | "portal.credentials_emailed"
+  | "portal.password_changed"
+  | "portal.password_reset";
 
 export type ActivityEntry = {
   userId: string | null;

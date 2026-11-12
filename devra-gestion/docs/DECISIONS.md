@@ -603,10 +603,51 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   unité, périodicité) ; informations de TVA pour présenter les prix correctement (hors TVA si
   l'entreprise est assujettie).
 
+## Espace client
+
+- **Comptes et sessions séparés de ceux de l'équipe** : tables `client_account` et
+  `client_session`, cookie `__Host-espace-client` (HTTPS), au lieu d'un rôle « client » dans
+  Better Auth. Une session client ne peut ainsi jamais satisfaire une vérification de l'outil de
+  gestion (`requireUser`, `authAction`), même en cas d'oubli dans une page : les deux mondes ne
+  partagent ni cookie ni table. Le jeton de session (256 bits) n'est stocké qu'en empreinte
+  SHA-256 ; la session expire après 7 jours sans visite et au plus tard 30 jours après la
+  connexion ; elle est relue en base à chaque requête (désactivation immédiate).
+- **Identifiant et mot de passe générés** à la création de l'accès, depuis la fiche client :
+  identifiant « k7m3-q9xp » (sans caractères ambigus, majuscules et espaces tolérés à la
+  saisie), mot de passe de 16 caractères (≈ 92 bits). Le mot de passe en clair n'existe que dans
+  la fenêtre affichée à l'équipe et, si elle le demande, dans l'email au client ; la base n'a que
+  son empreinte Argon2id. Le bouton « Envoyer par email » renvoie le mot de passe affiché au
+  serveur, qui vérifie qu'il correspond à l'empreinte avant de l'envoyer.
+- **Protection contre la force brute** : tentatives comptées par adresse IP dans la table
+  `rate_limit` (clés préfixées `espace-client:`), 10 connexions par 5 minutes, 3 demandes
+  « mot de passe oublié » par 5 minutes ; mêmes réponses et même durée de vérification qu'un
+  identifiant existe ou non. Lien « mot de passe oublié » : 1 heure, usage unique, envoyé à
+  l'adresse de la fiche client (le client saisit son identifiant ou cette adresse).
+- **Ce que voit le client** : chaque requête part de l'identifiant du client de la session, jamais
+  d'une valeur envoyée par le navigateur. Devis hors brouillons, factures émises (pas les
+  brouillons), abonnements, PDF par des routes dédiées (`/api/espace-client/…`) qui vérifient que
+  le document est à lui. « À payer » : solde frais de relance compris, nouvelle échéance de la
+  dernière relance, compte et référence de la QR-facture pour un paiement par e-banking.
+- **Réponse aux devis** depuis l'espace : même enregistrement que la page d'acceptation en ligne
+  (nom saisi, adresse IP, verrou contre deux décisions simultanées, email à l'équipe), avec la
+  mention « depuis l'espace client ». Disponible même si l'acceptation par lien est désactivée
+  dans les paramètres : le client est identifié.
+- **Discussion avec le client** : une discussion de la même table, marquée par `portalClientId`
+  (unique : une par client), créée avec l'accès. Les discussions internes n'ont pas ce champ et
+  ne sont jamais lues par l'espace client. Messages du client : `fromClient`, sans auteur. Côté
+  équipe, la discussion est signalée « Visible par le client », avec un avertissement au-dessus
+  du fil ; le client compte parmi les lecteurs des accusés de lecture. Côté client : « Lu par
+  l'équipe » (sans nommer les personnes). Un **email au client** par série de messages non
+  lus (`clientNotifiedAt`), pour ne pas lui en envoyer un par message.
+- **Langue** : celle de la fiche client (FR ou DE) dans l'espace et les emails ; avant la
+  connexion, celle du navigateur ou du lien (`?langue=de`).
+- **Journal** : catégorie « Espace client » (accès créé, désactivé, réactivé, nouveau mot de
+  passe, identifiants envoyés, mot de passe changé ou réinitialisé par le client).
+
 ## Interface
 
 - **Interface en français, sans bibliothèque de traduction.** Les traductions FR/DE ne concernent
-  que les documents envoyés aux clients (phase 4), dans des fichiers séparés.
+  que les documents envoyés aux clients (phase 4) et l'espace client, dans des fichiers séparés.
 - **Formats suisses** : dates `JJ.MM.AAAA` et montants `CHF 1'250.00`, avec une apostrophe droite
   (et non l'apostrophe typographique que produit `Intl` pour `de-CH`). Fuseau Europe/Zurich partout.
 - **Mode clair / sombre** avec `next-themes` : choix mémorisé sur l'appareil (par défaut : celui du

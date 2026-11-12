@@ -35,8 +35,16 @@ export const createDiscussionAction = authAction(
 export const postMessageAction = authAction(
   { role: "MEMBER", schema: postMessageSchema },
   async (input, { user }) => {
-    const { id, notification } = await service.postMessage(user, input);
+    const { id, withClient, notification } = await service.postMessage(user, input);
     notifyLater(user, id, notification);
+    // Discussion avec le client : il est prévenu par email.
+    if (withClient) {
+      after(() =>
+        service.notifyClient(user, id, input.body).catch((error: unknown) => {
+          console.error("Email au client impossible", error);
+        }),
+      );
+    }
     return null;
   },
 );

@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClientActions } from "@/app/(app)/clients/[id]/client-actions";
+import { PortalAccessCard } from "@/app/(app)/clients/[id]/portal-access-card";
 import { DiscussionList } from "@/components/discussions/discussion-list";
 import { InvoicesList } from "@/components/documents/invoices-list";
 import { SubscriptionsList } from "@/components/documents/subscriptions-list";
@@ -24,17 +25,20 @@ import { QuotesList } from "@/components/documents/quotes-list";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { describeActivity } from "@/domain/activity";
+import { activityActor, describeActivity } from "@/domain/activity";
 import { cantonName } from "@/domain/cantons";
 import { CLIENT_KIND_LABELS, LANGUAGE_LABELS } from "@/domain/clients";
 import { countryName } from "@/domain/countries";
+import { portalUrl } from "@/domain/portal";
 import { canEdit } from "@/domain/roles";
 import { formatChf, formatDate, formatDateTime } from "@/lib/format";
 import { getClient, getClientActivity } from "@/modules/clients/service";
-import { listDiscussions } from "@/modules/discussions/service";
+import { clientDiscussionId, listDiscussions } from "@/modules/discussions/service";
 import { clientInvoiceSummary, listClientInvoices } from "@/modules/invoices/service";
 import { listClientQuotes } from "@/modules/quotes/service";
+import { getPortalAccess } from "@/modules/portal/access";
 import { listClientSubscriptions } from "@/modules/subscriptions/service";
+import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
 
 export async function generateMetadata({ params }: PageProps<"/clients/[id]">): Promise<Metadata> {
@@ -59,16 +63,27 @@ function Row({ icon: Icon, children }: { icon: typeof MailIcon; children: React.
 export default async function ClientPage({ params }: PageProps<"/clients/[id]">) {
   const user = await requireUser();
   const { id } = await params;
-  const [client, activity, quotes, invoices, summary, subscriptions, discussions] =
-    await Promise.all([
-      getClient(id),
-      getClientActivity(id),
-      listClientQuotes(id),
-      listClientInvoices(id),
-      clientInvoiceSummary(id),
-      listClientSubscriptions(id),
-      listDiscussions(user.id, { clientId: id }),
-    ]);
+  const [
+    client,
+    activity,
+    quotes,
+    invoices,
+    summary,
+    subscriptions,
+    discussions,
+    portalAccess,
+    portalDiscussionId,
+  ] = await Promise.all([
+    getClient(id),
+    getClientActivity(id),
+    listClientQuotes(id),
+    listClientInvoices(id),
+    clientInvoiceSummary(id),
+    listClientSubscriptions(id),
+    listDiscussions(user.id, { clientId: id }),
+    getPortalAccess(id),
+    clientDiscussionId(id),
+  ]);
   if (!client) notFound();
 
   const address = [
@@ -185,6 +200,25 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
               )}
             </CardContent>
           </Card>
+
+          <PortalAccessCard
+            clientId={client.id}
+            clientEmail={client.email}
+            portalAddress={portalUrl(env().APP_URL)}
+            access={
+              portalAccess && {
+                login: portalAccess.login,
+                active: portalAccess.active,
+                createdAt: formatDate(portalAccess.createdAt),
+                createdBy: portalAccess.createdBy?.name ?? null,
+                lastLoginAt: portalAccess.lastLoginAt && formatDateTime(portalAccess.lastLoginAt),
+                passwordChangedAt:
+                  portalAccess.passwordChangedAt && formatDate(portalAccess.passwordChangedAt),
+              }
+            }
+            discussionId={portalDiscussionId}
+            canEdit={canEdit(user.role)}
+          />
 
           {client.notes && (
             <Card>
@@ -314,7 +348,9 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
                       {formatDateTime(entry.createdAt)}
                     </time>
                     <span>
-                      <span className="font-medium">{entry.user?.name ?? "Système"}</span>{" "}
+                      <span className="font-medium">
+                        {activityActor(entry.user, entry.details)}
+                      </span>{" "}
                       {describeActivity(entry.action, entry.details)}
                     </span>
                   </li>

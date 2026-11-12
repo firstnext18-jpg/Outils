@@ -116,6 +116,26 @@ describe("emails simples (invitation, mot de passe, notification)", () => {
     expect(html).toContain(">Choisir un nouveau mot de passe</a>");
     expect(html).toContain("Si le bouton ne fonctionne pas");
   });
+
+  it("en allemand, avec un encadré d'identifiants (espace client)", () => {
+    const { text, html } = renderSimpleEmail({
+      branding,
+      language: "DE",
+      title: "Zugang",
+      greeting: "Guten Tag",
+      paragraphs: ["Ab sofort haben Sie Zugang zu Ihrem Kundenportal."],
+      details: [
+        { label: "Benutzername", value: "k7m3-q9xp" },
+        { label: "Passwort", value: "Xk7m-Q9xp-3Hnr-Wz4d" },
+      ],
+      action: { label: "Kundenportal öffnen", url: "https://gestion.example.ch/espace-client" },
+    });
+    expect(text).toContain("Benutzername: k7m3-q9xp\nPasswort: Xk7m-Q9xp-3Hnr-Wz4d");
+    expect(text).toContain("Kundenportal öffnen: https://gestion.example.ch/espace-client");
+    expect(html).toContain('<html lang="de">');
+    expect(html).toContain(">Xk7m-Q9xp-3Hnr-Wz4d</td>");
+    expect(html).toContain("Falls die Schaltfläche nicht funktioniert");
+  });
 });
 
 describe("pied des emails", () => {

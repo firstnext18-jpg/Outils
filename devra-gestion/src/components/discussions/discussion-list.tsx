@@ -1,4 +1,4 @@
-import { HashIcon, MessageSquareIcon } from "lucide-react";
+import { HashIcon, MessageSquareIcon, MessagesSquareIcon } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/format";
@@ -16,7 +16,7 @@ export function DiscussionList({
   return (
     <ul className="divide-y rounded-md border" aria-label="Discussions">
       {discussions.map((d) => {
-        const Icon = d.general ? HashIcon : MessageSquareIcon;
+        const Icon = d.general ? HashIcon : d.withClient ? MessagesSquareIcon : MessageSquareIcon;
         return (
           <li key={d.id}>
             <Link
@@ -36,6 +36,11 @@ export function DiscussionList({
                   )}
                   {d.general && (
                     <span className="text-muted-foreground text-sm">Tous les utilisateurs</span>
+                  )}
+                  {d.withClient && (
+                    <Badge variant="secondary" className="self-center">
+                      Visible par le client
+                    </Badge>
                   )}
                 </div>
                 <p className="text-muted-foreground truncate text-sm">

@@ -120,9 +120,9 @@ export function ClientActions({
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer définitivement {client.displayName} ?</AlertDialogTitle>
             <AlertDialogDescription>
-              La fiche et ses discussions seront effacées, et cette action ne peut pas être annulée.
-              Pour simplement retirer ce client de la liste en gardant son historique, archivez-le
-              plutôt.
+              La fiche, ses discussions et son accès à l&apos;espace client seront effacés, et cette
+              action ne peut pas être annulée. Pour simplement retirer ce client de la liste en
+              gardant son historique, archivez-le plutôt.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

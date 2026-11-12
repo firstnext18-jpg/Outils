@@ -17,6 +17,9 @@ const PUBLIC_PATHS = [
   "/sw.js",
   // Tarifs publics, lus par le site vitrine (voir docs/TARIFS_SITE_VITRINE.md).
   "/tarif.php",
+  // Espace client : connexion et session à part (voir src/server/portal-session.ts),
+  // vérifiées dans chaque page de l'espace.
+  "/espace-client",
 ];
 
 export function proxy(request: NextRequest) {

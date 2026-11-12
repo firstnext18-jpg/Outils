@@ -1,4 +1,5 @@
 import "server-only";
+import { CLIENT_DISCUSSION_TITLE } from "@/domain/portal";
 import {
   GENERAL_DISCUSSION_ID,
   GENERAL_DISCUSSION_TITLE,
@@ -9,6 +10,7 @@ import {
 import { logActivity } from "@/server/activity";
 import { UserError } from "@/server/action";
 import { db } from "@/server/db";
+import { sendPortalMessageEmail } from "@/server/emails/portal-emails";
 import { sendPush, sendPushToEndpoint } from "@/server/push";
 import type { CurrentUser } from "@/server/session";
 import type { PushSubscriptionInput } from "@/modules/discussions/schemas";
@@ -19,6 +21,40 @@ async function ensureGeneralDiscussion() {
     data: [{ id: GENERAL_DISCUSSION_ID, title: GENERAL_DISCUSSION_TITLE }],
     skipDuplicates: true,
   });
+}
+
+/**
+ * Discussion avec le client (visible dans son espace client), créée avec son
+ * accès. Une seule par client : l'identifiant du client est unique dans
+ * `portalClientId`.
+ */
+export async function ensureClientDiscussion(clientId: string) {
+  await db.discussion.createMany({
+    data: [{ clientId, portalClientId: clientId, title: CLIENT_DISCUSSION_TITLE }],
+    skipDuplicates: true,
+  });
+  return db.discussion.findUniqueOrThrow({
+    where: { portalClientId: clientId },
+    select: { id: true },
+  });
+}
+
+/** Identifiant de la discussion avec le client, si elle existe. */
+export async function clientDiscussionId(clientId: string): Promise<string | null> {
+  const discussion = await db.discussion.findUnique({
+    where: { portalClientId: clientId },
+    select: { id: true },
+  });
+  return discussion?.id ?? null;
+}
+
+/** Auteur affiché d'un message : la personne de l'équipe, ou le client. */
+function messageAuthor(
+  message: { fromClient: boolean; author: { name: string } | null },
+  clientName: string | undefined,
+) {
+  if (message.fromClient) return clientName ?? "Client";
+  return message.author?.name ?? "Ancien utilisateur";
 }
 
 /**
@@ -70,8 +106,10 @@ export async function listDiscussions(userId: string, filter: { clientId?: strin
       general: isGeneralDiscussion(d.id),
       client: d.client,
       lastMessageAt: d.lastMessageAt,
+      /** Discussion avec le client : visible dans son espace client. */
+      withClient: d.portalClientId !== null,
       lastMessage: last
-        ? { author: last.author?.name ?? "Ancien utilisateur", excerpt: messageExcerpt(last.body) }
+        ? { author: messageAuthor(last, d.client?.displayName), excerpt: messageExcerpt(last.body) }
         : null,
       messageCount: d._count.messages,
       unread: unread.get(d.id) ?? 0,
@@ -107,10 +145,12 @@ export async function getDiscussion(id: string, options: { all?: boolean } = {})
       select: { userId: true, lastReadAt: true, user: { select: { name: true } } },
     }),
   ]);
+  const clientName = discussion.client?.displayName;
   return {
     ...discussion,
     general: isGeneralDiscussion(discussion.id),
-    messages: messages.reverse(),
+    withClient: discussion.portalClientId !== null,
+    messages: messages.reverse().map((m) => ({ ...m, authorName: messageAuthor(m, clientName) })),
     reads: reads.map((r) => ({ userId: r.userId, name: r.user.name, lastReadAt: r.lastReadAt })),
     hiddenCount: Math.max(0, discussion._count.messages - messages.length),
   };
@@ -189,6 +229,7 @@ export async function postMessage(
   ]);
   return {
     id: discussion.id,
+    withClient: discussion.portalClientId !== null,
     notification: {
       title: discussion.client
         ? `${discussion.client.displayName} · ${discussion.title}`
@@ -196,6 +237,45 @@ export async function postMessage(
       body: `${actor.name} : ${messageExcerpt(input.body, 140)}`,
     },
   };
+}
+
+/**
+ * Prévient le client par email d'un nouveau message de l'équipe dans sa
+ * discussion. Un seul email tant qu'il n'a pas lu les messages précédents :
+ * plusieurs messages d'affilée ne font pas plusieurs emails.
+ */
+export async function notifyClient(actor: CurrentUser, discussionId: string, body: string) {
+  const discussion = await db.discussion.findUnique({
+    where: { id: discussionId },
+    select: {
+      id: true,
+      portalClientId: true,
+      clientReadAt: true,
+      clientNotifiedAt: true,
+      client: {
+        select: {
+          displayName: true,
+          email: true,
+          language: true,
+          account: { select: { active: true } },
+        },
+      },
+    },
+  });
+  const client = discussion?.client;
+  if (!discussion?.portalClientId || !client?.email || !client.account?.active) return;
+  const alreadyNotified =
+    discussion.clientNotifiedAt !== null &&
+    (discussion.clientReadAt === null || discussion.clientNotifiedAt > discussion.clientReadAt);
+  if (alreadyNotified) return;
+  await db.discussion.update({
+    where: { id: discussion.id },
+    data: { clientNotifiedAt: new Date() },
+  });
+  await sendPortalMessageEmail(
+    { name: client.displayName, email: client.email, language: client.language },
+    { author: actor.name, excerpt: messageExcerpt(body, 300) },
+  );
 }
 
 /** L'utilisateur a lu la discussion jusqu'ici. */

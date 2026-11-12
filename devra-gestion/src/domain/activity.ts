@@ -16,8 +16,10 @@ const QUOTE_STATUS_SENTENCES: Record<string, string> = {
  */
 export function activityActor(user: { name: string } | null, details: unknown): string {
   if (user) return user.name;
-  const data = (details ?? {}) as { onlineName?: unknown };
-  if (typeof data.onlineName === "string") return `${data.onlineName} (client, en ligne)`;
+  const data = (details ?? {}) as { onlineName?: unknown; portal?: unknown };
+  if (typeof data.onlineName === "string") {
+    return `${data.onlineName} (client, ${data.portal ? "espace client" : "en ligne"})`;
+  }
   return "Système";
 }
 
@@ -104,11 +106,29 @@ export function describeActivity(action: string, details: unknown): string {
     case "subscription.invoiced":
       return `a généré la facture de la période ${String(data.period ?? "")}`;
     case "quote.accepted_online":
-      return "a accepté le devis en ligne";
-    case "quote.refused_online":
+      return data.portal
+        ? "a accepté le devis depuis son espace client"
+        : "a accepté le devis en ligne";
+    case "quote.refused_online": {
+      const where = data.portal ? "depuis son espace client" : "en ligne";
       return typeof data.comment === "string" && data.comment
-        ? `a refusé le devis en ligne : « ${data.comment} »`
-        : "a refusé le devis en ligne";
+        ? `a refusé le devis ${where} : « ${data.comment} »`
+        : `a refusé le devis ${where}`;
+    }
+    case "portal.access_created":
+      return `a créé l'accès à l'espace client (identifiant ${String(data.login ?? "")})`;
+    case "portal.password_regenerated":
+      return "a généré un nouveau mot de passe pour l'espace client";
+    case "portal.access_disabled":
+      return "a désactivé l'accès à l'espace client";
+    case "portal.access_enabled":
+      return "a réactivé l'accès à l'espace client";
+    case "portal.credentials_emailed":
+      return `a envoyé les identifiants de l'espace client par email à ${String(data.to ?? "")}`;
+    case "portal.password_changed":
+      return "a changé son mot de passe de l'espace client";
+    case "portal.password_reset":
+      return "a choisi un nouveau mot de passe (mot de passe oublié)";
     case "quote.status_changed":
       return QUOTE_STATUS_SENTENCES[String(data.to)] ?? "a changé le statut du devis";
     default:
