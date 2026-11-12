@@ -63,6 +63,7 @@ model User {
   discussionMessages DiscussionMessage[]
   discussionReads    DiscussionRead[]
   pushSubscriptions  PushSubscription[]
+  clientAccounts     ClientAccount[]     @relation("ClientAccountCreatedBy")
 
   @@map("user")
 }
@@ -351,6 +352,8 @@ model Client {
   invoices      Invoice[]
   subscriptions Subscription[]
   discussions   Discussion[]
+  /// Accès à l'espace client (identifiant et mot de passe), s'il a été créé.
+  account       ClientAccount?
 
   @@index([sortName])
   @@index([email])
@@ -952,16 +955,25 @@ model ActivityLog {
 /// Discussion : le canal général (sans client, identifiant fixe « general »,
 /// voir src/domain/discussions.ts) ou une discussion sur un client.
 model Discussion {
-  id            String   @id @default(uuid(7))
+  id               String    @id @default(uuid(7))
   /// Client concerné ; vide pour le canal général.
-  clientId      String?
-  client        Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  title         String
-  createdById   String?
-  createdBy     User?    @relation("DiscussionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt     DateTime @default(now())
+  clientId         String?
+  client           Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title            String
+  createdById      String?
+  createdBy        User?     @relation("DiscussionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime  @default(now())
   /// Date du dernier message : tri des discussions et repérage des messages non lus.
-  lastMessageAt DateTime @default(now())
+  lastMessageAt    DateTime  @default(now())
+  /// Discussion avec le client, visible dans son espace client : l'identifiant
+  /// du client (une seule par client). Vide pour les discussions internes,
+  /// que le client ne voit jamais.
+  portalClientId   String?   @unique
+  /// Discussion avec le client : jusqu'où le client l'a lue.
+  clientReadAt     DateTime?
+  /// Dernier email envoyé au client pour l'avertir d'un nouveau message (un
+  /// seul email tant qu'il n'a pas lu les messages précédents).
+  clientNotifiedAt DateTime?
 
   messages DiscussionMessage[]
   reads    DiscussionRead[]
@@ -977,6 +989,8 @@ model DiscussionMessage {
   discussion   Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
   authorId     String?
   author       User?      @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  /// Écrit par le client depuis son espace client (authorId vide).
+  fromClient   Boolean    @default(false)
   body         String
   createdAt    DateTime   @default(now())
 
@@ -1012,4 +1026,65 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscription")
+}
+
+// ---------------------------------------------------------------------------
+// Espace client (devis, factures, abonnements, discussion avec l'équipe)
+// ---------------------------------------------------------------------------
+
+/// Accès d'un client à son espace : identifiant et mot de passe générés à la
+/// création (mot de passe en Argon2id). Indépendant des comptes de l'équipe :
+/// une session client ne donne jamais accès à l'outil de gestion.
+model ClientAccount {
+  id                String    @id @default(uuid(7))
+  clientId          String    @unique
+  client            Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  /// Identifiant de connexion généré, ex. « k7m3-q9xp » (minuscules).
+  login             String    @unique
+  passwordHash      String
+  /// Un accès désactivé ne permet plus de se connecter (sessions supprimées).
+  active            Boolean   @default(true)
+  /// Dernier changement du mot de passe par le client lui-même.
+  passwordChangedAt DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  createdById       String?
+  createdBy         User?     @relation("ClientAccountCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  sessions       ClientSession[]
+  passwordResets ClientPasswordReset[]
+
+  @@map("client_account")
+}
+
+/// Session ouverte dans l'espace client. Seule l'empreinte SHA-256 du jeton
+/// (cookie) est enregistrée.
+model ClientSession {
+  id         String        @id @default(uuid(7))
+  accountId  String
+  account    ClientAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tokenHash  String        @unique
+  expiresAt  DateTime
+  lastSeenAt DateTime      @default(now())
+  ipAddress  String        @default("")
+  userAgent  String        @default("")
+  createdAt  DateTime      @default(now())
+
+  @@index([accountId])
+  @@map("client_session")
+}
+
+/// Lien « mot de passe oublié » de l'espace client (1 heure, usage unique).
+model ClientPasswordReset {
+  id        String        @id @default(uuid(7))
+  accountId String
+  account   ClientAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tokenHash String        @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([accountId])
+  @@map("client_password_reset")
 }

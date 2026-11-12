@@ -3,13 +3,15 @@
 import { CheckCheckIcon, CheckIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { messageParts, nameInitials } from "@/domain/discussions";
 import { cn } from "@/lib/utils";
-import { markReadAction } from "@/modules/discussions/actions";
 
 export type ThreadMessage = {
   id: string;
   author: string;
+  /** Petite étiquette à côté du nom (ex. « Client »). */
+  badge?: string | null;
   mine: boolean;
   body: string;
   /** Date et heure déjà formatées (fuseau de Zurich). */
@@ -44,20 +46,27 @@ function MessageBody({ body }: { body: string }) {
 }
 
 /**
- * Fil de la discussion. Marque la discussion comme lue quand de nouveaux
- * messages s'affichent dans un onglet visible, et descend au dernier message
- * (sauf si l'on est en train de relire plus haut).
+ * Fil d'une discussion (équipe ou espace client). Signale la lecture
+ * (`onSeen`) quand de nouveaux messages s'affichent dans un onglet visible, et
+ * descend au dernier message (sauf si l'on est en train de relire plus haut).
  */
-export function Thread({
-  discussionId,
+export function MessageThread({
   messages,
+  onSeen,
+  labels,
 }: {
-  discussionId: string;
   messages: ThreadMessage[];
+  onSeen: () => Promise<unknown>;
+  labels: { list: string; empty: string };
 }) {
   const bottom = useRef<HTMLDivElement>(null);
   const lastId = messages.at(-1)?.id;
   const firstRender = useRef(true);
+  // La fonction change à chaque rafraîchissement : seul un nouveau message déclenche l'appel.
+  const seen = useRef(onSeen);
+  useEffect(() => {
+    seen.current = onSeen;
+  });
 
   useLayoutEffect(() => {
     const nearBottom =
@@ -68,24 +77,24 @@ export function Thread({
 
   useEffect(() => {
     const markRead = () => {
-      if (document.visibilityState === "visible") void markReadAction({ discussionId });
+      if (document.visibilityState === "visible") void seen.current();
     };
     markRead();
     document.addEventListener("visibilitychange", markRead);
     return () => document.removeEventListener("visibilitychange", markRead);
-  }, [discussionId, lastId]);
+  }, [lastId]);
 
   if (messages.length === 0) {
     return (
       <p className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
-        Aucun message pour l&apos;instant. Écrivez le premier !
+        {labels.empty}
       </p>
     );
   }
 
   return (
     <>
-      <ol className="space-y-1" aria-label="Messages">
+      <ol className="space-y-1" aria-label={labels.list}>
         {messages.map((m) => (
           <li
             key={m.id}
@@ -102,8 +111,13 @@ export function Thread({
             </div>
             <div className="min-w-0 flex-1">
               {!m.continued && (
-                <div className="flex items-baseline gap-2">
+                <div className="flex flex-wrap items-baseline gap-x-2">
                   <span className="text-sm font-semibold">{m.author}</span>
+                  {m.badge && (
+                    <Badge variant="secondary" className="self-center px-1.5 py-0 text-[11px]">
+                      {m.badge}
+                    </Badge>
+                  )}
                   <time dateTime={m.iso} className="text-muted-foreground text-xs tabular-nums">
                     {m.time}
                   </time>

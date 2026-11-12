@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
-import { HashIcon } from "lucide-react";
+import { EyeIcon, HashIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Composer } from "@/app/(app)/discussions/[id]/composer";
-import { Thread, type ThreadMessage } from "@/app/(app)/discussions/[id]/thread";
+import { TeamComposer, TeamThread } from "@/app/(app)/discussions/[id]/team-thread";
 import { AutoRefresh } from "@/components/discussions/auto-refresh";
+import type { ThreadMessage } from "@/components/discussions/message-thread";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { readReceiptLabel } from "@/domain/discussions";
 import { canEdit } from "@/domain/roles";
 import { formatDateTime } from "@/lib/format";
@@ -22,6 +24,7 @@ function continues(previous: Message | undefined, m: Message | undefined) {
     previous &&
     m &&
     previous.authorId === m.authorId &&
+    previous.fromClient === m.fromClient &&
     m.createdAt.getTime() - previous.createdAt.getTime() < GROUP_MS,
   );
 }
@@ -30,14 +33,19 @@ function threadMessages(discussion: DiscussionDetail, userId: string): ThreadMes
   return discussion.messages.map((m, i) => {
     const previous = discussion.messages[i - 1];
     const next = discussion.messages[i + 1];
-    const mine = m.authorId === userId;
+    const mine = !m.fromClient && m.authorId === userId;
     // Accusé de lecture : pour l'auteur seulement, sous le dernier message de chaque groupe.
     const readers = discussion.reads
       .filter((r) => r.userId !== userId && r.lastReadAt >= m.createdAt)
       .map((r) => r.name);
+    // Discussion avec le client : le client compte parmi les lecteurs.
+    if (discussion.client && discussion.clientReadAt && discussion.clientReadAt >= m.createdAt) {
+      readers.push(`${discussion.client.displayName} (client)`);
+    }
     return {
       id: m.id,
-      author: m.author?.name ?? "Ancien utilisateur",
+      author: m.authorName,
+      badge: m.fromClient ? "Client" : null,
       mine,
       body: m.body,
       time: formatDateTime(m.createdAt),
@@ -75,9 +83,14 @@ export default async function DiscussionPage({
         <Link href="/discussions" className="text-muted-foreground text-sm hover:underline">
           ← Discussions
         </Link>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+        <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
           {discussion.general && <HashIcon className="text-muted-foreground size-5" />}
           {discussion.title}
+          {discussion.withClient && (
+            <Badge variant="secondary" className="gap-1">
+              <EyeIcon /> Visible par le client
+            </Badge>
+          )}
         </h1>
         <p className="text-muted-foreground text-sm">
           {discussion.client ? (
@@ -86,14 +99,26 @@ export default async function DiscussionPage({
               <Link href={`/clients/${discussion.client.id}`} className="hover:underline">
                 {discussion.client.displayName}
               </Link>
-              {discussion.createdBy &&
-                ` · démarrée par ${discussion.createdBy.name} le ${formatDateTime(discussion.createdAt)}`}
+              {discussion.withClient
+                ? " · échanges avec le client, dans son espace client"
+                : discussion.createdBy &&
+                  ` · démarrée par ${discussion.createdBy.name} le ${formatDateTime(discussion.createdAt)}`}
             </>
           ) : (
             "Canal général, ouvert à tous les utilisateurs."
           )}
         </p>
       </div>
+
+      {discussion.withClient && (
+        <Alert>
+          <EyeIcon />
+          <AlertDescription>
+            Le client lit cette discussion dans son espace client et reçoit un email quand vous lui
+            écrivez. Pour parler de lui entre vous, utilisez une autre discussion.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <section className="space-y-3">
         {discussion.hiddenCount > 0 && (
@@ -103,9 +128,9 @@ export default async function DiscussionPage({
             </Link>
           </p>
         )}
-        <Thread discussionId={discussion.id} messages={threadMessages(discussion, user.id)} />
+        <TeamThread discussionId={discussion.id} messages={threadMessages(discussion, user.id)} />
         {canEdit(user.role) ? (
-          <Composer discussionId={discussion.id} />
+          <TeamComposer discussionId={discussion.id} withClient={discussion.withClient} />
         ) : (
           <p className="text-muted-foreground border-t pt-3 text-sm">
             Accès en lecture seule : vous pouvez lire les discussions, sans y écrire.

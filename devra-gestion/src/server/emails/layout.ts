@@ -110,23 +110,52 @@ export function renderEmailShell(input: {
 
 export type SimpleEmail = {
   branding: EmailBranding;
+  /** Langue de l'email (par défaut : français). */
+  language?: "FR" | "DE";
   title: string;
   greeting: string;
   paragraphs: string[];
+  /** Encadré de valeurs à recopier (ex. identifiant et mot de passe), après les paragraphes. */
+  details?: { label: string; value: string }[];
   action: { label: string; url: string };
   footnote?: string;
 };
+
+const FALLBACK_LINK = {
+  FR: "Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :",
+  DE: "Falls die Schaltfläche nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:",
+};
+
+/** « Libellé : valeur » en français, « Libellé: valeur » en allemand. */
+function labelled(language: "FR" | "DE", label: string, value: string) {
+  return language === "DE" ? `${label}: ${value}` : `${label} : ${value}`;
+}
+
+function renderDetails(details: { label: string; value: string }[]): string {
+  const rows = details
+    .map(
+      (d) =>
+        `<tr><td style="padding:4px 16px 4px 0;font-size:13px;color:${C.muted};white-space:nowrap;">${escapeHtml(d.label)}</td><td style="padding:4px 0;font-family:Consolas,Menlo,monospace;font-size:15px;font-weight:600;color:${C.text};word-break:break-all;">${escapeHtml(d.value)}</td></tr>`,
+    )
+    .join("");
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px;background:${C.panel};border:1px solid ${C.border};border-radius:8px;">
+  <tr><td style="padding:12px 16px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0">${rows}</table></td></tr>
+</table>`;
+}
 
 /**
  * Email simple (invitation, mot de passe, notification) : un texte, un bouton
  * et le lien en clair pour les messageries qui n'affichent pas le bouton.
  */
 export function renderSimpleEmail(email: SimpleEmail): { text: string; html: string } {
+  const language = email.language ?? "FR";
+  const details = email.details ?? [];
   const text = [
     email.greeting,
     "",
     ...email.paragraphs.flatMap((p) => [p, ""]),
-    `${email.action.label} : ${email.action.url}`,
+    ...(details.length ? [...details.map((d) => labelled(language, d.label, d.value)), ""] : []),
+    labelled(language, email.action.label, email.action.url),
     "",
     ...(email.footnote ? [email.footnote, ""] : []),
     `— ${email.branding.name}`,
@@ -135,16 +164,17 @@ export function renderSimpleEmail(email: SimpleEmail): { text: string; html: str
   const content = [
     renderEmailParagraph(escapeHtml(email.greeting)),
     ...email.paragraphs.map((p) => renderEmailParagraph(escapeHtml(p))),
+    ...(details.length ? [renderDetails(details)] : []),
     renderEmailButton(email.action.label, email.action.url),
     renderEmailParagraph(
-      `Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br><a href="${escapeHtml(email.action.url)}" style="color:${C.muted};word-break:break-all;">${escapeHtml(email.action.url)}</a>`,
+      `${escapeHtml(FALLBACK_LINK[language])}<br><a href="${escapeHtml(email.action.url)}" style="color:${C.muted};word-break:break-all;">${escapeHtml(email.action.url)}</a>`,
       { muted: true },
     ),
     ...(email.footnote ? [renderEmailParagraph(escapeHtml(email.footnote), { muted: true })] : []),
   ].join("\n                ");
 
   const html = renderEmailShell({
-    lang: "fr",
+    lang: language === "DE" ? "de" : "fr",
     title: email.title,
     preheader: email.paragraphs[0] ?? email.title,
     branding: email.branding,

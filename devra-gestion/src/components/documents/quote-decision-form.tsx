@@ -9,9 +9,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { OnlineQuoteTexts } from "@/i18n/online-quote";
 import { acceptQuoteOnlineAction, refuseQuoteOnlineAction } from "@/modules/online-quotes/actions";
+import { portalAcceptQuoteAction, portalRefuseQuoteAction } from "@/modules/portal/actions";
 
-/** Acceptation (nom + case à cocher) ou refus (nom + commentaire facultatif) du devis. */
-export function DecisionForm({ token, texts }: { token: string; texts: OnlineQuoteTexts }) {
+/**
+ * Acceptation (nom + case à cocher) ou refus (nom + commentaire facultatif)
+ * du devis : depuis le lien envoyé par email (jeton) ou depuis l'espace client.
+ */
+export function QuoteDecisionForm({
+  target,
+  texts,
+}: {
+  target: { token: string } | { quoteId: string };
+  texts: OnlineQuoteTexts;
+}) {
   const router = useRouter();
   const [mode, setMode] = useState<"accept" | "refuse">("accept");
   const [name, setName] = useState("");
@@ -27,9 +37,13 @@ export function DecisionForm({ token, texts }: { token: string; texts: OnlineQuo
     if (mode === "accept" && !agree) return setError(texts.agreeRequired);
     startTransition(async () => {
       const result =
-        mode === "accept"
-          ? await acceptQuoteOnlineAction({ token, name, accept: true })
-          : await refuseQuoteOnlineAction({ token, name, comment });
+        "token" in target
+          ? mode === "accept"
+            ? await acceptQuoteOnlineAction({ token: target.token, name, accept: true })
+            : await refuseQuoteOnlineAction({ token: target.token, name, comment })
+          : mode === "accept"
+            ? await portalAcceptQuoteAction({ quoteId: target.quoteId, name, accept: true })
+            : await portalRefuseQuoteAction({ quoteId: target.quoteId, name, comment });
       if (!result.ok) {
         setError(result.error);
         return;

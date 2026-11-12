@@ -23,6 +23,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 | 9. Acceptation en ligne, exports, journal | Devis acceptés en ligne, export comptable, journal d'activité     | ✅ Terminée |
 | 10. Production                            | Sauvegardes, HTTPS, sécurité, déploiement Raspberry Pi            | ✅ Terminée |
 | 11. Discussions                           | Canal général, discussions par client, notifications              | ✅ Terminée |
+| 12. Espace client                         | Devis, factures, abonnements et discussion pour chaque client     | ✅ Terminée |
 
 ## Ce qui fonctionne aujourd'hui
 
@@ -158,6 +159,18 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 - **Notifications** de l'ordinateur ou du téléphone (Windows, macOS, Android) pour les nouveaux
   messages, même application fermée : menu utilisateur → « Activer les notifications », sur
   chaque appareil (Web Push, clés `VAPID_*` dans `.env`).
+- **Espace client** (`/espace-client`, en français ou en allemand selon la langue du client) :
+  - accès créé depuis la fiche du client (« Créer l'accès à l'espace client ») : identifiant et
+    mot de passe **générés**, affichés une seule fois (à copier) avec un bouton « Envoyer par
+    email » ; nouveau mot de passe ou désactivation de l'accès depuis la même fiche ;
+  - le client y voit **ce qui est à payer** (solde, échéance, compte et référence de la
+    QR-facture), ses **devis** (hors brouillons, qu'il peut **accepter ou refuser** en ligne),
+    ses **factures** émises et ses **abonnements**, avec les PDF ;
+  - une **discussion avec l'équipe**, une par client, marquée « Visible par le client » côté
+    équipe : le client reçoit un email quand l'équipe lui écrit, l'équipe une notification quand
+    il répond ; il ne voit **jamais les discussions internes** ;
+  - il peut **changer son mot de passe** (Mon compte) ou en recevoir un nouveau par email
+    (« Mot de passe oublié ? »).
 - **Recherche globale** (Ctrl+K) : clients (nom, localité, email, téléphone), devis et factures
   (numéro, objet).
 - **Navigation** latérale (repliable, en tiroir sur téléphone), thème clair / sombre / système.

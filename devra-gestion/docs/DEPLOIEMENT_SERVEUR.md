@@ -168,6 +168,14 @@ autorisé, et le mode « Ne pas déranger » désactivé. Le navigateur doit tou
 continuent en arrière-plan par défaut). « Notifications non configurées » : les clés `VAPID_*`
 manquent dans `.env` (section « Réservé à l'administrateur »).
 
+## Espace client
+
+Rien à configurer : l'espace client fait partie de l'application, à l'adresse publique suivie de
+`/espace-client` (par exemple `https://gestion.example.ch/espace-client`). Les clients s'y
+connectent avec l'identifiant et le mot de passe créés depuis leur fiche (« Créer l'accès à
+l'espace client »). Les emails aux clients (identifiants, nouveau message, mot de passe oublié)
+partent par le serveur SMTP de `.env`, comme les devis et les factures.
+
 ## Surveillance (agent)
 
 - Une fois par semaine : `claude-devra status` (dernière sauvegarde « OK » et datée du jour).
@@ -205,12 +213,12 @@ cd /opt/devra-gestion
   clés obligeraient chaque appareil à réactiver les notifications.
 
 - **Repartir de zéro en gardant les paramètres** (clients, devis, factures, paiements,
-  abonnements, relances, discussions, journal et numérotation effacés ; entreprise, IBAN, logo,
-  modèles, catalogue et comptes conservés) :
+  abonnements, relances, discussions, accès à l'espace client, journal et numérotation effacés ;
+  entreprise, IBAN, logo, modèles, catalogue et comptes conservés) :
 
   ```bash
   claude-devra backup
-  docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "TRUNCATE client, quote, quote_line, quote_link, invoice, invoice_line, payment, reminder, subscription, subscription_item, email_log, activity_log, task_run, number_sequence, discussion, discussion_message, discussion_read RESTART IDENTITY"'
+  docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "TRUNCATE client, quote, quote_line, quote_link, invoice, invoice_line, payment, reminder, subscription, subscription_item, email_log, activity_log, task_run, number_sequence, discussion, discussion_message, discussion_read, client_account, client_session, client_password_reset RESTART IDENTITY"'
   docker compose exec app rm -rf /data/documents
   ```
 

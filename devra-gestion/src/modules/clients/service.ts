@@ -321,6 +321,16 @@ export async function exportClientData(actor: CurrentUser, id: string) {
       siteType: { select: { name: true } },
       createdBy: { select: { name: true } },
       updatedBy: { select: { name: true } },
+      // Accès à l'espace client (jamais l'empreinte du mot de passe).
+      account: {
+        select: {
+          login: true,
+          active: true,
+          createdAt: true,
+          lastLoginAt: true,
+          passwordChangedAt: true,
+        },
+      },
     },
   });
   if (!client) return null;
@@ -339,7 +349,12 @@ export async function exportClientData(actor: CurrentUser, id: string) {
         createdAt: true,
         messages: {
           orderBy: { createdAt: "asc" },
-          select: { createdAt: true, body: true, author: { select: { name: true } } },
+          select: {
+            createdAt: true,
+            body: true,
+            fromClient: true,
+            author: { select: { name: true } },
+          },
         },
       },
     }),
@@ -356,6 +371,7 @@ export async function exportClientData(actor: CurrentUser, id: string) {
     sortName: _sortName,
     searchText: _searchText,
     siteTypeId: _siteTypeId,
+    account,
     ...fields
   } = client;
   return {
@@ -367,6 +383,7 @@ export async function exportClientData(actor: CurrentUser, id: string) {
       createdBy: client.createdBy?.name ?? null,
       updatedBy: client.updatedBy?.name ?? null,
     },
+    portalAccess: account,
     activity: activity.map((entry) => ({
       date: entry.createdAt.toISOString(),
       action: entry.action,
@@ -378,7 +395,9 @@ export async function exportClientData(actor: CurrentUser, id: string) {
       date: discussion.createdAt.toISOString(),
       messages: discussion.messages.map((message) => ({
         date: message.createdAt.toISOString(),
-        author: message.author?.name ?? null,
+        author: message.fromClient
+          ? `${client.displayName} (client)`
+          : (message.author?.name ?? null),
         body: message.body,
       })),
     })),

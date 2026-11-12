@@ -7,10 +7,18 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MESSAGE_MAX } from "@/domain/discussions";
-import { postMessageAction } from "@/modules/discussions/actions";
 
-/** Zone de saisie : Entrée envoie, Maj+Entrée passe à la ligne. */
-export function Composer({ discussionId }: { discussionId: string }) {
+/**
+ * Zone de saisie d'un message (équipe ou espace client) : Entrée envoie,
+ * Maj+Entrée passe à la ligne. `onSend` renvoie un message d'erreur, ou `null`.
+ */
+export function MessageComposer({
+  onSend,
+  labels,
+}: {
+  onSend: (body: string) => Promise<string | null>;
+  labels: { field: string; placeholder: string; send: string };
+}) {
   const router = useRouter();
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -18,10 +26,10 @@ export function Composer({ discussionId }: { discussionId: string }) {
   async function send() {
     if (!body.trim() || sending) return;
     setSending(true);
-    const result = await postMessageAction({ discussionId, body });
+    const error = await onSend(body);
     setSending(false);
-    if (!result.ok) {
-      toast.error(result.error);
+    if (error) {
+      toast.error(error);
       return;
     }
     setBody("");
@@ -37,8 +45,8 @@ export function Composer({ discussionId }: { discussionId: string }) {
       }}
     >
       <Textarea
-        aria-label="Votre message"
-        placeholder="Écrire un message… (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)"
+        aria-label={labels.field}
+        placeholder={labels.placeholder}
         value={body}
         maxLength={MESSAGE_MAX}
         rows={2}
@@ -52,7 +60,7 @@ export function Composer({ discussionId }: { discussionId: string }) {
         }}
       />
       <Button type="submit" disabled={sending || !body.trim()}>
-        <SendIcon /> Envoyer
+        <SendIcon /> {labels.send}
       </Button>
     </form>
   );

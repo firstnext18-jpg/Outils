@@ -191,7 +191,9 @@ test("journal, notifications et suppression d'un client avec ses discussions", a
   await page.getByRole("link", { name: PROSPECT }).click();
   await page.getByRole("button", { name: "Autres actions" }).click();
   await page.getByRole("menuitem", { name: "Supprimer" }).click();
-  await expect(page.getByText("La fiche et ses discussions seront effacées")).toBeVisible();
+  await expect(
+    page.getByText("La fiche, ses discussions et son accès à l'espace client"),
+  ).toBeVisible();
   await page
     .getByRole("alertdialog")
     .getByRole("button", { name: "Supprimer définitivement" })

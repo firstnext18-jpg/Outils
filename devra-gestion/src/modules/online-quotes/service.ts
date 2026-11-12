@@ -7,6 +7,7 @@ import {
   onlineTokenSchema,
   type OnlineQuoteState,
 } from "@/domain/online-quote";
+import { PORTAL_QUOTE_STATUSES } from "@/domain/portal";
 import { formatChf, formatDateTime } from "@/lib/format";
 import { getQuote, type QuoteDetail } from "@/modules/quotes/service";
 import type { ClientSnapshot } from "@/modules/settings/documents";
@@ -71,14 +72,49 @@ export type OnlineDecision =
  * l'enregistrement : deux décisions simultanées ne peuvent pas aboutir.
  * Renvoie l'état du devis après coup (`open` si la décision a été prise).
  */
+export type DecisionResult =
+  { ok: true; quote: QuoteDetail } | { ok: false; state: OnlineQuoteState | null };
+
 export async function decideOnline(
   token: string,
   input: OnlineDecision,
   ip: string,
-): Promise<{ ok: true; quote: QuoteDetail } | { ok: false; state: OnlineQuoteState | null }> {
+): Promise<DecisionResult> {
   const found = await quoteForToken(token);
   if (!found) return { ok: false, state: null };
-  const { quote } = found;
+  return recordDecision(found.quote, input, ip, { portal: false });
+}
+
+/** Devis visible dans l'espace du client (jamais un brouillon ni le devis d'un autre client). */
+export async function portalQuote(clientId: string, quoteId: string): Promise<OnlineQuote | null> {
+  const quote = await getQuote(quoteId);
+  if (!quote || quote.clientId !== clientId) return null;
+  if (!(PORTAL_QUOTE_STATUSES as readonly string[]).includes(quote.status)) return null;
+  const state = onlineQuoteState(
+    { status: quote.status, validUntil: dbDateToIso(quote.validUntil) },
+    todayIso(),
+  );
+  return { quote, state };
+}
+
+/** Décision prise par le client depuis son espace client. */
+export async function decideFromPortal(
+  clientId: string,
+  quoteId: string,
+  input: OnlineDecision,
+  ip: string,
+): Promise<DecisionResult> {
+  const found = await portalQuote(clientId, quoteId);
+  if (!found) return { ok: false, state: null };
+  return recordDecision(found.quote, input, ip, { portal: true });
+}
+
+async function recordDecision(
+  quote: QuoteDetail,
+  input: OnlineDecision,
+  ip: string,
+  via: { portal: boolean },
+): Promise<DecisionResult> {
   const today = todayIso();
 
   const decided = await db.$transaction(async (tx) => {
@@ -114,7 +150,12 @@ export async function decideOnline(
         entityType: "quote",
         entityId: quote.id,
         label: quote.number,
-        details: { onlineName: input.name, ip, ...(comment ? { comment } : {}) },
+        details: {
+          onlineName: input.name,
+          ip,
+          ...(comment ? { comment } : {}),
+          ...(via.portal ? { portal: true } : {}),
+        },
       },
       tx,
     );
@@ -122,14 +163,14 @@ export async function decideOnline(
   });
   if (!decided.ok) return decided;
 
-  await notifyTeam(quote, input).catch((error: unknown) =>
+  await notifyTeam(quote, input, via).catch((error: unknown) =>
     console.error(`Notification de la décision sur ${quote.number} impossible`, error),
   );
   return { ok: true, quote };
 }
 
 /** Prévient les admins et les membres actifs de la décision du client. */
-async function notifyTeam(quote: QuoteDetail, input: OnlineDecision) {
+async function notifyTeam(quote: QuoteDetail, input: OnlineDecision, via: { portal: boolean }) {
   const users = await db.user.findMany({
     where: { active: true, role: { in: ["ADMIN", "MEMBER"] } },
     select: { email: true },
@@ -139,14 +180,15 @@ async function notifyTeam(quote: QuoteDetail, input: OnlineDecision) {
     (quote.clientSnapshot as ClientSnapshot | null)?.displayName || quote.client.displayName;
   const accepted = input.decision === "ACCEPTED";
   const verb = accepted ? "accepté" : "refusé";
-  const subject = `Devis ${quote.number} ${verb} en ligne`;
+  const where = via.portal ? "depuis l'espace client" : "en ligne";
+  const subject = `Devis ${quote.number} ${verb} ${where}`;
   const { branding, attachments } = await emailBranding(await getSettings());
   const { text, html } = renderSimpleEmail({
     branding,
     title: subject,
     greeting: "Bonjour,",
     paragraphs: [
-      `Le devis ${quote.number} (${client}, ${formatChf(quote.totalCents)}) a été ${verb} en ligne par ${input.name}, le ${formatDateTime(new Date())}.`,
+      `Le devis ${quote.number} (${client}, ${formatChf(quote.totalCents)}) a été ${verb} ${where} par ${input.name}, le ${formatDateTime(new Date())}.`,
       ...(!accepted && input.comment ? [`Commentaire du client : ${input.comment}`] : []),
       ...(accepted ? ["Il peut maintenant être converti en facture."] : []),
     ],

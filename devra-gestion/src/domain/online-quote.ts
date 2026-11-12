@@ -46,7 +46,8 @@ export function onlineQuoteState(
   }
 }
 
-const name = z
+/** Nom de la personne qui accepte ou refuse (vaut signature). */
+export const decisionNameSchema = z
   .string()
   .trim()
   .min(2, "Indiquez votre nom et prénom")
@@ -57,12 +58,25 @@ export const onlineTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/, "Lien i
 
 export const onlineAcceptSchema = z.object({
   token: onlineTokenSchema,
-  name,
+  name: decisionNameSchema,
   accept: z.literal(true, { error: "Cochez la case pour accepter le devis" }),
 });
 
 export const onlineRefuseSchema = z.object({
   token: onlineTokenSchema,
-  name,
+  name: decisionNameSchema,
+  comment: z.string().trim().max(1000, "1000 caractères maximum"),
+});
+
+/** Décisions prises depuis l'espace client (le client est connecté : pas de jeton). */
+export const portalAcceptSchema = z.object({
+  quoteId: z.uuid(),
+  name: decisionNameSchema,
+  accept: z.literal(true, { error: "Cochez la case pour accepter le devis" }),
+});
+
+export const portalRefuseSchema = z.object({
+  quoteId: z.uuid(),
+  name: decisionNameSchema,
   comment: z.string().trim().max(1000, "1000 caractères maximum"),
 });

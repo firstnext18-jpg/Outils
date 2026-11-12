@@ -23,6 +23,7 @@ export const JOURNAL_CATEGORIES = {
   parametres: { label: "Paramètres", prefixes: ["settings."] },
   exports: { label: "Exports", prefixes: ["export."] },
   discussions: { label: "Discussions", prefixes: ["discussion."] },
+  "espace-client": { label: "Espace client", prefixes: ["portal."] },
 } as const;
 
 export type JournalCategory = keyof typeof JOURNAL_CATEGORIES;
@@ -114,9 +115,25 @@ export function journalSentence(entry: JournalEntry): string {
         : `a envoyé le devis ${label} par email`;
     }
     case "quote.accepted_online":
-      return `a accepté le devis ${label} en ligne`;
+      return `a accepté le devis ${label} ${data.portal ? "depuis son espace client" : "en ligne"}`;
     case "quote.refused_online":
-      return `a refusé le devis ${label} en ligne`;
+      return `a refusé le devis ${label} ${data.portal ? "depuis son espace client" : "en ligne"}`;
+
+    // Espace client
+    case "portal.access_created":
+      return `a créé l'accès à l'espace client de ${label} (identifiant ${text(data.login)})`;
+    case "portal.password_regenerated":
+      return `a généré un nouveau mot de passe pour l'espace client de ${label}`;
+    case "portal.access_disabled":
+      return `a désactivé l'accès à l'espace client de ${label}`;
+    case "portal.access_enabled":
+      return `a réactivé l'accès à l'espace client de ${label}`;
+    case "portal.credentials_emailed":
+      return `a envoyé les identifiants de l'espace client de ${label} par email à ${text(data.to)}`;
+    case "portal.password_changed":
+      return "a changé son mot de passe de l'espace client";
+    case "portal.password_reset":
+      return "a choisi un nouveau mot de passe pour son espace client (mot de passe oublié)";
 
     // Factures et paiements
     case "invoice.created":
