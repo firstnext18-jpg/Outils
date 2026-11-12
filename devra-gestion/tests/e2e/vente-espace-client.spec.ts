@@ -253,6 +253,8 @@ test("le client accepte un devis depuis son espace ; l'équipe est prévenue", a
   await deleteEmailsTo(ADMIN.email);
   const client = await clientBrowser(browser);
   await portalLogin(client.page, credentials.login, credentials.password);
+  // Connexion terminée (cookie posé) avant d'ouvrir une autre page.
+  await expect(client.page).toHaveURL("/espace-client");
   await client.page.goto("/espace-client/devis");
   await client.page.waitForLoadState("networkidle");
   await client.page.getByRole("link", { name: new RegExp(sentQuoteNumber) }).click();
@@ -283,6 +285,8 @@ test("discussion client ↔ équipe : messages, email, accusés de lecture, rien
   await deleteEmailsTo(CLIENT.email);
   const client = await clientBrowser(browser);
   await portalLogin(client.page, credentials.login, credentials.password);
+  // Connexion terminée (cookie posé) avant d'ouvrir une autre page.
+  await expect(client.page).toHaveURL("/espace-client");
   await client.page.getByRole("link", { name: "Discussion" }).click();
   await expect(client.page.getByText("Aucun message pour l'instant. Écrivez-nous !")).toBeVisible();
   // Les discussions internes ne sont jamais visibles du client.
@@ -338,6 +342,8 @@ test("discussion client ↔ équipe : messages, email, accusés de lecture, rien
 test("mot de passe : changé par le client, puis oublié", async ({ browser }) => {
   const { context, page } = await clientBrowser(browser);
   await portalLogin(page, credentials.login, credentials.password);
+  // Connexion terminée (cookie posé) avant d'ouvrir une autre page.
+  await expect(page).toHaveURL("/espace-client");
   await page.getByRole("link", { name: "Mon compte" }).click();
   await expect(page.getByText(credentials.login, { exact: true })).toBeVisible();
 

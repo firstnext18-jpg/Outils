@@ -38,6 +38,10 @@ test("préparation : l'admin invite Nora qui active son compte", async ({ page }
 test("mot de passe oublié : email, nouveau mot de passe, connexion", async ({ page }) => {
   await page.goto("/connexion");
   await page.getByRole("link", { name: "Mot de passe oublié ?" }).click();
+  // Attendre la nouvelle page : sinon l'email peut être saisi dans le formulaire de connexion,
+  // encore affiché pendant la navigation.
+  await expect(page).toHaveURL("/mot-de-passe-oublie");
+  await expect(page.getByText("Recevez par email un lien")).toBeVisible();
   await page.getByLabel("Email").fill(PERSON.email);
   await page.getByRole("button", { name: "Envoyer le lien" }).click();
   await expect(page.getByRole("status")).toContainText(PERSON.email);
