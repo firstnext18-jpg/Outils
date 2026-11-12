@@ -282,7 +282,7 @@ export function PortalAccessCard({
                   {emailedTo ? `Envoyé à ${emailedTo}` : `Envoyer par email à ${clientEmail}`}
                 </Button>
               )}
-              <Button onClick={() => setCredentials(null)}>Fermer</Button>
+              <Button onClick={() => setCredentials(null)}>Terminé</Button>
             </div>
           </DialogFooter>
         </DialogContent>

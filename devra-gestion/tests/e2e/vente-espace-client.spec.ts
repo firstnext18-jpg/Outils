@@ -40,6 +40,7 @@ let sentQuoteNumber = "";
 
 async function newClient(page: Page, client: { name: string; email: string }, german = false) {
   await page.goto("/clients/nouveau");
+  await page.waitForLoadState("networkidle");
   await page.getByRole("radio", { name: "Entreprise" }).click();
   await page.getByLabel("Raison sociale").fill(client.name);
   if (client === CLIENT) await page.getByLabel("Personne de contact").fill(CLIENT.contact);
@@ -72,6 +73,7 @@ async function newQuote(
   sent: boolean,
 ) {
   await page.goto("/devis/nouveau");
+  await page.waitForLoadState("networkidle");
   await pickClient(page, client);
   await page.getByRole("button", { name: "Ligne libre" }).click();
   await page.getByLabel("Désignation de la ligne 1").fill(label);
@@ -99,6 +101,7 @@ async function clientBrowser(browser: Browser) {
 async function portalLogin(page: Page, login: string, password: string) {
   await switchToFreshIp(page);
   await page.goto("/espace-client/connexion?langue=fr");
+  await page.waitForLoadState("networkidle");
   await page.getByLabel("Identifiant").fill(login);
   await page.getByLabel("Mot de passe", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Se connecter" }).click();
@@ -129,6 +132,7 @@ test("préparation : deux clients, devis, facture émise et discussion interne",
   otherQuoteId = (await newQuote(page, OTHER, "Webshop", true)).url.split("/").pop()!;
 
   await page.goto("/factures/nouvelle");
+  await page.waitForLoadState("networkidle");
   await pickClient(page, CLIENT);
   await page.getByRole("button", { name: "Ligne libre" }).click();
   await page.getByLabel("Désignation de la ligne 1").fill("Acompte maquettes");
@@ -145,6 +149,7 @@ test("préparation : deux clients, devis, facture émise et discussion interne",
 
   // Discussion interne de l'équipe sur ce client : le client ne doit jamais la voir.
   await page.goto(`/discussions/nouvelle?client=${clientUrl.split("/").pop()}`);
+  await page.waitForLoadState("networkidle");
   await page.getByLabel("Sujet").fill("Marge sur le projet");
   await page.getByLabel("Message").fill("Note interne : marge à négocier.");
   await page.getByRole("button", { name: "Démarrer la discussion" }).click();
@@ -157,6 +162,7 @@ test("l'équipe crée l'accès : identifiants affichés une fois, puis envoyés 
   await deleteEmailsTo(CLIENT.email);
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto(clientUrl);
+  await page.waitForLoadState("networkidle");
   await expect(page.getByText("Ce client n'a pas encore d'accès.")).toBeVisible();
   await page.getByRole("button", { name: "Créer l'accès à l'espace client" }).click();
   credentials = await readCredentials(page);
@@ -166,7 +172,7 @@ test("l'équipe crée l'accès : identifiants affichés une fois, puis envoyés 
   await expect(dialog.getByText(/\/espace-client$/)).toBeVisible();
   await dialog.getByRole("button", { name: `Envoyer par email à ${CLIENT.email}` }).click();
   await expect(dialog.getByRole("button", { name: `Envoyé à ${CLIENT.email}` })).toBeDisabled();
-  await dialog.getByRole("button", { name: "Fermer" }).click();
+  await dialog.getByRole("button", { name: "Terminé" }).click();
 
   const email = await waitForEmail(`to:"${CLIENT.email}"`, "Votre accès à l'espace client");
   expect(email.Text).toContain(`Identifiant : ${credentials.login}`);
@@ -182,6 +188,7 @@ test("l'équipe crée l'accès : identifiants affichés une fois, puis envoyés 
 
   // La discussion avec le client apparaît chez l'équipe, signalée comme visible par lui.
   await page.goto("/discussions");
+  await page.waitForLoadState("networkidle");
   const item = page
     .getByRole("list", { name: "Discussions" })
     .getByRole("listitem")
@@ -194,6 +201,7 @@ test("le client se connecte et voit ses documents, sans les brouillons", async (
   const { context, page } = await clientBrowser(browser);
   // Sans session : renvoyé à la connexion de l'espace client (pas à celle de l'équipe).
   await page.goto("/espace-client/factures");
+  await page.waitForLoadState("networkidle");
   await expect(page).toHaveURL(/\/espace-client\/connexion/);
 
   await portalLogin(page, credentials.login, "mauvais-mot-de-passe");
@@ -233,6 +241,7 @@ test("le client se connecte et voit ses documents, sans les brouillons", async (
 
   // La session du client n'ouvre pas l'outil de gestion.
   await page.goto("/clients");
+  await page.waitForLoadState("networkidle");
   await expect(page).toHaveURL(/\/connexion\?suite=%2Fclients/);
   await context.close();
 });
@@ -245,6 +254,7 @@ test("le client accepte un devis depuis son espace ; l'équipe est prévenue", a
   const client = await clientBrowser(browser);
   await portalLogin(client.page, credentials.login, credentials.password);
   await client.page.goto("/espace-client/devis");
+  await client.page.waitForLoadState("networkidle");
   await client.page.getByRole("link", { name: new RegExp(sentQuoteNumber) }).click();
   await expect(client.page.getByText("Refonte du site")).toBeVisible();
   await client.page.getByLabel("Nom et prénom").fill(CLIENT.contact);
@@ -261,6 +271,7 @@ test("le client accepte un devis depuis son espace ; l'équipe est prévenue", a
 
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto(sentQuoteUrl);
+  await page.waitForLoadState("networkidle");
   await expect(page.getByText("Accepté", { exact: true })).toBeVisible();
   await expect(page.getByText(`${CLIENT.contact} (client, espace client)`)).toBeVisible();
 });
@@ -286,6 +297,7 @@ test("discussion client ↔ équipe : messages, email, accusés de lecture, rien
   // L'équipe lit et répond.
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto("/discussions");
+  await page.waitForLoadState("networkidle");
   await page
     .getByRole("list", { name: "Discussions" })
     .getByRole("listitem")
@@ -360,6 +372,7 @@ test("mot de passe : changé par le client, puis oublié", async ({ browser }) =
   );
   expect(link).toMatch(/\/espace-client\/reinitialiser\/[A-Za-z0-9_-]{43}$/);
   await page.goto(link);
+  await page.waitForLoadState("networkidle");
   await expect(page.getByText(credentials.login)).toBeVisible();
   await page.getByLabel("Nouveau mot de passe").fill("Lucie-Oubli-2026");
   await page.getByLabel("Confirmation").fill("Lucie-Oubli-2026");
@@ -367,6 +380,7 @@ test("mot de passe : changé par le client, puis oublié", async ({ browser }) =
   await expect(page.getByText("Votre mot de passe a été modifié. Connectez-vous")).toBeVisible();
   // Lien à usage unique.
   await page.goto(link);
+  await page.waitForLoadState("networkidle");
   await expect(page.getByText("Ce lien n'est pas valable ou a expiré.")).toBeVisible();
   await portalLogin(page, credentials.login, "Lucie-Oubli-2026");
   await expect(page).toHaveURL("/espace-client");
@@ -384,16 +398,18 @@ test("l'équipe génère un nouveau mot de passe, puis désactive l'accès", asy
 
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto(clientUrl);
+  await page.waitForLoadState("networkidle");
   await expect(page.getByText(/changé par le client le/)).toBeVisible();
   await page.getByRole("button", { name: "Nouveau mot de passe" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Générer" }).click();
   const fresh = await readCredentials(page);
   expect(fresh.login).toBe(credentials.login);
   expect(fresh.password).not.toBe(credentials.password);
-  await credentialsDialog(page).getByRole("button", { name: "Fermer" }).click();
+  await credentialsDialog(page).getByRole("button", { name: "Terminé" }).click();
 
   // Le client est déconnecté ; l'ancien mot de passe ne fonctionne plus.
   await client.page.goto("/espace-client/factures");
+  await client.page.waitForLoadState("networkidle");
   await expect(client.page).toHaveURL(/\/espace-client\/connexion/);
   await portalLogin(client.page, credentials.login, credentials.password);
   await expect(formAlert(client.page)).toHaveText("Identifiant ou mot de passe incorrect.");
@@ -404,6 +420,7 @@ test("l'équipe génère un nouveau mot de passe, puis désactive l'accès", asy
   await page.getByRole("alertdialog").getByRole("button", { name: "Désactiver" }).click();
   await expect(page.getByText("Désactivé", { exact: true })).toBeVisible();
   await client.page.goto("/espace-client");
+  await client.page.waitForLoadState("networkidle");
   await expect(client.page).toHaveURL(/\/espace-client\/connexion/);
   await portalLogin(client.page, credentials.login, fresh.password);
   await expect(formAlert(client.page)).toHaveText(
@@ -418,6 +435,7 @@ test("l'équipe génère un nouveau mot de passe, puis désactive l'accès", asy
 
   // Journal : catégorie « Espace client ».
   await page.goto("/parametres/journal?type=espace-client");
+  await page.waitForLoadState("networkidle");
   await expect(
     page.getByText(`a désactivé l'accès à l'espace client de ${CLIENT.name}`),
   ).toBeVisible();
@@ -429,13 +447,15 @@ test("l'équipe génère un nouveau mot de passe, puis désactive l'accès", asy
 test("client germanophone : espace client en allemand", async ({ page, browser }) => {
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto("/clients");
+  await page.waitForLoadState("networkidle");
   await page.locator("table").getByRole("link", { name: OTHER.name }).click();
   await page.getByRole("button", { name: "Créer l'accès à l'espace client" }).click();
   const other = await readCredentials(page);
-  await credentialsDialog(page).getByRole("button", { name: "Fermer" }).click();
+  await credentialsDialog(page).getByRole("button", { name: "Terminé" }).click();
 
   const client = await clientBrowser(browser);
   await client.page.goto("/espace-client/connexion?langue=de");
+  await client.page.waitForLoadState("networkidle");
   await expect(client.page.getByText("Kundenportal")).toBeVisible();
   await client.page.getByLabel("Benutzername").fill(other.login);
   await client.page.getByLabel("Passwort", { exact: true }).fill(other.password);
