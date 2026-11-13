@@ -94,7 +94,7 @@ export function QuoteReminderForm({
             ))}
           </div>
           <Button type="submit" disabled={pending}>
-            {pending ? "Enregistrement…" : "Enregistrer"}
+            {pending ? "Enregistrement…" : "Enregistrer la relance des devis"}
           </Button>
         </form>
       </CardContent>

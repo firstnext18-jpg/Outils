@@ -24,10 +24,13 @@ const numbers: Record<"february" | "march" | "jura", string> = {
 };
 
 function kpi(page: Page, title: string) {
-  return page
-    .getByRole("region", { name: "Indicateurs" })
-    .locator('[data-slot="card"]')
-    .filter({ hasText: title });
+  return (
+    page
+      .getByRole("region", { name: "Indicateurs" })
+      .locator('[data-slot="card"]')
+      // Titre exact : « Encaissé » figure aussi dans le détail de la carte « Dépenses ».
+      .filter({ has: page.getByText(title, { exact: true }) })
+  );
 }
 
 async function newClient(page: Page, name: string, city: [string, string], canton: string) {

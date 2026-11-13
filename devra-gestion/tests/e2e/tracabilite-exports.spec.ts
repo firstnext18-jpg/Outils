@@ -100,7 +100,13 @@ test("export comptable : période, Excel, CSV et PDF en ZIP", async ({ page }) =
   expect(file.suggestedFilename()).toBe("Comptabilite_2019-01-01_2019-12-31.xlsx");
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(await file.path());
-  expect(workbook.worksheets.map((s) => s.name)).toEqual(["Factures", "Paiements", "Clients"]);
+  expect(workbook.worksheets.map((s) => s.name)).toEqual([
+    "Factures",
+    "Paiements",
+    "Clients",
+    "Dépenses",
+  ]);
+  expect(workbook.getWorksheet("Dépenses")!.rowCount).toBe(1); // en-têtes seulement
   const invoices = workbook.getWorksheet("Factures")!;
   expect(invoices.rowCount).toBe(3);
   expect(invoices.getRow(2).getCell(1).value).toBe(numbers.paid);

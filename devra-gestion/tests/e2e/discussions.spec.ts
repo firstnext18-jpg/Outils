@@ -115,6 +115,7 @@ test("un autre utilisateur voit les messages non lus et répond ; le fil se met 
   await expect(page.getByText("Pas encore lu")).toBeVisible();
 
   const marc = await session(browser, MEMBER);
+  // Nombre de messages non lus : 1 dans le canal général, 1 sur « Choix du thème ».
   await expect(sidebarBadge(marc.page)).toHaveText("2");
   await marc.page.goto("/discussions");
   const list = marc.page.getByRole("list", { name: "Discussions" });
@@ -147,7 +148,8 @@ test("un autre utilisateur voit les messages non lus et répond ; le fil se met 
 test("lecture seule : lit les discussions sans pouvoir écrire", async ({ page }) => {
   await login(page, READER.email, READER.password);
   await page.goto("/discussions");
-  await expect(sidebarBadge(page)).toHaveText("2");
+  // Nombre de messages non lus : 1 dans le canal général, 2 sur « Choix du thème ».
+  await expect(sidebarBadge(page)).toHaveText("3");
   await expect(page.getByRole("link", { name: "Nouvelle discussion" })).toHaveCount(0);
   await page.goto(discussionUrl);
   await expect(page.getByRole("list", { name: "Messages" })).toContainText("Plutôt clair");
