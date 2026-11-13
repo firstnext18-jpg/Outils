@@ -41,9 +41,10 @@ export const setFileVisibilityAction = authAction(
 export const deleteFileAction = authAction(
   { role: "MEMBER", schema: z.object({ id: z.uuid() }) },
   async ({ id }, { user }) => {
-    const { clientId, expenseId } = await service.deleteFile(user, id);
+    const { clientId, expenseId, partnerMovementId } = await service.deleteFile(user, id);
     if (clientId) revalidatePath(`/clients/${clientId}`);
     if (expenseId) revalidatePath(`/depenses/${expenseId}`);
+    if (partnerMovementId) revalidatePath(`/apports/${partnerMovementId}`);
     return null;
   },
 );

@@ -3,6 +3,7 @@ import {
   FileTextIcon,
   GlobeIcon,
   FolderKanbanIcon,
+  HandCoinsIcon,
   TimerIcon,
   WalletIcon,
   LayoutDashboardIcon,
@@ -36,6 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "Factures", href: "/factures", icon: ReceiptTextIcon, role: "READONLY" },
   { title: "Abonnements", href: "/abonnements", icon: RepeatIcon, role: "READONLY" },
   { title: "Dépenses", href: "/depenses", icon: WalletIcon, role: "READONLY" },
+  { title: "Apports", href: "/apports", icon: HandCoinsIcon, role: "ADMIN" },
   { title: "Catalogue", href: "/catalogue", icon: PackageIcon, role: "READONLY" },
   { title: "Paramètres", href: "/parametres", icon: SettingsIcon, role: "ADMIN" },
 ];

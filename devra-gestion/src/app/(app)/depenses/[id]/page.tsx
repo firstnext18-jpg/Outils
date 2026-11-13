@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DeleteExpenseButton } from "@/app/(app)/depenses/[id]/delete-expense-button";
-import { Receipts } from "@/app/(app)/depenses/[id]/receipts";
+import { Receipts } from "@/components/files/receipts";
+import { addReceiptsAction } from "@/modules/expenses/actions";
 import { ExpenseForm } from "@/app/(app)/depenses/expense-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { dbDateToIso } from "@/domain/dates";
@@ -95,7 +96,8 @@ export default async function ExpensePage({ params }: PageProps<"/depenses/[id]"
           </CardHeader>
           <CardContent>
             <Receipts
-              expenseId={expense.id}
+              ownerId={expense.id}
+              addAction={addReceiptsAction}
               canEdit={editable}
               receipts={expense.receipts.map((r) => ({
                 id: r.id,

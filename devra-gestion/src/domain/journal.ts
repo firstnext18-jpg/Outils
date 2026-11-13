@@ -27,6 +27,7 @@ export const JOURNAL_CATEGORIES = {
   projets: { label: "Projets et temps", prefixes: ["project.", "time."] },
   depenses: { label: "Dépenses", prefixes: ["expense."] },
   sites: { label: "Sites", prefixes: ["site."] },
+  associes: { label: "Apports des associés", prefixes: ["partner."] },
 } as const;
 
 export type JournalCategory = keyof typeof JOURNAL_CATEGORIES;
@@ -249,6 +250,12 @@ export function journalSentence(entry: JournalEntry): string {
       return `a modifié la dépense ${quoted} (${text(data.amount)})`;
     case "expense.deleted":
       return `a supprimé la dépense ${quoted} (${text(data.amount)})`;
+    case "partner.created":
+      return `a enregistré ${label} (${text(data.amount)})`;
+    case "partner.updated":
+      return `a modifié ${label} (${text(data.amount)})`;
+    case "partner.deleted":
+      return `a supprimé ${label} (${text(data.amount)})`;
     case "project.created":
       return `a créé le projet ${quoted}`;
     case "project.updated":
@@ -318,6 +325,8 @@ export function journalHref(entityType: string | null, entityId: string | null):
       return `/projets/${entityId}`;
     case "expense":
       return `/depenses/${entityId}`;
+    case "partner_movement":
+      return `/apports/${entityId}`;
     default:
       return null;
   }

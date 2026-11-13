@@ -134,6 +134,18 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
           detail={`Résultat (encaissé − dépenses) : ${formatChf(current.resultCents)}`}
           href="/depenses"
         />
+        {user.role === "ADMIN" && (
+          <KpiCard
+            title="Trésorerie estimée"
+            value={formatChf(current.cashCents)}
+            comparison={{
+              change: relativeChange(current.cashCents, previous.cashCents),
+              previous: formatChf(previous.cashCents),
+            }}
+            detail={`Encaissé + apports des associés (${formatChf(current.partnerInCents)}) − dépenses − remboursements (${formatChf(current.partnerOutCents)})`}
+            href="/apports"
+          />
+        )}
         <KpiCard
           title="Factures impayées"
           value={formatChf(data.unpaid.totalCents)}

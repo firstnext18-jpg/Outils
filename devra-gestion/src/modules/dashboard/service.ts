@@ -16,6 +16,7 @@ import {
 } from "@/domain/dates";
 import { outstandingCents } from "@/domain/invoice-status";
 import type { Prisma } from "@/generated/prisma/client";
+import { partnerTotals } from "@/modules/partners/service";
 import { subscriptionRevenue } from "@/modules/subscriptions/service";
 import { db } from "@/server/db";
 
@@ -59,7 +60,15 @@ async function revenue(range: DateRange) {
   ]);
   const paidCents = paid._sum.amountCents ?? 0;
   const expensesCents = expenses._sum.amountCents ?? 0;
+  const partners = await partnerTotals(range);
   return {
+    /**
+     * Argent des associés sur la période (affiché aux admins seulement) et
+     * trésorerie estimée : encaissé + apports − dépenses − ce qui leur a été rendu.
+     */
+    partnerInCents: partners.inCents,
+    partnerOutCents: partners.outCents,
+    cashCents: paidCents + partners.inCents - expensesCents - partners.outCents,
     invoicedCents: invoiced._sum.amountDueCents ?? 0,
     invoiceCount: invoiced._count,
     paidCents,
