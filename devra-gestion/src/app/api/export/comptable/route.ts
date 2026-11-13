@@ -60,7 +60,11 @@ export async function GET(request: NextRequest) {
     userId: user.id,
     action: "export.accounting",
     entityType: "export",
-    details: { dataset: "factures, paiements, clients", format, period: describeRange(range) },
+    details: {
+      dataset: "factures, paiements, clients, dépenses",
+      format,
+      period: describeRange(range),
+    },
   });
   const xlsx = await buildTypedXlsx(sheets);
   return new Response(new Uint8Array(xlsx), {

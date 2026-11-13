@@ -1,5 +1,6 @@
 import "server-only";
-import { dbDateToIso, formatIsoDate } from "@/domain/dates";
+import { addDays, dbDateToIso, formatIsoDate, isoToDbDate } from "@/domain/dates";
+import { portalUrl } from "@/domain/portal";
 import { renderTemplate, type EmailValues } from "@/domain/email-template";
 import { formatChf } from "@/lib/format";
 import type { SendEmailData } from "@/modules/emails/schemas";
@@ -19,7 +20,9 @@ import {
 import { documentLabels } from "@/i18n/documents";
 import { createQuoteLink } from "@/modules/online-quotes/service";
 import { getSettings, type AppSettings } from "@/modules/settings/service";
+import { logActivity } from "@/server/activity";
 import { UserError } from "@/server/action";
+import { env } from "@/server/env";
 import { db } from "@/server/db";
 import { emailBranding } from "@/server/emails/branding";
 import { renderDocumentEmail, type DocumentEmailSummary } from "@/server/emails/document-email";
@@ -311,3 +314,104 @@ export function listEmailLogs(where: { quoteId: string } | { invoiceId: string }
 }
 
 export type EmailLogRow = Awaited<ReturnType<typeof listEmailLogs>>[number];
+
+// ---------------------------------------------------------------------------
+// Relance d'un devis avant la fin de sa validité
+// ---------------------------------------------------------------------------
+
+/**
+ * Relance du client pour un devis envoyé : modèle « Relance des devis »
+ * (Paramètres → Emails), PDF joint, lien d'acceptation en ligne (ou lien de
+ * l'espace client s'il y a accès). Automatique (tâche quotidienne, une seule
+ * fois) ou à la demande depuis la page du devis.
+ */
+export async function sendQuoteReminder(actor: CurrentUser | null, quoteId: string) {
+  const [quote, settings] = await Promise.all([getQuote(quoteId), getSettings()]);
+  if (!quote) throw new UserError("Ce devis n'existe plus.");
+  if (quote.status !== "SENT")
+    throw new UserError("Seul un devis envoyé, sans réponse, se relance.");
+  const to = quote.client.email;
+  if (!to) throw new UserError("Ce client n'a pas d'adresse email sur sa fiche.");
+
+  const de = quote.language === "DE";
+  const subjectTemplate = de ? settings.quoteReminderSubjectDe : settings.quoteReminderSubjectFr;
+  const bodyTemplate = de ? settings.quoteReminderBodyDe : settings.quoteReminderBodyFr;
+  const values = quoteValues(quote, settings);
+  if (bodyTemplate.includes("{lien}")) {
+    if (settings.onlineAcceptance) {
+      values.lien = await createQuoteLink(quote);
+    } else {
+      const account = await db.clientAccount.findUnique({
+        where: { clientId: quote.clientId },
+        select: { active: true },
+      });
+      values.lien = account?.active ? `${portalUrl(env().APP_URL)}/devis/${quote.id}` : "";
+    }
+  }
+  const attachment = await buildQuotePdf(quote, settings);
+  const labels = documentLabels(quote.language);
+  const subject = renderTemplate(subjectTemplate, values);
+  const result = await deliver({
+    actor,
+    data: {
+      kind: "quote",
+      id: quote.id,
+      to: [to],
+      subject,
+      body: bodyTemplate,
+      copyToSender: false,
+    },
+    settings,
+    language: quote.language,
+    subject,
+    body: renderTemplate(bodyTemplate, values),
+    summary: {
+      title: `${labels.quote} ${quote.number}`,
+      amount: values.montant ?? "",
+      dateLabel: labels.validUntil,
+      date: values.echeance ?? "",
+    },
+    ...(values.lien && settings.onlineAcceptance ? { onlineLink: values.lien } : {}),
+    attachment,
+    link: { quoteId: quote.id },
+  });
+  if (!result.ok) throw new UserError(`L'email n'a pas pu être envoyé : ${result.error}`);
+  await db.quote.update({ where: { id: quote.id }, data: { reminderSentAt: new Date() } });
+  await logActivity({
+    userId: actor?.id ?? null,
+    action: "quote.reminded",
+    entityType: "quote",
+    entityId: quote.id,
+    label: quote.number,
+    details: { to: [to], automatic: actor === null },
+  });
+  return { to };
+}
+
+/** Tâche quotidienne : relance les devis qui expirent dans les prochains jours (une fois chacun). */
+export async function sendDueQuoteReminders(today: string) {
+  const settings = await getSettings();
+  if (!settings.quoteReminderEnabled) return { sent: 0, failed: 0, skipped: true };
+  const limit = addDays(today, settings.quoteReminderDays);
+  const quotes = await db.quote.findMany({
+    where: {
+      status: "SENT",
+      reminderSentAt: null,
+      validUntil: { gte: isoToDbDate(today), lte: isoToDbDate(limit) },
+      client: { email: { not: "" } },
+    },
+    select: { id: true },
+  });
+  let sent = 0;
+  let failed = 0;
+  for (const quote of quotes) {
+    try {
+      await sendQuoteReminder(null, quote.id);
+      sent += 1;
+    } catch (error) {
+      failed += 1;
+      console.error(`Relance du devis ${quote.id} impossible`, error);
+    }
+  }
+  return { sent, failed, skipped: false };
+}

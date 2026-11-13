@@ -830,7 +830,12 @@ async function lockInvoice(tx: Tx, id: string) {
   return invoice;
 }
 
-export async function recordPayment(actor: CurrentUser, payment: PaymentData) {
+export async function recordPayment(
+  actor: CurrentUser,
+  payment: PaymentData,
+  /** Appelé dans la même transaction (ex. import bancaire : opération liée au paiement). */
+  onRecorded?: (tx: Tx, paymentId: string) => Promise<void>,
+) {
   if (payment.date > todayIso())
     throw new UserError("La date du paiement ne peut pas être dans le futur.");
   return db.$transaction(async (tx) => {
@@ -845,7 +850,7 @@ export async function recordPayment(actor: CurrentUser, payment: PaymentData) {
       throw new UserError(`Le montant dépasse le solde de la facture (${formatChf(balance)}).`);
     }
     const paid = invoice.paidCents + payment.amountCents;
-    await tx.payment.create({
+    const created = await tx.payment.create({
       data: {
         invoiceId: invoice.id,
         date: isoToDbDate(payment.date),
@@ -864,6 +869,7 @@ export async function recordPayment(actor: CurrentUser, payment: PaymentData) {
       amount: formatChf(payment.amountCents),
       method: PAYMENT_METHOD_LABELS[payment.method],
     });
+    if (onRecorded) await onRecorded(tx, created.id);
     return { status, balanceCents: balanceCents(owedCents(invoice), paid) };
   });
 }

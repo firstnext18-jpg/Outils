@@ -117,6 +117,10 @@ export function describeActivity(action: string, details: unknown): string {
       return "a supprimé l'abonnement";
     case "subscription.invoiced":
       return `a généré la facture de la période ${String(data.period ?? "")}`;
+    case "quote.reminded":
+      return data.automatic
+        ? "a relancé le client (automatiquement)"
+        : "a relancé le client par email";
     case "quote.accepted_online":
       return data.portal
         ? "a accepté le devis depuis son espace client"

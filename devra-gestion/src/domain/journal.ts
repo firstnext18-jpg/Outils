@@ -25,6 +25,7 @@ export const JOURNAL_CATEGORIES = {
   discussions: { label: "Discussions", prefixes: ["discussion."] },
   "espace-client": { label: "Espace client", prefixes: ["portal."] },
   projets: { label: "Projets et temps", prefixes: ["project.", "time."] },
+  depenses: { label: "Dépenses", prefixes: ["expense."] },
 } as const;
 
 export type JournalCategory = keyof typeof JOURNAL_CATEGORIES;
@@ -122,6 +123,12 @@ export function journalSentence(entry: JournalEntry): string {
       return to
         ? `a envoyé le devis ${label} par email à ${to}`
         : `a envoyé le devis ${label} par email`;
+    }
+    case "quote.reminded": {
+      const to = list(data.to);
+      return data.automatic
+        ? `a relancé automatiquement le client pour le devis ${label}${to ? ` (${to})` : ""}`
+        : `a relancé le client pour le devis ${label}${to ? ` (${to})` : ""}`;
     }
     case "quote.accepted_online":
       return `a accepté le devis ${label} ${data.portal ? "depuis son espace client" : "en ligne"}`;
@@ -232,6 +239,12 @@ export function journalSentence(entry: JournalEntry): string {
       return "a supprimé le logo";
     case "settings.site_types_updated":
       return `${SITE_TYPE_OPERATIONS[text(data.operation)] ?? "a modifié le type de site"} ${quoted}`;
+    case "expense.created":
+      return `a enregistré la dépense ${quoted} (${text(data.amount)})`;
+    case "expense.updated":
+      return `a modifié la dépense ${quoted} (${text(data.amount)})`;
+    case "expense.deleted":
+      return `a supprimé la dépense ${quoted} (${text(data.amount)})`;
     case "project.created":
       return `a créé le projet ${quoted}`;
     case "project.updated":
@@ -299,6 +312,8 @@ export function journalHref(entityType: string | null, entityId: string | null):
       return `/discussions/${entityId}`;
     case "project":
       return `/projets/${entityId}`;
+    case "expense":
+      return `/depenses/${entityId}`;
     default:
       return null;
   }

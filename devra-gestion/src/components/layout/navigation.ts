@@ -2,6 +2,7 @@ import {
   FileTextIcon,
   FolderKanbanIcon,
   TimerIcon,
+  WalletIcon,
   LayoutDashboardIcon,
   MessagesSquareIcon,
   PackageIcon,
@@ -30,6 +31,7 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "Devis", href: "/devis", icon: FileTextIcon, role: "READONLY" },
   { title: "Factures", href: "/factures", icon: ReceiptTextIcon, role: "READONLY" },
   { title: "Abonnements", href: "/abonnements", icon: RepeatIcon, role: "READONLY" },
+  { title: "Dépenses", href: "/depenses", icon: WalletIcon, role: "READONLY" },
   { title: "Catalogue", href: "/catalogue", icon: PackageIcon, role: "READONLY" },
   { title: "Paramètres", href: "/parametres", icon: SettingsIcon, role: "ADMIN" },
 ];

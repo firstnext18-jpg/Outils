@@ -244,3 +244,28 @@ export const projectSiteSettingsSchema = z
     hourlyRateCents: hourlyRate ? (parseChfInput(hourlyRate) ?? 0) : 0,
   }));
 export type ProjectSiteSettingsInput = z.input<typeof projectSiteSettingsSchema>;
+
+// ---------------------------------------------------------------------------
+// Relance des devis
+// ---------------------------------------------------------------------------
+
+const reminderSubject = z
+  .string()
+  .trim()
+  .min(1, "L'objet est obligatoire")
+  .max(200, "200 caractères maximum");
+const reminderBody = z
+  .string()
+  .trim()
+  .min(1, "Le message est obligatoire")
+  .max(5000, "5000 caractères maximum");
+
+export const quoteReminderSettingsSchema = z.object({
+  quoteReminderEnabled: z.boolean(),
+  quoteReminderDays: daysSchema(1, "Délai de la relance"),
+  quoteReminderSubjectFr: reminderSubject,
+  quoteReminderSubjectDe: reminderSubject,
+  quoteReminderBodyFr: reminderBody,
+  quoteReminderBodyDe: reminderBody,
+});
+export type QuoteReminderSettingsInput = z.input<typeof quoteReminderSettingsSchema>;
