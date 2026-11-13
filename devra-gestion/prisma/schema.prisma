@@ -63,6 +63,7 @@ model User {
   discussionMessages DiscussionMessage[]
   discussionReads    DiscussionRead[]
   pushSubscriptions  PushSubscription[]
+  notifications      Notification[]
   clientAccounts     ClientAccount[]     @relation("ClientAccountCreatedBy")
   filesUploaded      StoredFile[]
   projectsCreated    Project[]           @relation("ProjectCreatedBy")
@@ -1066,6 +1067,24 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscription")
+}
+
+/// Notification envoyée à un utilisateur, lue par l'application de bureau
+/// (Windows, macOS) qui affiche les notifications du système. Gardée 30 jours.
+model Notification {
+  /// Numéro croissant : l'application demande « les notifications après n ».
+  id        Int      @id @default(autoincrement())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  url       String
+  tag       String
+  createdAt DateTime @default(now())
+
+  @@index([userId, id])
+  @@index([createdAt])
+  @@map("notification")
 }
 
 // ---------------------------------------------------------------------------

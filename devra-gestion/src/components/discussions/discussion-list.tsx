@@ -1,5 +1,6 @@
 import { HashIcon, MessageSquareIcon, MessagesSquareIcon } from "lucide-react";
 import Link from "next/link";
+import { UnreadCount } from "@/components/discussions/unread-count";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -58,11 +59,7 @@ export function DiscussionList({
                     {formatDateTime(d.lastMessageAt)}
                   </time>
                 )}
-                {d.unread > 0 && (
-                  <Badge className="tabular-nums" aria-label={`${d.unread} non lu(s)`}>
-                    {d.unread}
-                  </Badge>
-                )}
+                <UnreadCount count={d.unread} />
               </div>
             </Link>
           </li>

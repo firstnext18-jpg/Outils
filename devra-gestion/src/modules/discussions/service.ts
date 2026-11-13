@@ -74,9 +74,11 @@ async function unreadByDiscussion(userId: string): Promise<Map<string, number>> 
   return new Map(rows.map((row) => [row.id, row.unread]));
 }
 
-/** Nombre de discussions qui ont des messages non lus (pastille du menu). */
-export async function unreadDiscussionCount(userId: string): Promise<number> {
-  return (await unreadByDiscussion(userId)).size;
+/** Nombre de messages non lus, toutes discussions confondues (pastille du menu). */
+export async function unreadMessageCount(userId: string): Promise<number> {
+  let total = 0;
+  for (const count of (await unreadByDiscussion(userId)).values()) total += count;
+  return total;
 }
 
 /** Discussions, la plus active en premier ; toutes, ou celles d'un client. */

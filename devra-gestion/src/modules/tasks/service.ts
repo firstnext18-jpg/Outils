@@ -4,6 +4,7 @@ import { todayIso } from "@/domain/dates";
 import { sendDueQuoteReminders } from "@/modules/emails/service";
 import { expireQuotes } from "@/modules/quotes/service";
 import { reminderProposals, sendDueReminders } from "@/modules/reminders/service";
+import { purgeOldNotifications } from "@/modules/notifications/service";
 import { getSettings } from "@/modules/settings/service";
 import { runDailySiteChecks } from "@/modules/sites/service";
 import { billDueSubscriptions } from "@/modules/subscriptions/service";
@@ -72,6 +73,9 @@ export async function runDailyTasks(trigger: "cron" | "manual", userId: string |
   });
   await step("sites (domaines, hébergements, certificats)", async () => {
     summary.sites = await runDailySiteChecks(today);
+  });
+  await step("nettoyage des notifications", async () => {
+    await purgeOldNotifications();
   });
 
   await db.taskRun.update({

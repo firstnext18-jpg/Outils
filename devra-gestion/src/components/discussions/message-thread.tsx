@@ -14,6 +14,8 @@ export type ThreadMessage = {
   /** Petite étiquette à côté du nom (ex. « Client »). */
   badge?: string | null;
   mine: boolean;
+  /** Message écrit par le client (couleurs inversées : blanc en mode sombre, noir en mode clair). */
+  fromClient: boolean;
   body: string;
   /** Date et heure déjà formatées (fuseau de Zurich). */
   time: string;
@@ -26,15 +28,21 @@ export type ThreadMessage = {
   attachments?: { id: string; name: string; size: number; href: string; image: boolean }[];
 };
 
-function Attachments({ files }: { files: NonNullable<ThreadMessage["attachments"]> }) {
+function Attachments({
+  files,
+  mine,
+}: {
+  files: NonNullable<ThreadMessage["attachments"]>;
+  mine: boolean;
+}) {
   return (
-    <ul className="mt-1 flex flex-wrap gap-2">
+    <ul className={cn("mt-1 flex flex-wrap gap-2", mine && "justify-end")}>
       {files.map((file) => (
         <li key={file.id}>
           <a
             href={file.href}
             download={file.name}
-            className="hover:bg-muted flex max-w-xs items-center gap-2 rounded-md border p-1.5 text-xs"
+            className="hover:bg-muted bg-background flex max-w-xs items-center gap-2 rounded-md border p-1.5 text-xs"
           >
             {file.image ? (
               // eslint-disable-next-line @next/next/no-img-element -- fichier servi par l'API
@@ -133,20 +141,41 @@ export function MessageThread({
         {messages.map((m) => (
           <li
             key={m.id}
-            className={cn("flex gap-3 rounded-md px-2 py-1", !m.continued && "mt-3 first:mt-0")}
+            className={cn(
+              "flex gap-2 px-1",
+              m.mine && "flex-row-reverse",
+              !m.continued && "mt-3 first:mt-0",
+            )}
           >
-            <div className="w-8 shrink-0">
-              {!m.continued && (
-                <Avatar className="size-8 rounded-lg">
-                  <AvatarFallback className={cn("rounded-lg text-xs", m.mine && "bg-primary/15")}>
-                    {nameInitials(m.author)}
-                  </AvatarFallback>
-                </Avatar>
+            {!m.mine && (
+              <div className="w-8 shrink-0">
+                {!m.continued && (
+                  <Avatar className="size-8 rounded-lg">
+                    <AvatarFallback
+                      className={cn(
+                        "rounded-lg text-xs",
+                        m.fromClient && "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900",
+                      )}
+                    >
+                      {nameInitials(m.author)}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
+              </div>
+            )}
+            <div
+              className={cn(
+                "flex max-w-[85%] min-w-0 flex-col sm:max-w-[75%]",
+                m.mine ? "items-end" : "items-start",
               )}
-            </div>
-            <div className="min-w-0 flex-1">
+            >
               {!m.continued && (
-                <div className="flex flex-wrap items-baseline gap-x-2">
+                <div
+                  className={cn(
+                    "mb-0.5 flex flex-wrap items-baseline gap-x-2 px-1",
+                    m.mine && "flex-row-reverse",
+                  )}
+                >
                   <span className="text-sm font-semibold">{m.author}</span>
                   {m.badge && (
                     <Badge variant="secondary" className="self-center px-1.5 py-0 text-[11px]">
@@ -158,10 +187,27 @@ export function MessageThread({
                   </time>
                 </div>
               )}
-              {m.body && <MessageBody body={m.body} />}
-              {m.attachments && m.attachments.length > 0 && <Attachments files={m.attachments} />}
+              {m.body && (
+                <div
+                  data-from={m.fromClient ? "client" : m.mine ? "moi" : "equipe"}
+                  className={cn(
+                    "rounded-2xl px-3 py-2",
+                    m.fromClient
+                      ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+                      : m.mine
+                        ? "bg-blue-600 text-white"
+                        : "bg-muted text-foreground",
+                    m.mine ? "rounded-br-md" : "rounded-bl-md",
+                  )}
+                >
+                  <MessageBody body={m.body} />
+                </div>
+              )}
+              {m.attachments && m.attachments.length > 0 && (
+                <Attachments files={m.attachments} mine={m.mine} />
+              )}
               {m.receipt && (
-                <p className="text-muted-foreground mt-0.5 flex items-center gap-1 text-xs">
+                <p className="text-muted-foreground mt-0.5 flex items-center gap-1 px-1 text-xs">
                   {m.receipt.read ? (
                     <CheckCheckIcon className="text-primary size-3.5" aria-hidden />
                   ) : (

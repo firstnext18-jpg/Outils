@@ -54,6 +54,7 @@ function threadMessages(discussion: DiscussionDetail, userId: string): ThreadMes
         image: file.mimeType.startsWith("image/"),
       })),
       mine,
+      fromClient: m.fromClient,
       body: m.body,
       time: formatDateTime(m.createdAt),
       iso: m.createdAt.toISOString(),

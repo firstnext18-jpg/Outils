@@ -51,6 +51,7 @@ export default async function PortalDiscussionPage() {
         image: file.mimeType.startsWith("image/"),
       })),
       mine: m.fromClient,
+      fromClient: m.fromClient,
       body: m.body,
       time: formatDateTime(m.createdAt),
       iso: m.createdAt.toISOString(),

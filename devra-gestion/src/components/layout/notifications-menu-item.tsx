@@ -9,7 +9,7 @@ import {
   savePushSubscriptionAction,
 } from "@/modules/discussions/actions";
 
-type State = "loading" | "unsupported" | "blocked" | "off" | "on";
+type State = "loading" | "unsupported" | "blocked" | "off" | "on" | "desktop";
 
 /** Clé publique VAPID (base64url) → octets attendus par pushManager.subscribe. */
 function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
@@ -59,6 +59,8 @@ async function currentSubscription() {
 
 /** État des notifications sur ce navigateur (lu une fois affiché). */
 async function detectState(): Promise<State> {
+  // Application de bureau : elle affiche elle-même les notifications du système.
+  if (/GestionBureau\//.test(navigator.userAgent)) return "desktop";
   if (!supported()) return "unsupported";
   if (Notification.permission === "denied") return "blocked";
   try {
@@ -133,6 +135,13 @@ export function NotificationsMenuItem({ publicKey }: { publicKey: string | null 
   }
 
   if (state === "loading" || state === "unsupported") return null;
+  if (state === "desktop") {
+    return (
+      <DropdownMenuItem disabled>
+        <BellIcon /> Notifications de l&apos;application activées
+      </DropdownMenuItem>
+    );
+  }
   if (!publicKey) {
     return (
       <DropdownMenuItem disabled>

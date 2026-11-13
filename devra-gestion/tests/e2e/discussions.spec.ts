@@ -121,7 +121,7 @@ test("un autre utilisateur voit les messages non lus et répond ; le fil se met 
   const themed = list.getByRole("listitem").filter({ hasText: "Choix du thème" });
   await expect(themed).toContainText(CLIENT);
   await expect(themed).toContainText(`${ADMIN.name} : Clair ou sombre ?`);
-  await expect(themed.getByLabel("1 non lu(s)")).toBeVisible();
+  await expect(themed.getByLabel("1 message non lu")).toBeVisible();
 
   await themed.getByRole("link").click();
   await marc.page.getByLabel("Votre message").fill("Plutôt clair, plus lisible.");
