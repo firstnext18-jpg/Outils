@@ -4,6 +4,9 @@ import { acceptInvitation, ADMIN, invite, login, logout } from "./fixtures";
 // Discussions entre utilisateurs : canal général, discussions par client,
 // messages non lus, lecture seule, notifications. S'exécute après clients.spec.ts.
 test.describe.configure({ mode: "serial" });
+// Chromium complet (et non « headless shell », qui refuse toujours les notifications) :
+// le menu des notifications s'y comporte comme dans un vrai navigateur.
+test.use({ channel: "chromium" });
 
 const CLIENT = "Studio Horizon";
 const PROSPECT = "Prospect Éphémère";

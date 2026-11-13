@@ -169,7 +169,9 @@ test("journal d'activité : recherche, type, lien vers le document", async ({ pa
     exports.filter({ hasText: "a téléchargé les PDF du 01.01.2019 au 31.12.2019 (2 fichier(s))" }),
   ).toHaveCount(1);
   await expect(
-    exports.filter({ hasText: "a exporté la comptabilité (factures, paiements, clients, XLSX)" }),
+    exports.filter({
+      hasText: "a exporté la comptabilité (factures, paiements, clients, dépenses, XLSX)",
+    }),
   ).toHaveCount(1);
   await expect(exports.filter({ hasText: "a exporté la comptabilité (clients, CSV)" })).toHaveCount(
     1,

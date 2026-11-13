@@ -9,7 +9,7 @@ import { buildTypedCsv, buildTypedXlsx } from "@/server/spreadsheet";
 
 /**
  * Export comptable d'une période :
- *   ?du=…&au=…&format=xlsx            classeur (factures, paiements, clients)
+ *   ?du=…&au=…&format=xlsx            classeur (factures, paiements, clients, dépenses)
  *   ?du=…&au=…&format=csv&jeu=factures un fichier CSV par jeu de données
  */
 export async function GET(request: NextRequest) {
