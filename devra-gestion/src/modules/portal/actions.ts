@@ -5,10 +5,12 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import type { z } from "zod";
 import { MESSAGE_MAX } from "@/domain/discussions";
+import { FILE_MAX_BYTES, FILES_PER_UPLOAD, formatFileSize } from "@/domain/files";
+import { notifyTeamOfClientFiles, uploadPortalFiles } from "@/modules/files/service";
 import { portalAcceptSchema, portalRefuseSchema } from "@/domain/online-quote";
 import { fillLabel } from "@/i18n/documents";
 import { onlineQuoteTexts } from "@/i18n/online-quote";
-import { portalTexts, type PortalTexts } from "@/i18n/portal";
+import { portalTexts, portalUploadProblem, type PortalTexts } from "@/i18n/portal";
 import { decideFromPortal } from "@/modules/online-quotes/service";
 import * as auth from "@/modules/portal/auth";
 import {
@@ -138,6 +140,42 @@ export async function portalChangePasswordAction(input: unknown): Promise<Portal
 }
 
 // ---------------------------------------------------------------------------
+// Fichiers
+// ---------------------------------------------------------------------------
+
+function uploadLimits() {
+  return {
+    maxFiles: FILES_PER_UPLOAD,
+    maxBytes: FILE_MAX_BYTES,
+    maxLabel: formatFileSize(FILE_MAX_BYTES),
+  };
+}
+
+function filesOf(formData: FormData): File[] {
+  return formData.getAll("files").filter((f): f is File => f instanceof File);
+}
+
+export async function portalUploadFilesAction(formData: FormData): Promise<PortalResult> {
+  return withSession(async (session, t) => {
+    const files = filesOf(formData);
+    if (files.length === 0) return failure(t.genericError);
+    const problem = portalUploadProblem(t, files, uploadLimits());
+    if (problem) return failure(problem);
+    const saved = await uploadPortalFiles(session, files);
+    after(() =>
+      notifyTeamOfClientFiles(
+        session,
+        saved.map((f) => f.name),
+      ).catch((error: unknown) => {
+        console.error("Notification des fichiers du client impossible", error);
+      }),
+    );
+    revalidatePath("/espace-client/fichiers");
+    return { ok: true };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Discussion avec l'équipe
 // ---------------------------------------------------------------------------
 
@@ -151,13 +189,35 @@ export async function portalPostMessageAction(input: unknown): Promise<PortalRes
           : t.messageRequired,
       );
     }
-    const { id } = await service.postClientMessage(session, parsed.data.body);
-    after(() =>
-      service.notifyTeamOfClientMessage(session, id, parsed.data.body).catch((error: unknown) => {
-        console.error("Notifications du message du client impossibles", error);
-      }),
-    );
-    return { ok: true };
+    return postAsClient(session, parsed.data.body, []);
+  });
+}
+
+async function postAsClient(
+  session: PortalSession,
+  body: string,
+  files: File[],
+): Promise<PortalResult> {
+  const { id, summary } = await service.postClientMessage(session, body, files);
+  after(() =>
+    service.notifyTeamOfClientMessage(session, id, summary).catch((error: unknown) => {
+      console.error("Notifications du message du client impossibles", error);
+    }),
+  );
+  return { ok: true };
+}
+
+/** Message avec pièces jointes (le texte peut alors être vide). */
+export async function portalPostMessageWithFilesAction(formData: FormData): Promise<PortalResult> {
+  return withSession(async (session, t) => {
+    const files = filesOf(formData);
+    const body = String(formData.get("body") ?? "").trim();
+    if (body.length > MESSAGE_MAX)
+      return failure(fillLabel(t.messageTooLong, { max: MESSAGE_MAX }));
+    if (files.length === 0 && !body) return failure(t.messageRequired);
+    const problem = portalUploadProblem(t, files, uploadLimits());
+    if (problem) return failure(problem);
+    return postAsClient(session, body, files);
   });
 }
 

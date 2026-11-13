@@ -83,7 +83,7 @@ export default async function ClientsPage({ searchParams }: PageProps<"/clients"
           </>
         }
       />
-      <ClientsToolbar siteTypes={options.siteTypes} tags={options.tags} />
+      <ClientsToolbar siteTypes={options.siteTypes} stages={options.stages} tags={options.tags} />
       {clients.length > 0 ? (
         <>
           <ClientsList clients={clients} />

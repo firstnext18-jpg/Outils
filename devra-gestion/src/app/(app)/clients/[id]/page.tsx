@@ -17,6 +17,8 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClientActions } from "@/app/(app)/clients/[id]/client-actions";
+import { ClientFilesCard } from "@/app/(app)/clients/[id]/client-files-card";
+import { ClientIndicators, ClientStageSelect } from "@/app/(app)/clients/client-stage";
 import { PortalAccessCard } from "@/app/(app)/clients/[id]/portal-access-card";
 import { DiscussionList } from "@/components/discussions/discussion-list";
 import { InvoicesList } from "@/components/documents/invoices-list";
@@ -32,7 +34,9 @@ import { countryName } from "@/domain/countries";
 import { portalUrl } from "@/domain/portal";
 import { canEdit } from "@/domain/roles";
 import { formatChf, formatDate, formatDateTime } from "@/lib/format";
-import { getClient, getClientActivity } from "@/modules/clients/service";
+import { clientIndicatorsFor, getClient, getClientActivity } from "@/modules/clients/service";
+import { listClientFiles } from "@/modules/files/service";
+import { listOptions } from "@/modules/lists/service";
 import { clientDiscussionId, listDiscussions } from "@/modules/discussions/service";
 import { clientInvoiceSummary, listClientInvoices } from "@/modules/invoices/service";
 import { listClientQuotes } from "@/modules/quotes/service";
@@ -73,6 +77,9 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
     discussions,
     portalAccess,
     portalDiscussionId,
+    stages,
+    indicators,
+    files,
   ] = await Promise.all([
     getClient(id),
     getClientActivity(id),
@@ -83,6 +90,9 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
     listDiscussions(user.id, { clientId: id }),
     getPortalAccess(id),
     clientDiscussionId(id),
+    listOptions("CLIENT_STAGE"),
+    clientIndicatorsFor([id]),
+    listClientFiles(id),
   ]);
   if (!client) notFound();
 
@@ -112,6 +122,19 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
                 <ArchiveIcon /> Archivé le {formatDate(client.archivedAt)}
               </Badge>
             )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <ClientStageSelect
+              clientId={client.id}
+              stageId={client.stageId}
+              stages={
+                client.stageId && !stages.some((s) => s.id === client.stageId)
+                  ? [...stages, ...(client.stage ? [{ ...client.stage, active: false }] : [])]
+                  : stages
+              }
+              disabled={!canEdit(user.role)}
+            />
+            <ClientIndicators indicators={indicators.get(client.id) ?? []} />
           </div>
         </div>
         {canEdit(user.role) && (
@@ -335,6 +358,24 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
               )}
             </CardContent>
           </Card>
+
+          <ClientFilesCard
+            clientId={client.id}
+            canEdit={canEdit(user.role)}
+            hasPortal={Boolean(portalAccess?.active)}
+            files={files.map((file) => ({
+              id: file.id,
+              name: file.name,
+              size: file.size,
+              meta: `${formatDateTime(file.createdAt)} · ${
+                file.uploadedByClient ? client.displayName : (file.uploadedBy?.name ?? "—")
+              }`,
+              visibleToClient: file.visibleToClient,
+              uploadedByClient: file.uploadedByClient,
+              project: file.project?.name ?? null,
+              inDiscussion: file.messageId !== null,
+            }))}
+          />
 
           <Card>
             <CardHeader>

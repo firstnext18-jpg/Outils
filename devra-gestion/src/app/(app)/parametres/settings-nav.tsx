@@ -12,6 +12,8 @@ const SECTIONS = [
   { href: "/parametres/relances", label: "Relances" },
   { href: "/parametres/taches", label: "Tâches" },
   { href: "/parametres/types-de-sites", label: "Types de sites" },
+  { href: "/parametres/listes", label: "Listes" },
+  { href: "/parametres/projets-sites", label: "Projets et sites" },
   { href: "/parametres/utilisateurs", label: "Utilisateurs" },
   { href: "/parametres/journal", label: "Journal" },
 ];

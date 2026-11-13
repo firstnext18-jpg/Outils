@@ -34,6 +34,18 @@ export function describeActivity(action: string, details: unknown): string {
         ? `a modifié : ${fields.join(", ")}`
         : "a enregistré la fiche sans changement";
     }
+    case "client.stage_changed":
+      return data.to ? `a changé l'état en « ${String(data.to)} »` : "a retiré l'état du client";
+    case "file.uploaded": {
+      const files = Array.isArray(data.files) ? (data.files as string[]).join(", ") : "";
+      return `a ajouté ${files}${data.visibleToClient ? " (visible par le client)" : ""}`;
+    }
+    case "file.deleted":
+      return `a supprimé le fichier ${String(data.file ?? "")}`;
+    case "file.visibility_changed":
+      return data.visibleToClient
+        ? `a partagé ${String(data.file ?? "")} avec le client`
+        : `a retiré ${String(data.file ?? "")} de l'espace client`;
     case "client.archived":
       return "a archivé la fiche";
     case "client.unarchived":

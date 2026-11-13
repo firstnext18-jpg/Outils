@@ -43,6 +43,13 @@ export default async function PortalDiscussionPage() {
       id: m.id,
       author: m.fromClient ? t.you : (m.author?.name ?? company),
       badge: m.fromClient ? null : company,
+      attachments: m.attachments.map((file) => ({
+        id: file.id,
+        name: file.name,
+        size: file.size,
+        href: `/api/espace-client/fichiers/${file.id}`,
+        image: file.mimeType.startsWith("image/"),
+      })),
       mine: m.fromClient,
       body: m.body,
       time: formatDateTime(m.createdAt),

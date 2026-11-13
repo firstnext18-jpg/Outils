@@ -2,7 +2,11 @@
 
 import { MessageComposer } from "@/components/discussions/message-composer";
 import { MessageThread, type ThreadMessage } from "@/components/discussions/message-thread";
-import { markReadAction, postMessageAction } from "@/modules/discussions/actions";
+import {
+  markReadAction,
+  postMessageAction,
+  postMessageWithFilesAction,
+} from "@/modules/discussions/actions";
 
 /** Fil et zone de saisie d'une discussion, côté équipe. */
 export function TeamThread({
@@ -30,11 +34,22 @@ export function TeamComposer({
 }) {
   return (
     <MessageComposer
-      onSend={async (body) => {
-        const result = await postMessageAction({ discussionId, body });
+      onSend={async (body, files) => {
+        let result;
+        if (files.length) {
+          const form = new FormData();
+          form.set("discussionId", discussionId);
+          form.set("body", body);
+          for (const file of files) form.append("files", file);
+          result = await postMessageWithFilesAction(form);
+        } else {
+          result = await postMessageAction({ discussionId, body });
+        }
         return result.ok ? null : result.error;
       }}
       labels={{
+        attach: "Joindre des fichiers",
+        remove: "Retirer {name}",
         field: "Votre message",
         placeholder: withClient
           ? "Écrire au client… (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)"

@@ -1,10 +1,11 @@
 "use client";
 
-import { CheckCheckIcon, CheckIcon } from "lucide-react";
+import { CheckCheckIcon, CheckIcon, PaperclipIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { messageParts, nameInitials } from "@/domain/discussions";
+import { formatFileSize } from "@/domain/files";
 import { cn } from "@/lib/utils";
 
 export type ThreadMessage = {
@@ -21,7 +22,41 @@ export type ThreadMessage = {
   continued: boolean;
   /** Accusé de lecture, montré à l'auteur seulement (dernier message de chaque groupe). */
   receipt: { read: boolean; label: string } | null;
+  /** Pièces jointes : lien de téléchargement, aperçu pour les images. */
+  attachments?: { id: string; name: string; size: number; href: string; image: boolean }[];
 };
+
+function Attachments({ files }: { files: NonNullable<ThreadMessage["attachments"]> }) {
+  return (
+    <ul className="mt-1 flex flex-wrap gap-2">
+      {files.map((file) => (
+        <li key={file.id}>
+          <a
+            href={file.href}
+            download={file.name}
+            className="hover:bg-muted flex max-w-xs items-center gap-2 rounded-md border p-1.5 text-xs"
+          >
+            {file.image ? (
+              // eslint-disable-next-line @next/next/no-img-element -- fichier servi par l'API
+              <img
+                src={`${file.href}?apercu=1`}
+                alt=""
+                className="size-10 rounded object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <PaperclipIcon className="text-muted-foreground size-4 shrink-0" aria-hidden />
+            )}
+            <span className="min-w-0">
+              <span className="block truncate font-medium">{file.name}</span>
+              <span className="text-muted-foreground">{formatFileSize(file.size)}</span>
+            </span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function MessageBody({ body }: { body: string }) {
   return (
@@ -123,7 +158,8 @@ export function MessageThread({
                   </time>
                 </div>
               )}
-              <MessageBody body={m.body} />
+              {m.body && <MessageBody body={m.body} />}
+              {m.attachments && m.attachments.length > 0 && <Attachments files={m.attachments} />}
               {m.receipt && (
                 <p className="text-muted-foreground mt-0.5 flex items-center gap-1 text-xs">
                   {m.receipt.read ? (

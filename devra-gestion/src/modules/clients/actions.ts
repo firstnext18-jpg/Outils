@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { authAction } from "@/server/action";
-import { clientIdSchema, createClientSchema, updateClientSchema } from "@/modules/clients/schemas";
+import {
+  clientIdSchema,
+  createClientSchema,
+  updateClientSchema,
+  setClientStageSchema,
+} from "@/modules/clients/schemas";
 import * as service from "@/modules/clients/service";
 
 export const createClientAction = authAction(
@@ -22,6 +27,16 @@ export const updateClientAction = authAction(
     revalidatePath("/clients");
     revalidatePath(`/clients/${id}`);
     return { id };
+  },
+);
+
+export const setClientStageAction = authAction(
+  { role: "MEMBER", schema: setClientStageSchema },
+  async ({ id, stageId }, { user }) => {
+    await service.setClientStage(user, id, stageId);
+    revalidatePath("/clients");
+    revalidatePath(`/clients/${id}`);
+    return null;
   },
 );
 

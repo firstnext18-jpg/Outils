@@ -64,6 +64,13 @@ model User {
   discussionReads    DiscussionRead[]
   pushSubscriptions  PushSubscription[]
   clientAccounts     ClientAccount[]     @relation("ClientAccountCreatedBy")
+  filesUploaded      StoredFile[]
+  projectsCreated    Project[]           @relation("ProjectCreatedBy")
+  stepsDone          ProjectStep[]
+  timeEntries        TimeEntry[]
+  expensesCreated    Expense[]           @relation("ExpenseCreatedBy")
+  bankImports        BankImport[]
+  calendarFeed       CalendarFeed?
 
   @@map("user")
 }
@@ -231,6 +238,21 @@ model Settings {
   documentFooterFr String @default("")
   documentFooterDe String @default("")
 
+  /// Relance des devis : email au client quelques jours avant la fin de validité.
+  quoteReminderEnabled   Boolean @default(false)
+  quoteReminderDays      Int     @default(3)
+  quoteReminderSubjectFr String  @default("Rappel : devis {numero}")
+  quoteReminderSubjectDe String  @default("Erinnerung: Offerte {numero}")
+  quoteReminderBodyFr    String  @default("Bonjour,\n\nNotre devis {numero} d'un montant de {montant} est valable jusqu'au {echeance}.\n\nVous pouvez le consulter et nous donner votre réponse en ligne : {lien}\n\nNous restons à votre disposition pour toute question.\n\nMeilleures salutations\n{entreprise}")
+  quoteReminderBodyDe    String  @default("Guten Tag\n\nUnsere Offerte {numero} über {montant} ist gültig bis {echeance}.\n\nSie können sie online ansehen und uns Ihre Antwort geben: {lien}\n\nFür Fragen stehen wir Ihnen gerne zur Verfügung.\n\nFreundliche Grüsse\n{entreprise}")
+
+  /// Suivi du temps : tarif horaire par défaut des projets (centimes, hors TVA ; 0 = à définir).
+  hourlyRateCents     Int     @default(0)
+  /// Renouvellements des domaines, hébergements et certificats : rappel N jours avant.
+  renewalReminderDays Int     @default(30)
+  /// Surveillance des sites : alerte aussi par email à l'équipe (en plus des notifications).
+  monitorAlertEmail   Boolean @default(true)
+
   updatedAt   DateTime @updatedAt
   updatedById String?
   updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
@@ -332,6 +354,9 @@ model Client {
 
   siteTypeId String?
   siteType   SiteType?        @relation(fields: [siteTypeId], references: [id], onDelete: SetNull)
+  /// État du suivi (« À contacter », « Projet en cours »…), liste modifiable dans les paramètres.
+  stageId    String?
+  stage      ListItem?        @relation(fields: [stageId], references: [id], onDelete: SetNull)
   language   DocumentLanguage @default(FR)
   notes      String           @default("")
   tags       String[]         @default([])
@@ -354,8 +379,14 @@ model Client {
   discussions   Discussion[]
   /// Accès à l'espace client (identifiant et mot de passe), s'il a été créé.
   account       ClientAccount?
+  files         StoredFile[]
+  projects      Project[]
+  timeEntries   TimeEntry[]
+  expenses      Expense[]
+  sites         Site[]
 
   @@index([sortName])
+  @@index([stageId])
   @@index([email])
   @@index([archivedAt])
   @@index([canton])
@@ -531,11 +562,15 @@ model Quote {
   updatedById String?
   updatedBy   User?    @relation("QuoteUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
+  /// Relance avant la fin de validité (automatique ou manuelle) : une seule par devis envoyé.
+  reminderSentAt DateTime?
+
   lines         QuoteLine[]
   invoices      Invoice[]
   emails        EmailLog[]
   subscriptions Subscription[]
   links         QuoteLink[]
+  projects      Project[]
 
   @@index([clientId])
   @@index([status])
@@ -695,10 +730,12 @@ model Invoice {
   updatedById String?
   updatedBy   User?    @relation("InvoiceUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  lines     InvoiceLine[]
-  payments  Payment[]
-  emails    EmailLog[]
-  reminders Reminder[]
+  lines       InvoiceLine[]
+  payments    Payment[]
+  emails      EmailLog[]
+  reminders   Reminder[]
+  /// Heures facturées par cette facture (suivi du temps).
+  timeEntries TimeEntry[]
 
   @@unique([subscriptionId, periodStart])
   @@index([clientId])
@@ -735,17 +772,19 @@ model InvoiceLine {
 }
 
 model Payment {
-  id          String        @id @default(uuid(7))
-  invoiceId   String
+  id              String           @id @default(uuid(7))
+  invoiceId       String
   /// Une facture qui a des paiements ne peut pas être supprimée.
-  invoice     Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  date        DateTime      @db.Date
-  amountCents Int
-  method      PaymentMethod
-  note        String        @default("")
-  createdAt   DateTime      @default(now())
-  createdById String?
-  createdBy   User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  invoice         Invoice          @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  date            DateTime         @db.Date
+  amountCents     Int
+  method          PaymentMethod
+  note            String           @default("")
+  createdAt       DateTime         @default(now())
+  createdById     String?
+  createdBy       User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  /// Opération du relevé bancaire d'où vient ce paiement (import camt).
+  bankTransaction BankTransaction?
 
   @@index([invoiceId])
   @@index([date])
@@ -984,15 +1023,16 @@ model Discussion {
 }
 
 model DiscussionMessage {
-  id           String     @id @default(uuid(7))
+  id           String       @id @default(uuid(7))
   discussionId String
-  discussion   Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  discussion   Discussion   @relation(fields: [discussionId], references: [id], onDelete: Cascade)
   authorId     String?
-  author       User?      @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  author       User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
   /// Écrit par le client depuis son espace client (authorId vide).
-  fromClient   Boolean    @default(false)
+  fromClient   Boolean      @default(false)
   body         String
-  createdAt    DateTime   @default(now())
+  createdAt    DateTime     @default(now())
+  attachments  StoredFile[]
 
   @@index([discussionId, createdAt])
   @@map("discussion_message")
@@ -1087,4 +1127,316 @@ model ClientPasswordReset {
 
   @@index([accountId])
   @@map("client_password_reset")
+}
+
+// ---------------------------------------------------------------------------
+// Listes modifiables dans les paramètres
+// ---------------------------------------------------------------------------
+
+enum ListKind {
+  /// États des clients (« À contacter », « Projet en cours »…).
+  CLIENT_STAGE
+  /// Catégories des dépenses.
+  EXPENSE_CATEGORY
+  /// Étapes proposées à la création d'un projet.
+  PROJECT_STEP
+}
+
+/// Valeur d'une liste modifiable (Paramètres → Listes).
+model ListItem {
+  id        String   @id @default(uuid(7))
+  kind      ListKind
+  name      String
+  position  Int      @default(0)
+  /// Une valeur désactivée n'est plus proposée, mais reste affichée là où elle est utilisée.
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clients  Client[]
+  expenses Expense[]
+
+  @@unique([kind, name])
+  @@index([kind, position])
+  @@map("list_item")
+}
+
+// ---------------------------------------------------------------------------
+// Fichiers (fiche client, espace client, discussions, justificatifs)
+// ---------------------------------------------------------------------------
+
+/// Fichier enregistré dans DATA_DIR/files (inclus dans les sauvegardes).
+model StoredFile {
+  id               String             @id @default(uuid(7))
+  clientId         String?
+  client           Client?            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projectId        String?
+  project          Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  /// Pièce jointe d'un message de discussion.
+  messageId        String?
+  message          DiscussionMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  /// Justificatif d'une dépense.
+  expenseId        String?
+  expense          Expense?           @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  /// Nom d'origine (affiché et proposé au téléchargement).
+  name             String
+  mimeType         String
+  size             Int
+  /// Nom sur le disque (aléatoire).
+  storageName      String             @unique
+  /// Visible dans l'espace client.
+  visibleToClient  Boolean            @default(false)
+  uploadedById     String?
+  uploadedBy       User?              @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  /// Envoyé par le client depuis son espace.
+  uploadedByClient Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+
+  @@index([clientId, createdAt])
+  @@index([projectId])
+  @@index([messageId])
+  @@index([expenseId])
+  @@map("stored_file")
+}
+
+// ---------------------------------------------------------------------------
+// Projets : avancement et suivi du temps
+// ---------------------------------------------------------------------------
+
+enum ProjectStatus {
+  ACTIVE
+  PAUSED
+  DONE
+}
+
+model Project {
+  id                String        @id @default(uuid(7))
+  clientId          String
+  client            Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  /// Devis d'origine (facultatif).
+  quoteId           String?
+  quote             Quote?        @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  name              String
+  description       String        @default("")
+  status            ProjectStatus @default(ACTIVE)
+  startDate         DateTime?     @db.Date
+  dueDate           DateTime?     @db.Date
+  /// Tarif horaire du projet (centimes, hors TVA) ; vide = tarif par défaut des paramètres.
+  hourlyRateCents   Int?
+  /// Budget en minutes (facultatif) : affiché à côté du temps passé.
+  budgetMinutes     Int?
+  /// L'avancement est toujours visible du client ; les heures seulement si coché.
+  showHoursToClient Boolean       @default(true)
+  completedAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  createdById       String?
+  createdBy         User?         @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  steps       ProjectStep[]
+  timeEntries TimeEntry[]
+  files       StoredFile[]
+  expenses    Expense[]
+
+  @@index([clientId])
+  @@index([status])
+  @@map("project")
+}
+
+model ProjectStep {
+  id        String    @id @default(uuid(7))
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  position  Int
+  label     String
+  doneAt    DateTime?
+  doneById  String?
+  doneBy    User?     @relation(fields: [doneById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, position])
+  @@map("project_step")
+}
+
+/// Temps passé (saisi, ou mesuré par le chronomètre tant que `startedAt` est rempli).
+model TimeEntry {
+  id          String    @id @default(uuid(7))
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  clientId    String
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  date        DateTime  @db.Date
+  minutes     Int       @default(0)
+  /// Chronomètre en cours depuis cette heure (un seul par utilisateur).
+  startedAt   DateTime?
+  description String    @default("")
+  billable    Boolean   @default(true)
+  /// Facture qui reprend ce temps (une fois facturé, il n'est plus proposé).
+  invoiceId   String?
+  invoice     Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([clientId, date])
+  @@index([projectId])
+  @@index([userId, startedAt])
+  @@index([invoiceId])
+  @@map("time_entry")
+}
+
+// ---------------------------------------------------------------------------
+// Dépenses et import des paiements bancaires
+// ---------------------------------------------------------------------------
+
+model Expense {
+  id          String        @id @default(uuid(7))
+  date        DateTime      @db.Date
+  supplier    String        @default("")
+  description String
+  categoryId  String?
+  category    ListItem?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  /// Montant payé, TVA comprise (centimes).
+  amountCents Int
+  /// TVA comprise dans le montant (impôt préalable), si l'entreprise est assujettie.
+  vatRateBps  Int?
+  vatCents    Int           @default(0)
+  method      PaymentMethod @default(BANK_TRANSFER)
+  /// Dépense liée à un client ou un projet (marge par projet).
+  clientId    String?
+  client      Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  projectId   String?
+  project     Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  notes       String        @default("")
+  searchText  String        @default("")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  createdById String?
+  createdBy   User?         @relation("ExpenseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  receipts StoredFile[]
+
+  @@index([date])
+  @@index([categoryId])
+  @@index([clientId])
+  @@map("expense")
+}
+
+/// Relevé bancaire importé (fichier camt.053 / camt.054 de l'e-banking).
+model BankImport {
+  id           String   @id @default(uuid(7))
+  fileName     String
+  /// Opérations au crédit lues dans le fichier, et paiements enregistrés.
+  credits      Int
+  paymentCount Int
+  createdAt    DateTime @default(now())
+  createdById  String?
+  createdBy    User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  transactions BankTransaction[]
+
+  @@index([createdAt])
+  @@map("bank_import")
+}
+
+/// Opération d'un relevé enregistrée comme paiement : jamais importée deux fois.
+model BankTransaction {
+  id                String     @id @default(uuid(7))
+  importId          String
+  import            BankImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  /// Identifiant unique de l'opération (référence de la banque, ou empreinte de ses données).
+  key               String     @unique
+  bookingDate       DateTime   @db.Date
+  amountCents       Int
+  creditorReference String     @default("")
+  debtorName        String     @default("")
+  remittance        String     @default("")
+  /// Paiement créé : supprimer le paiement libère l'opération (elle peut être réimportée).
+  paymentId         String     @unique
+  payment           Payment    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("bank_transaction")
+}
+
+// ---------------------------------------------------------------------------
+// Sites des clients : renouvellements et surveillance
+// ---------------------------------------------------------------------------
+
+enum SiteStatus {
+  UNKNOWN
+  UP
+  DOWN
+}
+
+model Site {
+  id               String    @id @default(uuid(7))
+  clientId         String
+  client           Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name             String
+  /// Adresse surveillée, ex. https://www.exemple.ch
+  url              String
+  /// Nom de domaine, ex. exemple.ch
+  domain           String
+  registrar        String    @default("")
+  domainExpiresAt  DateTime? @db.Date
+  /// Date d'expiration lue automatiquement dans le registre (RDAP) quand il la publie.
+  domainExpiryAuto Boolean   @default(true)
+  domainCheckedAt  DateTime?
+  hostingProvider  String    @default("")
+  hostingRenewsAt  DateTime? @db.Date
+  notes            String    @default("")
+
+  /// Surveillance : vérification toutes les quelques minutes.
+  monitor            Boolean    @default(true)
+  showStatusToClient Boolean    @default(true)
+  status             SiteStatus @default(UNKNOWN)
+  statusChangedAt    DateTime?
+  lastCheckAt        DateTime?
+  lastResponseMs     Int?
+  lastError          String     @default("")
+  /// Échecs consécutifs : l'alerte part au deuxième (évite les fausses alertes).
+  failures           Int        @default(0)
+  sslExpiresAt       DateTime?
+
+  /// Rappels déjà envoyés (pour quelle échéance) : un seul rappel par échéance.
+  domainReminderFor  DateTime? @db.Date
+  hostingReminderFor DateTime? @db.Date
+  sslReminderFor     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  incidents SiteIncident[]
+
+  @@index([clientId])
+  @@index([monitor])
+  @@map("site")
+}
+
+/// Période d'indisponibilité d'un site (pour l'historique et le taux de disponibilité).
+model SiteIncident {
+  id        String    @id @default(uuid(7))
+  siteId    String
+  site      Site      @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  startedAt DateTime
+  endedAt   DateTime?
+  error     String    @default("")
+
+  @@index([siteId, startedAt])
+  @@map("site_incident")
+}
+
+// ---------------------------------------------------------------------------
+// Calendrier
+// ---------------------------------------------------------------------------
+
+/// Adresse secrète d'abonnement au calendrier (Outlook, Google Agenda) : une par utilisateur.
+model CalendarFeed {
+  id        String   @id @default(uuid(7))
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("calendar_feed")
 }

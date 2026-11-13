@@ -56,6 +56,7 @@ export default async function PortalLayout({ children }: { children: React.React
               { href: "/espace-client/factures", label: t.navInvoices },
               { href: "/espace-client/abonnements", label: t.navSubscriptions },
               { href: "/espace-client/discussion", label: t.navDiscussion, badge: unread },
+              { href: "/espace-client/fichiers", label: t.navFiles },
               { href: "/espace-client/compte", label: t.navAccount },
             ]}
           />

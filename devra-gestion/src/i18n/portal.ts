@@ -142,6 +142,19 @@ const FR = {
   wrongPassword: "Le mot de passe actuel est incorrect.",
   passwordChanged: "Votre mot de passe a été modifié.",
 
+  // Fichiers
+  navFiles: "Fichiers",
+  filesHelp: "Les documents que nous partageons avec vous, et ceux que vous nous envoyez.",
+  noFiles: "Aucun fichier pour l'instant.",
+  sendFiles: "Envoyer des fichiers",
+  filesSent: "Fichiers envoyés. Merci !",
+  sentByYou: "Envoyé par vous",
+  tooManyFiles: "{max} fichiers au plus à la fois.",
+  fileTooBig: "« {name} » dépasse {max}.",
+  fileEmpty: "« {name} » est vide.",
+  attachFiles: "Joindre des fichiers",
+  removeFile: "Retirer {name}",
+
   // Erreurs
   genericError: "Une erreur est survenue. Réessayez dans un instant.",
   sessionExpired: "Votre session a expiré. Reconnectez-vous.",
@@ -304,6 +317,18 @@ const DE: PortalTexts = {
   wrongPassword: "Das aktuelle Passwort ist falsch.",
   passwordChanged: "Ihr Passwort wurde geändert.",
 
+  navFiles: "Dateien",
+  filesHelp: "Die Dokumente, die wir mit Ihnen teilen, und die Dateien, die Sie uns senden.",
+  noFiles: "Noch keine Dateien.",
+  sendFiles: "Dateien senden",
+  filesSent: "Dateien gesendet. Vielen Dank!",
+  sentByYou: "Von Ihnen gesendet",
+  tooManyFiles: "Höchstens {max} Dateien auf einmal.",
+  fileTooBig: "«{name}» ist grösser als {max}.",
+  fileEmpty: "«{name}» ist leer.",
+  attachFiles: "Dateien anhängen",
+  removeFile: "{name} entfernen",
+
   genericError: "Ein Fehler ist aufgetreten. Bitte versuchen Sie es in einem Moment erneut.",
   sessionExpired: "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
   quoteNotFound: "Diese Offerte existiert nicht oder ist nicht mehr verfügbar.",
@@ -344,4 +369,19 @@ export function loginLanguage(param: unknown, acceptLanguage: string | null): Po
   if (param === "fr") return "FR";
   const preferred = (acceptLanguage ?? "").split(",")[0]?.trim().toLowerCase() ?? "";
   return preferred.startsWith("de") ? "DE" : "FR";
+}
+
+/** Erreur de taille ou de nombre de fichiers, dans la langue du client (ou `null`). */
+export function portalUploadProblem(
+  t: PortalTexts,
+  files: { name: string; size: number }[],
+  limits: { maxFiles: number; maxBytes: number; maxLabel: string },
+): string | null {
+  if (files.length > limits.maxFiles)
+    return t.tooManyFiles.replace("{max}", String(limits.maxFiles));
+  const tooBig = files.find((f) => f.size > limits.maxBytes);
+  if (tooBig) return t.fileTooBig.replace("{name}", tooBig.name).replace("{max}", limits.maxLabel);
+  const empty = files.find((f) => f.size === 0);
+  if (empty) return t.fileEmpty.replace("{name}", empty.name);
+  return null;
 }

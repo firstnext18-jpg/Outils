@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CLIENT_INDICATORS, NO_STAGE_FILTER, type ClientIndicator } from "@/domain/client-stage";
 import { CANTON_CODES } from "@/domain/cantons";
 import { normalizeTags, TAG_MAX_LENGTH, TAGS_MAX_COUNT } from "@/domain/clients";
 import { isCountryCode } from "@/domain/countries";
@@ -131,9 +132,18 @@ export const clientListParamsSchema = z.object({
   canton: optionalParam(z.enum(CANTON_CODES)),
   site: optionalParam(z.uuid()),
   tag: optionalParam(z.string().max(TAG_MAX_LENGTH)),
+  /** État choisi (identifiant), « aucun », ou indicateur automatique (« devis-a-accepter »…). */
+  etat: optionalParam(
+    z.union([
+      z.uuid(),
+      z.enum([NO_STAGE_FILTER, ...(Object.keys(CLIENT_INDICATORS) as ClientIndicator[])]),
+    ]),
+  ),
   statut: optionalParam(z.enum(["actifs", "archives", "tous"])),
   tri: optionalParam(z.enum(Object.keys(CLIENT_SORTS) as [ClientSort, ...ClientSort[]])),
   page: optionalParam(z.coerce.number().int().min(1).max(10_000)),
 });
 
 export type ClientListParams = z.output<typeof clientListParamsSchema>;
+
+export const setClientStageSchema = z.object({ id: idSchema, stageId: idSchema.nullable() });

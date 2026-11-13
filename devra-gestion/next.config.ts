@@ -43,8 +43,10 @@ const nextConfig: NextConfig = {
     "/api/**": ["./node_modules/pdfkit/js/data/**"],
   },
   experimental: {
-    // Envoi du logo et des fichiers d'import via les actions serveur (limite par défaut : 1 Mo).
-    serverActions: { bodySizeLimit: "12mb" },
+    // Envoi du logo, des fichiers d'import et des fichiers partagés via les actions serveur
+    // (limite par défaut : 1 Mo).
+    // Fichiers partagés : 5 fichiers de 20 Mo au plus par envoi.
+    serverActions: { bodySizeLimit: "105mb" },
   },
   async headers() {
     return [

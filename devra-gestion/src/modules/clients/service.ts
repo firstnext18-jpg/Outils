@@ -1,12 +1,16 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
+import { clientIndicators, NO_STAGE_FILTER, type ClientIndicator } from "@/domain/client-stage";
 import { clientDisplayName } from "@/domain/clients";
+import { isoToDbDate, todayIso } from "@/domain/dates";
 import { searchWords } from "@/domain/search";
 import { logActivity } from "@/server/activity";
 import { UserError } from "@/server/action";
 import { db, type Tx } from "@/server/db";
 import type { CurrentUser } from "@/server/session";
 import { withComputedColumns } from "@/modules/clients/computed-columns";
+import { clientStorageNames } from "@/modules/files/service";
+import { deleteStoredFiles } from "@/server/files";
 import type { ClientData, ClientListParams, ClientSort } from "@/modules/clients/schemas";
 
 export const CLIENTS_PAGE_SIZE = 50;
@@ -24,9 +28,99 @@ export function buildClientWhere(params: ClientListParams): Prisma.ClientWhereIn
   if (params.canton) where.push({ canton: params.canton });
   if (params.site) where.push({ siteTypeId: params.site });
   if (params.tag) where.push({ tags: { has: params.tag } });
+  if (params.etat) where.push(stageWhere(params.etat));
   // Chaque mot doit apparaître dans le texte de recherche (nom, email, localité…).
   for (const word of searchWords(params.q ?? "")) where.push({ searchText: { contains: word } });
   return { AND: where };
+}
+
+/** Factures émises, pas entièrement payées, dont l'échéance est dépassée. */
+function overdueInvoiceWhere(): Prisma.InvoiceWhereInput {
+  return { status: { in: ["SENT", "PARTIALLY_PAID"] }, dueDate: { lt: isoToDbDate(todayIso()) } };
+}
+
+/** Devis acceptés qui n'ont encore aucune facture. */
+const acceptedNotInvoiced: Prisma.QuoteWhereInput = { status: "ACCEPTED", invoices: { none: {} } };
+
+function stageWhere(etat: string): Prisma.ClientWhereInput {
+  switch (etat) {
+    case NO_STAGE_FILTER:
+      return { stageId: null };
+    case "devis-a-accepter":
+      return { quotes: { some: { status: "SENT" } } };
+    case "facture-a-envoyer":
+      return {
+        OR: [
+          { invoices: { some: { status: "DRAFT" } } },
+          { quotes: { some: acceptedNotInvoiced } },
+        ],
+      };
+    case "facture-en-retard":
+      return { invoices: { some: overdueInvoiceWhere() } };
+    default:
+      return { stageId: etat };
+  }
+}
+
+/** Indicateurs automatiques (devis à accepter, facture à envoyer, en retard) de ces clients. */
+export async function clientIndicatorsFor(
+  clientIds: string[],
+): Promise<Map<string, ClientIndicator[]>> {
+  if (clientIds.length === 0) return new Map();
+  const inClients = { clientId: { in: clientIds } };
+  const [sent, drafts, accepted, overdue] = await Promise.all([
+    db.quote.groupBy({ by: ["clientId"], where: { ...inClients, status: "SENT" }, _count: true }),
+    db.invoice.groupBy({
+      by: ["clientId"],
+      where: { ...inClients, status: "DRAFT" },
+      _count: true,
+    }),
+    db.quote.groupBy({
+      by: ["clientId"],
+      where: { ...inClients, ...acceptedNotInvoiced },
+      _count: true,
+    }),
+    db.invoice.groupBy({
+      by: ["clientId"],
+      where: { ...inClients, ...overdueInvoiceWhere() },
+      _count: true,
+    }),
+  ]);
+  const count = (rows: { clientId: string; _count: number }[], id: string) =>
+    rows.find((row) => row.clientId === id)?._count ?? 0;
+  return new Map(
+    clientIds.map((id) => [
+      id,
+      clientIndicators({
+        sentQuotes: count(sent, id),
+        toInvoice: count(drafts, id) + count(accepted, id),
+        overdueInvoices: count(overdue, id),
+      }),
+    ]),
+  );
+}
+
+/** Change l'état du client (liste des paramètres) ; `null` : aucun état. */
+export async function setClientStage(actor: CurrentUser, id: string, stageId: string | null) {
+  const client = await db.client.findUnique({
+    where: { id },
+    select: { displayName: true, stageId: true, stage: { select: { name: true } } },
+  });
+  if (!client) throw new UserError("Ce client n'existe plus.");
+  if (client.stageId === stageId) return;
+  const stage = stageId
+    ? await db.listItem.findFirst({ where: { id: stageId, kind: "CLIENT_STAGE" } })
+    : null;
+  if (stageId && !stage) throw new UserError("Cet état n'existe plus. Rechargez la page.");
+  await db.client.update({ where: { id }, data: { stageId } });
+  await logActivity({
+    userId: actor.id,
+    action: "client.stage_changed",
+    entityType: "client",
+    entityId: id,
+    label: client.displayName,
+    details: { from: client.stage?.name ?? null, to: stage?.name ?? null },
+  });
 }
 
 const ORDER_BY: Record<ClientSort, Prisma.ClientOrderByWithRelationInput[]> = {
@@ -51,9 +145,12 @@ const listSelect = {
   tags: true,
   archivedAt: true,
   siteType: { select: { name: true } },
+  stage: { select: { name: true } },
 } satisfies Prisma.ClientSelect;
 
-export type ClientListRow = Prisma.ClientGetPayload<{ select: typeof listSelect }>;
+export type ClientListRow = Prisma.ClientGetPayload<{ select: typeof listSelect }> & {
+  indicators: ClientIndicator[];
+};
 
 export async function listClients(params: ClientListParams) {
   const where = buildClientWhere(params);
@@ -67,7 +164,13 @@ export async function listClients(params: ClientListParams) {
     take: CLIENTS_PAGE_SIZE,
     select: listSelect,
   });
-  return { clients, total, page, pageCount };
+  const indicators = await clientIndicatorsFor(clients.map((c) => c.id));
+  return {
+    clients: clients.map((client) => ({ ...client, indicators: indicators.get(client.id) ?? [] })),
+    total,
+    page,
+    pageCount,
+  };
 }
 
 /** Nombre total de clients (pour distinguer « aucun client » de « aucun résultat »). */
@@ -77,15 +180,20 @@ export function countAllClients() {
 
 /** Valeurs proposées dans les filtres : types de sites et tags existants. */
 export async function getClientFilterOptions() {
-  const [siteTypes, tagRows] = await Promise.all([
+  const [siteTypes, stages, tagRows] = await Promise.all([
     db.siteType.findMany({
+      orderBy: [{ position: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, active: true },
+    }),
+    db.listItem.findMany({
+      where: { kind: "CLIENT_STAGE" },
       orderBy: [{ position: "asc" }, { name: "asc" }],
       select: { id: true, name: true, active: true },
     }),
     db.$queryRaw<{ tag: string }[]>`
       SELECT DISTINCT unnest(tags) AS tag FROM client ORDER BY tag`,
   ]);
-  return { siteTypes, tags: tagRows.map((row) => row.tag) };
+  return { siteTypes, stages, tags: tagRows.map((row) => row.tag) };
 }
 
 /** Clients pour l'export (mêmes filtres que la liste, sans pagination). */
@@ -106,6 +214,7 @@ export function getClient(id: string) {
     where: { id },
     include: {
       siteType: { select: { id: true, name: true, active: true } },
+      stage: { select: { id: true, name: true } },
       createdBy: { select: { name: true } },
       updatedBy: { select: { name: true } },
     },
@@ -280,6 +389,8 @@ export async function deleteClient(actor: CurrentUser, id: string) {
       `Ce client a ${client._count.quotes} devis : il ne peut pas être supprimé. Archivez-le plutôt.`,
     );
   }
+  // Ses fichiers (fiche, discussions) sont effacés du disque avec la fiche.
+  const storageNames = await clientStorageNames(id);
   await db.$transaction(async (tx) => {
     await tx.client.delete({ where: { id } });
     await logActivity(
@@ -293,6 +404,7 @@ export async function deleteClient(actor: CurrentUser, id: string) {
       tx,
     );
   });
+  await deleteStoredFiles(storageNames);
 }
 
 // ---------------------------------------------------------------------------

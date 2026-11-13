@@ -14,7 +14,7 @@ export type JournalEntry = {
 };
 
 export const JOURNAL_CATEGORIES = {
-  clients: { label: "Clients", prefixes: ["client.", "clients."] },
+  clients: { label: "Clients et fichiers", prefixes: ["client.", "clients.", "file."] },
   devis: { label: "Devis", prefixes: ["quote."] },
   factures: { label: "Factures et paiements", prefixes: ["invoice.", "payment."] },
   abonnements: { label: "Abonnements", prefixes: ["subscription."] },
@@ -68,6 +68,14 @@ export function journalSentence(entry: JournalEntry): string {
         ? `a modifié la fiche client ${quoted} : ${fields}`
         : `a enregistré la fiche client ${quoted} sans changement`;
     }
+    case "file.uploaded":
+    case "file.deleted":
+    case "file.visibility_changed":
+      return `${describeActivity(entry.action, entry.details)} (${label})`;
+    case "client.stage_changed":
+      return data.to
+        ? `a passé ${label} à l'état « ${text(data.to)} »`
+        : `a retiré l'état de ${label}`;
     case "client.archived":
       return `a archivé la fiche client ${quoted}`;
     case "client.unarchived":
@@ -223,6 +231,19 @@ export function journalSentence(entry: JournalEntry): string {
       return "a supprimé le logo";
     case "settings.site_types_updated":
       return `${SITE_TYPE_OPERATIONS[text(data.operation)] ?? "a modifié le type de site"} ${quoted}`;
+    case "settings.lists_updated": {
+      const operation: Record<string, string> = {
+        created: "a ajouté",
+        renamed: "a renommé",
+        moved: "a déplacé",
+        activated: "a réactivé",
+        deactivated: "a désactivé",
+        deleted: "a supprimé",
+      };
+      return `${operation[text(data.operation)] ?? "a modifié"} ${quoted} (${text(data.list)})`;
+    }
+    case "settings.projects_sites_updated":
+      return "a modifié les paramètres des projets et des sites";
     case "settings.documents_updated":
       return "a modifié les textes des documents";
     case "settings.emails_updated":

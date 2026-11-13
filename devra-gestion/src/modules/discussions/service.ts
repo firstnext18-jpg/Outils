@@ -10,6 +10,7 @@ import {
 import { logActivity } from "@/server/activity";
 import { UserError } from "@/server/action";
 import { db } from "@/server/db";
+import { storeFiles } from "@/modules/files/service";
 import { sendPortalMessageEmail } from "@/server/emails/portal-emails";
 import { sendPush, sendPushToEndpoint } from "@/server/push";
 import type { CurrentUser } from "@/server/session";
@@ -109,7 +110,10 @@ export async function listDiscussions(userId: string, filter: { clientId?: strin
       /** Discussion avec le client : visible dans son espace client. */
       withClient: d.portalClientId !== null,
       lastMessage: last
-        ? { author: messageAuthor(last, d.client?.displayName), excerpt: messageExcerpt(last.body) }
+        ? {
+            author: messageAuthor(last, d.client?.displayName),
+            excerpt: last.body.trim() ? messageExcerpt(last.body) : "📎 Fichier joint",
+          }
         : null,
       messageCount: d._count.messages,
       unread: unread.get(d.id) ?? 0,
@@ -136,7 +140,13 @@ export async function getDiscussion(id: string, options: { all?: boolean } = {})
       where: { discussionId: id },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       ...(options.all ? {} : { take: MESSAGES_PAGE }),
-      include: { author: { select: { id: true, name: true } } },
+      include: {
+        author: { select: { id: true, name: true } },
+        attachments: {
+          orderBy: { createdAt: "asc" },
+          select: { id: true, name: true, size: true, mimeType: true },
+        },
+      },
     }),
     // Dernière lecture de chaque utilisateur actif : accusés de lecture.
     db.discussionRead.findMany({
@@ -204,9 +214,16 @@ export async function createDiscussion(
 }
 
 /** Nouveau message dans une discussion (ou le canal général). */
+/** Texte d'un message pour les notifications : le message, ou les fichiers joints. */
+export function messageSummary(body: string, fileNames: string[], max = 140) {
+  if (body.trim()) return messageExcerpt(body, max);
+  return messageExcerpt(`📎 ${fileNames.join(", ")}`, max);
+}
+
 export async function postMessage(
   actor: CurrentUser,
   input: { discussionId: string; body: string },
+  files: File[] = [],
 ) {
   if (isGeneralDiscussion(input.discussionId)) await ensureGeneralDiscussion();
   const discussion = await db.discussion.findUnique({
@@ -214,19 +231,38 @@ export async function postMessage(
     include: { client: { select: { displayName: true } } },
   });
   if (!discussion) throw new UserError("Cette discussion n'existe plus.");
+  if (!input.body.trim() && files.length === 0) throw new UserError("Écrivez un message");
   const now = new Date();
   const key = { discussionId: discussion.id, userId: actor.id };
-  await db.$transaction([
-    db.discussionMessage.create({
+  const message = await db.$transaction(async (tx) => {
+    const created = await tx.discussionMessage.create({
       data: { discussionId: discussion.id, authorId: actor.id, body: input.body, createdAt: now },
-    }),
-    db.discussion.update({ where: { id: discussion.id }, data: { lastMessageAt: now } }),
-    db.discussionRead.upsert({
+    });
+    await tx.discussion.update({ where: { id: discussion.id }, data: { lastMessageAt: now } });
+    await tx.discussionRead.upsert({
       where: { discussionId_userId: key },
       create: { ...key, lastReadAt: now },
       update: { lastReadAt: now },
-    }),
-  ]);
+    });
+    return created;
+  });
+  // Pièces jointes : rattachées au client de la discussion ; visibles par lui
+  // seulement dans la discussion avec le client.
+  const saved = files.length
+    ? await storeFiles(files, {
+        clientId: discussion.clientId,
+        messageId: message.id,
+        visibleToClient: discussion.portalClientId !== null,
+        uploadedById: actor.id,
+      }).catch(async (error: unknown) => {
+        await db.discussionMessage.delete({ where: { id: message.id } });
+        throw error;
+      })
+    : [];
+  const summary = messageSummary(
+    input.body,
+    saved.map((f) => f.name),
+  );
   return {
     id: discussion.id,
     withClient: discussion.portalClientId !== null,
@@ -234,8 +270,9 @@ export async function postMessage(
       title: discussion.client
         ? `${discussion.client.displayName} · ${discussion.title}`
         : discussion.title,
-      body: `${actor.name} : ${messageExcerpt(input.body, 140)}`,
+      body: `${actor.name} : ${summary}`,
     },
+    summary,
   };
 }
 

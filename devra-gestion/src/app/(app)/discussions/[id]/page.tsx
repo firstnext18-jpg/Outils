@@ -46,6 +46,13 @@ function threadMessages(discussion: DiscussionDetail, userId: string): ThreadMes
       id: m.id,
       author: m.authorName,
       badge: m.fromClient ? "Client" : null,
+      attachments: m.attachments.map((file) => ({
+        id: file.id,
+        name: file.name,
+        size: file.size,
+        href: `/api/fichiers/${file.id}`,
+        image: file.mimeType.startsWith("image/"),
+      })),
       mine,
       body: m.body,
       time: formatDateTime(m.createdAt),
