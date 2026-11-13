@@ -1,5 +1,7 @@
 import {
   FileTextIcon,
+  FolderKanbanIcon,
+  TimerIcon,
   LayoutDashboardIcon,
   MessagesSquareIcon,
   PackageIcon,
@@ -23,6 +25,8 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "Tableau de bord", href: "/", icon: LayoutDashboardIcon, role: "READONLY" },
   { title: "Discussions", href: "/discussions", icon: MessagesSquareIcon, role: "READONLY" },
   { title: "Clients", href: "/clients", icon: UsersIcon, role: "READONLY" },
+  { title: "Projets", href: "/projets", icon: FolderKanbanIcon, role: "READONLY" },
+  { title: "Temps", href: "/temps", icon: TimerIcon, role: "READONLY" },
   { title: "Devis", href: "/devis", icon: FileTextIcon, role: "READONLY" },
   { title: "Factures", href: "/factures", icon: ReceiptTextIcon, role: "READONLY" },
   { title: "Abonnements", href: "/abonnements", icon: RepeatIcon, role: "READONLY" },

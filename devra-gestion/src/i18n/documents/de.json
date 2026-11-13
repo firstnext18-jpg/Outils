@@ -55,5 +55,7 @@
   "reminderQrMessage": "Mahnung Rechnung {number}",
   "period": "Zeitraum",
   "emailPdfAttached": "PDF im Anhang",
-  "emailViewQuoteOnline": "Offerte online ansehen"
+  "emailViewQuoteOnline": "Offerte online ansehen",
+  "timeInvoiceSubject": "Leistungen nach Aufwand",
+  "timeOutsideProject": "Diverse Leistungen"
 }

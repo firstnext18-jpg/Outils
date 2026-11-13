@@ -142,6 +142,21 @@ const FR = {
   wrongPassword: "Le mot de passe actuel est incorrect.",
   passwordChanged: "Votre mot de passe a été modifié.",
 
+  // Projets
+  navProjects: "Projets",
+  projectsHelp: "L'avancement de vos projets, étape par étape.",
+  noProjects: "Aucun projet pour l'instant.",
+  projectActive: "En cours",
+  projectPaused: "En pause",
+  projectDone: "Terminé",
+  stepsDone: "{done} étape(s) terminée(s) sur {total}",
+  projectDue: "Échéance : {date}",
+  timeSpent: "Temps passé : {time}",
+  timeBudget: "{time} sur {budget} prévues",
+  hoursDetail: "Détail des heures",
+  projectsProgress: "Avancement de vos projets",
+  stepDoneOn: "terminée le {date}",
+
   // Fichiers
   navFiles: "Fichiers",
   filesHelp: "Les documents que nous partageons avec vous, et ceux que vous nous envoyez.",
@@ -316,6 +331,20 @@ const DE: PortalTexts = {
   currentPassword: "Aktuelles Passwort",
   wrongPassword: "Das aktuelle Passwort ist falsch.",
   passwordChanged: "Ihr Passwort wurde geändert.",
+
+  navProjects: "Projekte",
+  projectsHelp: "Der Fortschritt Ihrer Projekte, Schritt für Schritt.",
+  noProjects: "Noch keine Projekte.",
+  projectActive: "In Arbeit",
+  projectPaused: "Pausiert",
+  projectDone: "Abgeschlossen",
+  stepsDone: "{done} von {total} Schritten erledigt",
+  projectDue: "Termin: {date}",
+  timeSpent: "Aufgewendete Zeit: {time}",
+  timeBudget: "{time} von {budget} geplant",
+  hoursDetail: "Stundendetails",
+  projectsProgress: "Fortschritt Ihrer Projekte",
+  stepDoneOn: "erledigt am {date}",
 
   navFiles: "Dateien",
   filesHelp: "Die Dokumente, die wir mit Ihnen teilen, und die Dateien, die Sie uns senden.",

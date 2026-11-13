@@ -4,6 +4,7 @@ import {
   FilePlusIcon,
   Building2Icon,
   FileTextIcon,
+  FolderKanbanIcon,
   GlobeIcon,
   MailIcon,
   MapPinIcon,
@@ -36,6 +37,8 @@ import { canEdit } from "@/domain/roles";
 import { formatChf, formatDate, formatDateTime } from "@/lib/format";
 import { clientIndicatorsFor, getClient, getClientActivity } from "@/modules/clients/service";
 import { listClientFiles } from "@/modules/files/service";
+import { listClientProjects } from "@/modules/projects/service";
+import { ProjectList } from "@/components/projects/project-list";
 import { listOptions } from "@/modules/lists/service";
 import { clientDiscussionId, listDiscussions } from "@/modules/discussions/service";
 import { clientInvoiceSummary, listClientInvoices } from "@/modules/invoices/service";
@@ -80,6 +83,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
     stages,
     indicators,
     files,
+    projects,
   ] = await Promise.all([
     getClient(id),
     getClientActivity(id),
@@ -93,6 +97,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
     listOptions("CLIENT_STAGE"),
     clientIndicatorsFor([id]),
     listClientFiles(id),
+    listClientProjects(id),
   ]);
   if (!client) notFound();
 
@@ -270,6 +275,28 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
               </Card>
             ))}
           </div>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Projets</CardTitle>
+              {canEdit(user.role) && !client.archivedAt && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/projets/nouveau?client=${client.id}`}>
+                    <FolderKanbanIcon /> Nouveau projet
+                  </Link>
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="text-sm">
+              {projects.length > 0 ? (
+                <ProjectList projects={projects} showClient={false} />
+              ) : (
+                <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
+                  <FolderKanbanIcon className="size-5" /> Aucun projet pour ce client.
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2">

@@ -223,3 +223,24 @@ export const reminderSettingsSchema = z.object({
 });
 export type ReminderSettingsInput = z.input<typeof reminderSettingsSchema>;
 export type ReminderSettingsOutput = z.output<typeof reminderSettingsSchema>;
+
+// ---------------------------------------------------------------------------
+// Projets et sites
+// ---------------------------------------------------------------------------
+
+export const projectSiteSettingsSchema = z
+  .object({
+    hourlyRate: z.string().trim().max(20),
+    renewalReminderDays: daysSchema(1, "Rappel des renouvellements"),
+    monitorAlertEmail: z.boolean(),
+  })
+  .superRefine((settings, ctx) => {
+    if (settings.hourlyRate && parseChfInput(settings.hourlyRate) === null) {
+      ctx.addIssue({ code: "custom", path: ["hourlyRate"], message: "Montant invalide" });
+    }
+  })
+  .transform(({ hourlyRate, ...settings }) => ({
+    ...settings,
+    hourlyRateCents: hourlyRate ? (parseChfInput(hourlyRate) ?? 0) : 0,
+  }));
+export type ProjectSiteSettingsInput = z.input<typeof projectSiteSettingsSchema>;

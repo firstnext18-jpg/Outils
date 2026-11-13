@@ -14,6 +14,7 @@ import {
   emailTemplatesSchema,
   reminderSettingsSchema,
   LOGO_MAX_BYTES,
+  projectSiteSettingsSchema,
 } from "@/modules/settings/schemas";
 import { getSettings } from "@/modules/settings/service";
 
@@ -132,6 +133,21 @@ export const updateBillingSettingsAction = authAction(
       details: { vatEnabled: input.vatEnabled, onlineAcceptance: input.onlineAcceptance },
     });
     revalidatePath("/parametres/facturation");
+    return null;
+  },
+);
+
+export const updateProjectSiteSettingsAction = authAction(
+  { role: "ADMIN", schema: projectSiteSettingsSchema },
+  async (input, { user }) => {
+    await getSettings();
+    await db.settings.update({ where: { id: 1 }, data: { ...input, updatedById: user.id } });
+    await logActivity({
+      userId: user.id,
+      action: "settings.projects_sites_updated",
+      entityType: "settings",
+    });
+    revalidatePath("/parametres/projets-sites");
     return null;
   },
 );

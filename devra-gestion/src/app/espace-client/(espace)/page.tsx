@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { MessagesSquareIcon } from "lucide-react";
 import Link from "next/link";
 import { InvoiceRows } from "@/components/portal/invoice-rows";
+import { PortalProjectCards } from "@/components/portal/project-cards";
 import { QuoteRows } from "@/components/portal/quote-rows";
 import { SubscriptionRows } from "@/components/portal/subscription-rows";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import {
   portalSubscriptions,
   portalUnreadCount,
 } from "@/modules/portal/service";
+import { portalProjects } from "@/modules/projects/service";
 import { getSettings } from "@/modules/settings/service";
 import { requirePortalSession } from "@/server/portal-session";
 
@@ -27,13 +29,15 @@ export default async function PortalHomePage() {
   const { client } = session;
   const language = client.language;
   const t = portalTexts(language);
-  const [invoices, quotes, subscriptions, unread, settings] = await Promise.all([
+  const [invoices, quotes, subscriptions, unread, settings, projects] = await Promise.all([
     portalInvoices(client.id),
     portalQuotes(client.id),
     portalSubscriptions(client.id),
     portalUnreadCount(client.id),
     getSettings(),
+    portalProjects(client.id),
   ]);
+  const activeProjects = projects.filter((p) => p.status !== "DONE");
   const toPay = invoicesToPay(invoices);
   const totalToPay = toPay.reduce((sum, invoice) => sum + invoice.outstandingCents, 0);
   const waiting = quotes.filter((quote) => quote.state === "open");
@@ -57,6 +61,18 @@ export default async function PortalHomePage() {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {activeProjects.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-semibold">{t.projectsProgress}</h2>
+            <Link href="/espace-client/projets" className="text-sm hover:underline">
+              {t.seeAll}
+            </Link>
+          </div>
+          <PortalProjectCards projects={activeProjects} t={t} compact />
+        </section>
       )}
 
       <Card>

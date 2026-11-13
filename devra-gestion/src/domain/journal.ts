@@ -24,6 +24,7 @@ export const JOURNAL_CATEGORIES = {
   exports: { label: "Exports", prefixes: ["export."] },
   discussions: { label: "Discussions", prefixes: ["discussion."] },
   "espace-client": { label: "Espace client", prefixes: ["portal."] },
+  projets: { label: "Projets et temps", prefixes: ["project.", "time."] },
 } as const;
 
 export type JournalCategory = keyof typeof JOURNAL_CATEGORIES;
@@ -231,6 +232,24 @@ export function journalSentence(entry: JournalEntry): string {
       return "a supprimé le logo";
     case "settings.site_types_updated":
       return `${SITE_TYPE_OPERATIONS[text(data.operation)] ?? "a modifié le type de site"} ${quoted}`;
+    case "project.created":
+      return `a créé le projet ${quoted}`;
+    case "project.updated":
+      return `a modifié le projet ${quoted}`;
+    case "project.deleted":
+      return `a supprimé le projet ${quoted}`;
+    case "project.status_changed": {
+      const status: Record<string, string> = {
+        ACTIVE: "a repris le projet",
+        PAUSED: "a mis en pause le projet",
+        DONE: "a terminé le projet",
+      };
+      return `${status[text(data.status)] ?? "a changé le statut du projet"} ${quoted}`;
+    }
+    case "project.step_done":
+      return `a terminé l'étape « ${text(data.step)} » du projet ${quoted}`;
+    case "time.invoiced":
+      return `a facturé ${text(data.hours)} de ${label} (${text(data.entries)} saisie(s))`;
     case "settings.lists_updated": {
       const operation: Record<string, string> = {
         created: "a ajouté",
@@ -278,6 +297,8 @@ export function journalHref(entityType: string | null, entityId: string | null):
       return `/abonnements/${entityId}`;
     case "discussion":
       return `/discussions/${entityId}`;
+    case "project":
+      return `/projets/${entityId}`;
     default:
       return null;
   }
