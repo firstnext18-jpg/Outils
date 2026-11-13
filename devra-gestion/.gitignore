@@ -32,3 +32,7 @@ npm-debug.log*
 
 # Sauvegardes locales (docker compose, service « backup »)
 /sauvegardes/
+
+# Application de bureau (dépendances et installateurs construits)
+/desktop/node_modules/
+/desktop/dist/

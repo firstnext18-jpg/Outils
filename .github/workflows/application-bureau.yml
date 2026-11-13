@@ -1,0 +1,74 @@
+# Construit l'application de bureau (devra-gestion/desktop) :
+#   - Windows : installateur Gestion-<version>-Windows.exe
+#   - macOS   : image disque Gestion-<version>-Mac.dmg (Mac Intel et Apple Silicon)
+# Les fichiers sont à télécharger dans l'onglet Actions → « Application de bureau »
+# → dernière exécution → « Artifacts ». Voir devra-gestion/docs/APPLICATION_BUREAU.md.
+#
+# - à chaque mise à jour de main ou d'une pull request touchant l'application ;
+# - à la demande : onglet Actions → « Application de bureau » → « Run workflow ».
+name: Application de bureau
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "devra-gestion/desktop/**"
+      - ".github/workflows/application-bureau.yml"
+  pull_request:
+    paths:
+      - "devra-gestion/desktop/**"
+      - ".github/workflows/application-bureau.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: application-bureau-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  construire:
+    name: Construire (${{ matrix.nom }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            nom: Windows
+            cible: --win
+          - os: macos-latest
+            nom: Mac
+            cible: --mac
+    defaults:
+      run:
+        working-directory: devra-gestion/desktop
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: devra-gestion/desktop/package-lock.json
+
+      - name: Dépendances
+        run: npm ci
+
+      - name: Installateur
+        # Application non signée (pas de certificat Apple ni Microsoft) : voir la
+        # documentation pour l'ouvrir la première fois.
+        run: npx electron-builder ${{ matrix.cible }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Gestion-${{ matrix.nom }}
+          path: |
+            devra-gestion/desktop/dist/*.exe
+            devra-gestion/desktop/dist/*.dmg
+          if-no-files-found: error
+          retention-days: 90

@@ -16,6 +16,8 @@ on:
     paths:
       - "devra-gestion/**"
       - "!devra-gestion/**/*.md"
+      - "!devra-gestion/desktop/**"
+      - "!devra-gestion/android/**"
       - ".github/workflows/images-docker.yml"
   pull_request:
     paths:
