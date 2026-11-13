@@ -18,6 +18,9 @@ function describe(summary: DailySummary | null): string {
   if (summary.quoteReminders?.sent) {
     parts.push(`${summary.quoteReminders.sent} devis relancé(s)`);
   }
+  if (summary.sites?.reminders) {
+    parts.push(`${summary.sites.reminders} rappel(s) de renouvellement`);
+  }
   const reminders = summary.reminders;
   if (reminders?.mode === "MANUAL") parts.push(`${reminders.toSend} relance(s) à envoyer`);
   if (reminders?.mode === "AUTOMATIC") {

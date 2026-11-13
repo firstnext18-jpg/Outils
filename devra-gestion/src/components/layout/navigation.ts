@@ -1,5 +1,7 @@
 import {
+  CalendarDaysIcon,
   FileTextIcon,
+  GlobeIcon,
   FolderKanbanIcon,
   TimerIcon,
   WalletIcon,
@@ -28,6 +30,8 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "Clients", href: "/clients", icon: UsersIcon, role: "READONLY" },
   { title: "Projets", href: "/projets", icon: FolderKanbanIcon, role: "READONLY" },
   { title: "Temps", href: "/temps", icon: TimerIcon, role: "READONLY" },
+  { title: "Sites", href: "/sites", icon: GlobeIcon, role: "READONLY" },
+  { title: "Calendrier", href: "/calendrier", icon: CalendarDaysIcon, role: "READONLY" },
   { title: "Devis", href: "/devis", icon: FileTextIcon, role: "READONLY" },
   { title: "Factures", href: "/factures", icon: ReceiptTextIcon, role: "READONLY" },
   { title: "Abonnements", href: "/abonnements", icon: RepeatIcon, role: "READONLY" },

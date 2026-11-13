@@ -4,6 +4,7 @@ import Link from "next/link";
 import { InvoiceRows } from "@/components/portal/invoice-rows";
 import { PortalProjectCards } from "@/components/portal/project-cards";
 import { QuoteRows } from "@/components/portal/quote-rows";
+import { PortalSiteStatusList } from "@/components/portal/site-status-list";
 import { SubscriptionRows } from "@/components/portal/subscription-rows";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +20,7 @@ import {
 } from "@/modules/portal/service";
 import { portalProjects } from "@/modules/projects/service";
 import { getSettings } from "@/modules/settings/service";
+import { portalSites } from "@/modules/sites/service";
 import { requirePortalSession } from "@/server/portal-session";
 
 export const metadata: Metadata = { title: "Espace client · Kundenportal" };
@@ -29,13 +31,14 @@ export default async function PortalHomePage() {
   const { client } = session;
   const language = client.language;
   const t = portalTexts(language);
-  const [invoices, quotes, subscriptions, unread, settings, projects] = await Promise.all([
+  const [invoices, quotes, subscriptions, unread, settings, projects, sites] = await Promise.all([
     portalInvoices(client.id),
     portalQuotes(client.id),
     portalSubscriptions(client.id),
     portalUnreadCount(client.id),
     getSettings(),
     portalProjects(client.id),
+    portalSites(client.id),
   ]);
   const activeProjects = projects.filter((p) => p.status !== "DONE");
   const toPay = invoicesToPay(invoices);
@@ -104,6 +107,17 @@ export default async function PortalHomePage() {
           </CardHeader>
           <CardContent>
             <QuoteRows quotes={waiting} t={t} language={language} />
+          </CardContent>
+        </Card>
+      )}
+
+      {sites.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.yourSites}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PortalSiteStatusList sites={sites} t={t} language={language} />
           </CardContent>
         </Card>
       )}

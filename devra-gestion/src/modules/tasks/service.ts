@@ -5,6 +5,7 @@ import { sendDueQuoteReminders } from "@/modules/emails/service";
 import { expireQuotes } from "@/modules/quotes/service";
 import { reminderProposals, sendDueReminders } from "@/modules/reminders/service";
 import { getSettings } from "@/modules/settings/service";
+import { runDailySiteChecks } from "@/modules/sites/service";
 import { billDueSubscriptions } from "@/modules/subscriptions/service";
 import { UserError } from "@/server/action";
 import { db } from "@/server/db";
@@ -19,6 +20,7 @@ export type DailySummary = {
     | { mode: "MANUAL"; toSend: number }
     | { mode: "AUTOMATIC"; sent: number; failed: number; withoutEmail: number };
   quoteReminders?: { sent: number; failed: number; skipped: boolean };
+  sites?: { sites: number; reminders: number };
 };
 
 /** Une exécution qui ne s'est pas terminée depuis plus longtemps est considérée comme interrompue. */
@@ -67,6 +69,9 @@ export async function runDailyTasks(trigger: "cron" | "manual", userId: string |
 
   await step("relances des devis", async () => {
     summary.quoteReminders = await sendDueQuoteReminders(today);
+  });
+  await step("sites (domaines, hébergements, certificats)", async () => {
+    summary.sites = await runDailySiteChecks(today);
   });
 
   await db.taskRun.update({

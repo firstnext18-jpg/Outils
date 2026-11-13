@@ -39,6 +39,9 @@ import { clientIndicatorsFor, getClient, getClientActivity } from "@/modules/cli
 import { listClientFiles } from "@/modules/files/service";
 import { listClientProjects } from "@/modules/projects/service";
 import { ProjectList } from "@/components/projects/project-list";
+import { SiteList } from "@/components/sites/site-list";
+import { getSettings } from "@/modules/settings/service";
+import { listSites } from "@/modules/sites/service";
 import { listOptions } from "@/modules/lists/service";
 import { clientDiscussionId, listDiscussions } from "@/modules/discussions/service";
 import { clientInvoiceSummary, listClientInvoices } from "@/modules/invoices/service";
@@ -84,6 +87,8 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
     indicators,
     files,
     projects,
+    sites,
+    settings,
   ] = await Promise.all([
     getClient(id),
     getClientActivity(id),
@@ -98,6 +103,8 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
     clientIndicatorsFor([id]),
     listClientFiles(id),
     listClientProjects(id),
+    listSites({ clientId: id }),
+    getSettings(),
   ]);
   if (!client) notFound();
 
@@ -293,6 +300,32 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
               ) : (
                 <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
                   <FolderKanbanIcon className="size-5" /> Aucun projet pour ce client.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Sites</CardTitle>
+              {canEdit(user.role) && !client.archivedAt && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/sites/nouveau?client=${client.id}`}>
+                    <GlobeIcon /> Nouveau site
+                  </Link>
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="text-sm">
+              {sites.length > 0 ? (
+                <SiteList
+                  sites={sites}
+                  showClient={false}
+                  soonDays={settings.renewalReminderDays}
+                />
+              ) : (
+                <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
+                  <GlobeIcon className="size-5" /> Aucun site pour ce client.
                 </div>
               )}
             </CardContent>

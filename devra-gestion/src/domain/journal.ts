@@ -26,6 +26,7 @@ export const JOURNAL_CATEGORIES = {
   "espace-client": { label: "Espace client", prefixes: ["portal."] },
   projets: { label: "Projets et temps", prefixes: ["project.", "time."] },
   depenses: { label: "Dépenses", prefixes: ["expense."] },
+  sites: { label: "Sites", prefixes: ["site."] },
 } as const;
 
 export type JournalCategory = keyof typeof JOURNAL_CATEGORIES;
@@ -73,6 +74,9 @@ export function journalSentence(entry: JournalEntry): string {
     case "file.uploaded":
     case "file.deleted":
     case "file.visibility_changed":
+    case "site.created":
+    case "site.updated":
+    case "site.deleted":
       return `${describeActivity(entry.action, entry.details)} (${label})`;
     case "client.stage_changed":
       return data.to

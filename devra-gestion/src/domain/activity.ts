@@ -46,6 +46,12 @@ export function describeActivity(action: string, details: unknown): string {
       return data.visibleToClient
         ? `a partagé ${String(data.file ?? "")} avec le client`
         : `a retiré ${String(data.file ?? "")} de l'espace client`;
+    case "site.created":
+      return `a ajouté le site ${String(data.site ?? "")}${data.url ? ` (${String(data.url)})` : ""}`;
+    case "site.updated":
+      return `a modifié le site ${String(data.site ?? "")}`;
+    case "site.deleted":
+      return `a supprimé le site ${String(data.site ?? "")}`;
     case "client.archived":
       return "a archivé la fiche";
     case "client.unarchived":

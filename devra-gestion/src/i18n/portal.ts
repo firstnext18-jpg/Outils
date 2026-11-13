@@ -157,6 +157,14 @@ const FR = {
   projectsProgress: "Avancement de vos projets",
   stepDoneOn: "terminée le {date}",
 
+  // Sites
+  yourSites: "Vos sites",
+  siteUp: "En ligne",
+  siteDown: "Momentanément indisponible",
+  siteUnknown: "Vérification en cours",
+  siteUptime: "Disponibilité sur 30 jours : {percent} %",
+  siteDownHelp: "Nous avons été alertés et nous nous en occupons.",
+
   // Fichiers
   navFiles: "Fichiers",
   filesHelp: "Les documents que nous partageons avec vous, et ceux que vous nous envoyez.",
@@ -345,6 +353,13 @@ const DE: PortalTexts = {
   hoursDetail: "Stundendetails",
   projectsProgress: "Fortschritt Ihrer Projekte",
   stepDoneOn: "erledigt am {date}",
+
+  yourSites: "Ihre Websites",
+  siteUp: "Online",
+  siteDown: "Vorübergehend nicht erreichbar",
+  siteUnknown: "Wird geprüft",
+  siteUptime: "Verfügbarkeit in den letzten 30 Tagen: {percent} %",
+  siteDownHelp: "Wir wurden benachrichtigt und kümmern uns darum.",
 
   navFiles: "Dateien",
   filesHelp: "Die Dokumente, die wir mit Ihnen teilen, und die Dateien, die Sie uns senden.",
