@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icône de l'application (identique à src/app/icon.svg de l'outil). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="32"
+    android:viewportHeight="32">
+    <path
+        android:pathData="M10,8h12v16l-3,-2l-3,2l-3,-2l-3,2z"
+        android:strokeWidth="1.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M13,13h6M13,17h4"
+        android:strokeWidth="1.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round" />
+</vector>

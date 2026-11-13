@@ -1,0 +1,44 @@
+plugins {
+    id "com.android.application"
+}
+
+// Signature : clé fournie par la construction GitHub (secrets ANDROID_*, voir
+// docs/APPLICATION_ANDROID.md). Sans clé, signature de débogage : l'application
+// s'installe, mais chaque nouvelle version demande de désinstaller l'ancienne.
+def keystore = System.getenv("ANDROID_KEYSTORE")
+
+android {
+    namespace "ch.gestion.mobile"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "ch.gestion.mobile"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        if (keystore) {
+            release {
+                storeFile file(keystore)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig keystore ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Appui long sur l'icône : raccourcis. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="discussions"
+        android:shortcutShortLabel="@string/shortcut_discussions">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="gestion-app://page/discussions"
+            android:targetClass="ch.gestion.mobile.MainActivity"
+            android:targetPackage="ch.gestion.mobile" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="reglages"
+        android:shortcutShortLabel="@string/shortcut_settings">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="ch.gestion.mobile.SettingsActivity"
+            android:targetPackage="ch.gestion.mobile" />
+    </shortcut>
+</shortcuts>

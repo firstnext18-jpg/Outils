@@ -36,3 +36,9 @@ npm-debug.log*
 # Application de bureau (dépendances et installateurs construits)
 /desktop/node_modules/
 /desktop/dist/
+
+# Application Android (fichiers de construction Gradle)
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/local.properties
