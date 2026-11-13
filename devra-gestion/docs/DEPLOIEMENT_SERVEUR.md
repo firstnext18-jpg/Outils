@@ -151,10 +151,13 @@ Si une nouvelle version modifie `compose.yaml` ou `compose.cloudflare.yaml` (la 
 signale), l'agent redépose le kit (étape 1) et l'administrateur relance `installer.sh` : la
 configuration existante est conservée.
 
-## Notifications sur Windows (chaque utilisateur)
+## Notifications sur Windows et Mac (chaque utilisateur)
 
-Les nouveaux messages des **Discussions** peuvent s'afficher en notification Windows (ou macOS,
-Android), même quand l'application n'est pas ouverte :
+**Recommandé : l'application de bureau** (Windows, Mac), qui affiche les notifications dans
+celles du système sans dépendre du navigateur : voir [APPLICATION_BUREAU.md](APPLICATION_BUREAU.md).
+
+Sinon, les nouveaux messages des **Discussions** peuvent s'afficher en notification du
+navigateur (Windows, macOS, Android) :
 
 1. Ouvrir l'application dans Chrome, Edge ou Firefox, sur l'ordinateur concerné.
 2. Menu utilisateur (en bas à gauche) → **« Activer les notifications »**, puis **Autoriser**
@@ -176,6 +179,14 @@ connectent avec l'identifiant et le mot de passe créés depuis leur fiche (« C
 l'espace client »). Les emails aux clients (identifiants, nouveau message, mot de passe oublié)
 partent par le serveur SMTP de `.env`, comme les devis et les factures.
 
+## Surveillance des sites et calendrier
+
+Rien à configurer : le conteneur `cron` vérifie les sites des clients toutes les 5 minutes
+(`MONITOR_MINUTES` dans `.env`, `0` pour arrêter) et, chaque matin avec les autres tâches, relit
+l'expiration des domaines et des certificats. Les alertes partent en notification (application
+de bureau, navigateur) et, si l'option est activée (Paramètres → Projets et sites), par email à
+l'équipe. Le serveur doit pouvoir joindre internet en HTTPS (sites des clients, registres RDAP).
+
 ## Surveillance (agent)
 
 - Une fois par semaine : `claude-devra status` (dernière sauvegarde « OK » et datée du jour).
@@ -195,8 +206,10 @@ cd /opt/devra-gestion
 
 - **Modifier la configuration** (SMTP, adresse, heure des tâches…) : `nano .env`, puis
   `claude-devra start` (les conteneurs concernés redémarrent).
-- **Copie des sauvegardes hors du serveur** (rclone, chiffrée) : variables `BACKUP_REMOTE` et
-  `RCLONE_CONFIG_*` dans `.env`, voir [SAUVEGARDES.md](SAUVEGARDES.md).
+- **Copie chiffrée des sauvegardes sur Google Drive** : `bash
+/home/claude/devra-gestion-kit/deploy/serveur/google-drive.sh` (kit déposé par l'agent, étape 1),
+  voir [SAUVEGARDES.md](SAUVEGARDES.md). Autre stockage : variables `BACKUP_REMOTE` et
+  `RCLONE_CONFIG_*` dans `.env`, même document.
 - **Restaurer une sauvegarde** : commandes `docker compose …` de [SAUVEGARDES.md](SAUVEGARDES.md)
   (section « Restaurer »), lancées depuis `/opt/devra-gestion`.
 - **Renouveler le jeton GitHub** quand il expire : relancer `installer.sh` et répondre « o » à
@@ -213,13 +226,14 @@ cd /opt/devra-gestion
   clés obligeraient chaque appareil à réactiver les notifications.
 
 - **Repartir de zéro en gardant les paramètres** (clients, devis, factures, paiements,
-  abonnements, relances, discussions, accès à l'espace client, journal et numérotation effacés ;
-  entreprise, IBAN, logo, modèles, catalogue et comptes conservés) :
+  abonnements, relances, discussions, accès à l'espace client, fichiers, projets, temps, dépenses,
+  imports bancaires, sites, journal et numérotation effacés ; entreprise, IBAN, logo, modèles,
+  listes, catalogue et comptes conservés) :
 
   ```bash
   claude-devra backup
-  docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "TRUNCATE client, quote, quote_line, quote_link, invoice, invoice_line, payment, reminder, subscription, subscription_item, email_log, activity_log, task_run, number_sequence, discussion, discussion_message, discussion_read, client_account, client_session, client_password_reset RESTART IDENTITY"'
-  docker compose exec app rm -rf /data/documents
+  docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "TRUNCATE client, quote, quote_line, quote_link, invoice, invoice_line, payment, reminder, subscription, subscription_item, email_log, activity_log, task_run, number_sequence, discussion, discussion_message, discussion_read, client_account, client_session, client_password_reset, stored_file, project, project_step, time_entry, expense, bank_import, bank_transaction, site, site_incident, notification RESTART IDENTITY"'
+  docker compose exec app rm -rf /data/documents /data/files
   ```
 
 - **Retirer l'agent** : `rm /etc/sudoers.d/claude-devra`.

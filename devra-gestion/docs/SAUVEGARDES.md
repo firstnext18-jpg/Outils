@@ -9,11 +9,11 @@ dossier `devra-gestion` du Raspberry Pi.
 Le service `backup` (lancé avec les autres par `docker compose up -d`) fait **chaque jour**, à
 l'heure `BACKUP_TIME` (02:30 par défaut, heure de Zurich) :
 
-| Fichier                                          | Contenu                                                                                            |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `base/devra_AAAA-MM-JJ_HHMM.dump`                | toute la base PostgreSQL : clients, devis, factures, paiements, utilisateurs, paramètres, journal… |
-| `fichiers/devra-fichiers_AAAA-MM-JJ_HHMM.tar.gz` | les fichiers de l'application : logo et PDF archivés des factures et des relances                  |
-| `derniere-sauvegarde.txt`                        | la date et le résultat de la dernière sauvegarde (OK ou ÉCHEC)                                     |
+| Fichier                                          | Contenu                                                                                               |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `base/devra_AAAA-MM-JJ_HHMM.dump`                | toute la base PostgreSQL : clients, devis, factures, paiements, utilisateurs, paramètres, journal…    |
+| `fichiers/devra-fichiers_AAAA-MM-JJ_HHMM.tar.gz` | les fichiers de l'application : logo, PDF archivés, fichiers partagés avec les clients, justificatifs |
+| `derniere-sauvegarde.txt`                        | la date et le résultat de la dernière sauvegarde (OK ou ÉCHEC)                                        |
 
 - La base est exportée avec `pg_dump` (format « custom », compressé), puis **relue** avec
   `pg_restore --list` avant d'être gardée : un fichier illisible n'est jamais conservé.
@@ -47,10 +47,61 @@ docker compose run --rm restore             # liste des sauvegardes disponibles
 docker compose exec backup backup.sh maintenant   # sauvegarde immédiate (ex. avant une mise à jour)
 ```
 
-## Copie hors du Raspberry Pi (recommandé)
+## Copie chiffrée sur Google Drive (recommandé)
 
-Un incendie, un vol ou une surtension détruiraient le Raspberry Pi **et** son disque USB. Le
-service `backup` peut copier chaque sauvegarde vers un stockage distant avec
+Un incendie, un vol ou une panne de disque détruiraient le serveur **et** ses sauvegardes. Le plus
+simple est d'envoyer chaque sauvegarde, **chiffrée**, sur Google Drive :
+
+- chiffrement sur le serveur avant l'envoi (rclone « crypt ») : Google ne voit que des noms et des
+  contenus illisibles ;
+- accès limité aux fichiers créés par la sauvegarde (autorisation Google « drive.file ») : le
+  reste de votre Drive n'est pas lisible ;
+- copie chaque nuit après la sauvegarde, copies de plus de `BACKUP_RETENTION_DAYS` jours
+  supprimées (environ 30 copies : prévoir l'espace, la base et les fichiers pèsent en général
+  quelques dizaines de Mo).
+
+### Mise en place (une fois, par l'administrateur)
+
+1. L'agent dépose le kit à jour sur le serveur (voir [DEPLOIEMENT_SERVEUR.md](DEPLOIEMENT_SERVEUR.md),
+   étape 1) : il contient `deploy/serveur/google-drive.sh`.
+2. Sur le serveur, en root :
+
+   ```bash
+   sudo bash /home/claude/devra-gestion-kit/deploy/serveur/google-drive.sh
+   ```
+
+3. Le script explique comment obtenir l'autorisation Google **depuis votre ordinateur** (le
+   serveur n'a pas de navigateur) : télécharger rclone (<https://rclone.org/downloads/>, rien à
+   installer), lancer dans un terminal
+   `rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"`, accepter dans le navigateur, puis
+   coller dans le script le texte affiché.
+4. Le script génère deux **phrases secrètes de chiffrement** et les affiche **une seule fois** :
+   notez-les dans un gestionnaire de mots de passe. Sans elles, les copies sur Google Drive sont
+   illisibles si le serveur est perdu.
+5. Il vérifie l'accès, lance une première sauvegarde et affiche les fichiers envoyés (dossier
+   `sauvegardes-gestion` de votre Google Drive).
+
+Ensuite, `sudo /usr/local/sbin/claude-devra status` indique « copie vers googlechiffre: » sur la
+ligne « Dernière sauvegarde ».
+
+### Restaurer depuis Google Drive (serveur perdu)
+
+1. Réinstallez l'application sur un nouveau serveur (`installer.sh`).
+2. Relancez `google-drive.sh`, autorisez Google comme ci-dessus et répondez **o** à la question
+   « Réinstallation… ? », puis saisissez vos deux phrases secrètes : le script récupère les
+   sauvegardes (déchiffrées) dans le dossier des sauvegardes du serveur et les liste.
+3. Restaurez la dernière sauvegarde :
+
+   ```bash
+   cd /opt/devra-gestion
+   docker compose stop app cron
+   docker compose run --rm restore derniere
+   docker compose up -d
+   ```
+
+## Copie vers un autre stockage
+
+Plutôt que Google Drive, le service `backup` peut copier chaque sauvegarde vers un stockage distant avec
 [rclone](https://rclone.org), qui fonctionne avec la plupart des services : Infomaniak kDrive ou
 Swiss Backup, SFTP vers un autre ordinateur, S3, etc.
 
