@@ -9,7 +9,7 @@ import { buildTypedCsv, buildTypedXlsx } from "@/server/spreadsheet";
 
 /**
  * Export comptable d'une période :
- *   ?du=…&au=…&format=xlsx            classeur (factures, paiements, clients)
+ *   ?du=…&au=…&format=xlsx            classeur (factures, paiements, clients, dépenses)
  *   ?du=…&au=…&format=csv&jeu=factures un fichier CSV par jeu de données
  */
 export async function GET(request: NextRequest) {
@@ -60,7 +60,11 @@ export async function GET(request: NextRequest) {
     userId: user.id,
     action: "export.accounting",
     entityType: "export",
-    details: { dataset: "factures, paiements, clients", format, period: describeRange(range) },
+    details: {
+      dataset: "factures, paiements, clients, dépenses",
+      format,
+      period: describeRange(range),
+    },
   });
   const xlsx = await buildTypedXlsx(sheets);
   return new Response(new Uint8Array(xlsx), {

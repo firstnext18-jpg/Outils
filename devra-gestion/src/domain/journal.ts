@@ -14,7 +14,7 @@ export type JournalEntry = {
 };
 
 export const JOURNAL_CATEGORIES = {
-  clients: { label: "Clients", prefixes: ["client.", "clients."] },
+  clients: { label: "Clients et fichiers", prefixes: ["client.", "clients.", "file."] },
   devis: { label: "Devis", prefixes: ["quote."] },
   factures: { label: "Factures et paiements", prefixes: ["invoice.", "payment."] },
   abonnements: { label: "Abonnements", prefixes: ["subscription."] },
@@ -24,6 +24,9 @@ export const JOURNAL_CATEGORIES = {
   exports: { label: "Exports", prefixes: ["export."] },
   discussions: { label: "Discussions", prefixes: ["discussion."] },
   "espace-client": { label: "Espace client", prefixes: ["portal."] },
+  projets: { label: "Projets et temps", prefixes: ["project.", "time."] },
+  depenses: { label: "Dépenses", prefixes: ["expense."] },
+  sites: { label: "Sites", prefixes: ["site."] },
 } as const;
 
 export type JournalCategory = keyof typeof JOURNAL_CATEGORIES;
@@ -68,6 +71,17 @@ export function journalSentence(entry: JournalEntry): string {
         ? `a modifié la fiche client ${quoted} : ${fields}`
         : `a enregistré la fiche client ${quoted} sans changement`;
     }
+    case "file.uploaded":
+    case "file.deleted":
+    case "file.visibility_changed":
+    case "site.created":
+    case "site.updated":
+    case "site.deleted":
+      return `${describeActivity(entry.action, entry.details)} (${label})`;
+    case "client.stage_changed":
+      return data.to
+        ? `a passé ${label} à l'état « ${text(data.to)} »`
+        : `a retiré l'état de ${label}`;
     case "client.archived":
       return `a archivé la fiche client ${quoted}`;
     case "client.unarchived":
@@ -113,6 +127,12 @@ export function journalSentence(entry: JournalEntry): string {
       return to
         ? `a envoyé le devis ${label} par email à ${to}`
         : `a envoyé le devis ${label} par email`;
+    }
+    case "quote.reminded": {
+      const to = list(data.to);
+      return data.automatic
+        ? `a relancé automatiquement le client pour le devis ${label}${to ? ` (${to})` : ""}`
+        : `a relancé le client pour le devis ${label}${to ? ` (${to})` : ""}`;
     }
     case "quote.accepted_online":
       return `a accepté le devis ${label} ${data.portal ? "depuis son espace client" : "en ligne"}`;
@@ -223,6 +243,43 @@ export function journalSentence(entry: JournalEntry): string {
       return "a supprimé le logo";
     case "settings.site_types_updated":
       return `${SITE_TYPE_OPERATIONS[text(data.operation)] ?? "a modifié le type de site"} ${quoted}`;
+    case "expense.created":
+      return `a enregistré la dépense ${quoted} (${text(data.amount)})`;
+    case "expense.updated":
+      return `a modifié la dépense ${quoted} (${text(data.amount)})`;
+    case "expense.deleted":
+      return `a supprimé la dépense ${quoted} (${text(data.amount)})`;
+    case "project.created":
+      return `a créé le projet ${quoted}`;
+    case "project.updated":
+      return `a modifié le projet ${quoted}`;
+    case "project.deleted":
+      return `a supprimé le projet ${quoted}`;
+    case "project.status_changed": {
+      const status: Record<string, string> = {
+        ACTIVE: "a repris le projet",
+        PAUSED: "a mis en pause le projet",
+        DONE: "a terminé le projet",
+      };
+      return `${status[text(data.status)] ?? "a changé le statut du projet"} ${quoted}`;
+    }
+    case "project.step_done":
+      return `a terminé l'étape « ${text(data.step)} » du projet ${quoted}`;
+    case "time.invoiced":
+      return `a facturé ${text(data.hours)} de ${label} (${text(data.entries)} saisie(s))`;
+    case "settings.lists_updated": {
+      const operation: Record<string, string> = {
+        created: "a ajouté",
+        renamed: "a renommé",
+        moved: "a déplacé",
+        activated: "a réactivé",
+        deactivated: "a désactivé",
+        deleted: "a supprimé",
+      };
+      return `${operation[text(data.operation)] ?? "a modifié"} ${quoted} (${text(data.list)})`;
+    }
+    case "settings.projects_sites_updated":
+      return "a modifié les paramètres des projets et des sites";
     case "settings.documents_updated":
       return "a modifié les textes des documents";
     case "settings.emails_updated":
@@ -257,6 +314,10 @@ export function journalHref(entityType: string | null, entityId: string | null):
       return `/abonnements/${entityId}`;
     case "discussion":
       return `/discussions/${entityId}`;
+    case "project":
+      return `/projets/${entityId}`;
+    case "expense":
+      return `/depenses/${entityId}`;
     default:
       return null;
   }

@@ -69,9 +69,27 @@ async function deliver(subscriptions: StoredSubscription[], payload: PushPayload
   );
 }
 
-/** Notification à tous les appareils abonnés des utilisateurs donnés (actifs). */
+/**
+ * Notification aux utilisateurs donnés : enregistrée pour l'application de
+ * bureau (qui l'affiche dans les notifications du système), puis envoyée aux
+ * navigateurs abonnés (Web Push, si les clés VAPID sont configurées).
+ */
 export async function sendPush(userIds: string[], payload: PushPayload): Promise<void> {
-  if (userIds.length === 0 || !setup()) return;
+  if (userIds.length === 0) return;
+  await db.notification
+    .createMany({
+      data: [...new Set(userIds)].map((userId) => ({
+        userId,
+        title: payload.title.slice(0, 200),
+        body: payload.body.slice(0, 500),
+        url: payload.url,
+        tag: payload.tag,
+      })),
+    })
+    .catch((error: unknown) =>
+      console.error("Enregistrement de la notification impossible", error),
+    );
+  if (!setup()) return;
   const subscriptions = await db.pushSubscription.findMany({
     where: { userId: { in: userIds }, user: { active: true } },
   });

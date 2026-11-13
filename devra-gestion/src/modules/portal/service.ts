@@ -1,10 +1,11 @@
 import "server-only";
 import { dbDateToIso, todayIso, type IsoDate } from "@/domain/dates";
-import { messageExcerpt, MESSAGES_PAGE } from "@/domain/discussions";
+import { MESSAGES_PAGE } from "@/domain/discussions";
 import { displayStatus, outstandingCents } from "@/domain/invoice-status";
 import { onlineQuoteState } from "@/domain/online-quote";
 import { PORTAL_INVOICE_STATUSES, PORTAL_QUOTE_STATUSES } from "@/domain/portal";
-import { ensureClientDiscussion } from "@/modules/discussions/service";
+import { ensureClientDiscussion, messageSummary } from "@/modules/discussions/service";
+import { storeFiles } from "@/modules/files/service";
 import { getInvoice } from "@/modules/invoices/service";
 import { db } from "@/server/db";
 import type { PortalSession } from "@/server/portal-session";
@@ -151,6 +152,10 @@ export async function portalDiscussion(clientId: string) {
         createdAt: true,
         fromClient: true,
         author: { select: { name: true } },
+        attachments: {
+          orderBy: { createdAt: "asc" },
+          select: { id: true, name: true, size: true, mimeType: true },
+        },
       },
     }),
     db.discussionRead.aggregate({
@@ -161,30 +166,48 @@ export async function portalDiscussion(clientId: string) {
   return { id, messages: messages.reverse(), teamReadAt: teamRead._max.lastReadAt };
 }
 
-/** Message du client : l'équipe est prévenue (notifications sur ses appareils). */
-export async function postClientMessage(session: PortalSession, body: string) {
+/** Message du client (avec ou sans fichiers) : l'équipe est prévenue sur ses appareils. */
+export async function postClientMessage(session: PortalSession, body: string, files: File[] = []) {
   const { id } = await ensureClientDiscussion(session.client.id);
   const now = new Date();
-  await db.$transaction([
-    db.discussionMessage.create({
+  const message = await db.$transaction(async (tx) => {
+    const created = await tx.discussionMessage.create({
       data: { discussionId: id, fromClient: true, body, createdAt: now },
-    }),
-    db.discussion.update({ where: { id }, data: { lastMessageAt: now, clientReadAt: now } }),
-  ]);
-  return { id };
+    });
+    await tx.discussion.update({ where: { id }, data: { lastMessageAt: now, clientReadAt: now } });
+    return created;
+  });
+  const saved = files.length
+    ? await storeFiles(files, {
+        clientId: session.client.id,
+        messageId: message.id,
+        visibleToClient: true,
+        uploadedByClient: true,
+      }).catch(async (error: unknown) => {
+        await db.discussionMessage.delete({ where: { id: message.id } });
+        throw error;
+      })
+    : [];
+  return {
+    id,
+    summary: messageSummary(
+      body,
+      saved.map((f) => f.name),
+    ),
+  };
 }
 
 export async function notifyTeamOfClientMessage(
   session: PortalSession,
   discussionId: string,
-  body: string,
+  summary: string,
 ) {
   const users = await db.user.findMany({ where: { active: true }, select: { id: true } });
   await sendPush(
     users.map((u) => u.id),
     {
       title: `${session.client.displayName} · Discussion avec le client`,
-      body: `${session.client.displayName} : ${messageExcerpt(body, 140)}`,
+      body: `${session.client.displayName} : ${summary}`,
       url: `/discussions/${discussionId}`,
       tag: `discussion-${discussionId}`,
     },

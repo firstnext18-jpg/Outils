@@ -17,3 +17,5 @@ vitest.config.mts
 **/*.test.ts
 sauvegardes
 deploy
+desktop
+android

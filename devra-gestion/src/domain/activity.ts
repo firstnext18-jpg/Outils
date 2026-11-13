@@ -34,6 +34,24 @@ export function describeActivity(action: string, details: unknown): string {
         ? `a modifié : ${fields.join(", ")}`
         : "a enregistré la fiche sans changement";
     }
+    case "client.stage_changed":
+      return data.to ? `a changé l'état en « ${String(data.to)} »` : "a retiré l'état du client";
+    case "file.uploaded": {
+      const files = Array.isArray(data.files) ? (data.files as string[]).join(", ") : "";
+      return `a ajouté ${files}${data.visibleToClient ? " (visible par le client)" : ""}`;
+    }
+    case "file.deleted":
+      return `a supprimé le fichier ${String(data.file ?? "")}`;
+    case "file.visibility_changed":
+      return data.visibleToClient
+        ? `a partagé ${String(data.file ?? "")} avec le client`
+        : `a retiré ${String(data.file ?? "")} de l'espace client`;
+    case "site.created":
+      return `a ajouté le site ${String(data.site ?? "")}${data.url ? ` (${String(data.url)})` : ""}`;
+    case "site.updated":
+      return `a modifié le site ${String(data.site ?? "")}`;
+    case "site.deleted":
+      return `a supprimé le site ${String(data.site ?? "")}`;
     case "client.archived":
       return "a archivé la fiche";
     case "client.unarchived":
@@ -105,6 +123,10 @@ export function describeActivity(action: string, details: unknown): string {
       return "a supprimé l'abonnement";
     case "subscription.invoiced":
       return `a généré la facture de la période ${String(data.period ?? "")}`;
+    case "quote.reminded":
+      return data.automatic
+        ? "a relancé le client (automatiquement)"
+        : "a relancé le client par email";
     case "quote.accepted_online":
       return data.portal
         ? "a accepté le devis depuis son espace client"

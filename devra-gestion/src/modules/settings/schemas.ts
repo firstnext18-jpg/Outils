@@ -223,3 +223,49 @@ export const reminderSettingsSchema = z.object({
 });
 export type ReminderSettingsInput = z.input<typeof reminderSettingsSchema>;
 export type ReminderSettingsOutput = z.output<typeof reminderSettingsSchema>;
+
+// ---------------------------------------------------------------------------
+// Projets et sites
+// ---------------------------------------------------------------------------
+
+export const projectSiteSettingsSchema = z
+  .object({
+    hourlyRate: z.string().trim().max(20),
+    renewalReminderDays: daysSchema(1, "Rappel des renouvellements"),
+    monitorAlertEmail: z.boolean(),
+  })
+  .superRefine((settings, ctx) => {
+    if (settings.hourlyRate && parseChfInput(settings.hourlyRate) === null) {
+      ctx.addIssue({ code: "custom", path: ["hourlyRate"], message: "Montant invalide" });
+    }
+  })
+  .transform(({ hourlyRate, ...settings }) => ({
+    ...settings,
+    hourlyRateCents: hourlyRate ? (parseChfInput(hourlyRate) ?? 0) : 0,
+  }));
+export type ProjectSiteSettingsInput = z.input<typeof projectSiteSettingsSchema>;
+
+// ---------------------------------------------------------------------------
+// Relance des devis
+// ---------------------------------------------------------------------------
+
+const reminderSubject = z
+  .string()
+  .trim()
+  .min(1, "L'objet est obligatoire")
+  .max(200, "200 caractères maximum");
+const reminderBody = z
+  .string()
+  .trim()
+  .min(1, "Le message est obligatoire")
+  .max(5000, "5000 caractères maximum");
+
+export const quoteReminderSettingsSchema = z.object({
+  quoteReminderEnabled: z.boolean(),
+  quoteReminderDays: daysSchema(1, "Délai de la relance"),
+  quoteReminderSubjectFr: reminderSubject,
+  quoteReminderSubjectDe: reminderSubject,
+  quoteReminderBodyFr: reminderBody,
+  quoteReminderBodyDe: reminderBody,
+});
+export type QuoteReminderSettingsInput = z.input<typeof quoteReminderSettingsSchema>;

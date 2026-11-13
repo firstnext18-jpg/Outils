@@ -5,6 +5,7 @@ import {
   FilePlusIcon,
   ReceiptTextIcon,
   SearchXIcon,
+  LandmarkIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { InvoicesToolbar } from "@/app/(app)/factures/invoices-toolbar";
@@ -75,6 +76,13 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/facture
                 <FileDownIcon /> Export comptable
               </Link>
             </Button>
+            {canEdit(user.role) && (
+              <Button asChild variant="outline">
+                <Link href="/factures/import-bancaire">
+                  <LandmarkIcon /> Importer un relevé bancaire
+                </Link>
+              </Button>
+            )}
             {remindersButton}
             {newButton}
           </div>

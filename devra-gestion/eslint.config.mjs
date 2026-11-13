@@ -25,6 +25,9 @@ const eslintConfig = defineConfig([
     "src/generated/**",
     "src/components/ui/**",
     "playwright-report/**",
+    // Applications de bureau et Android : projets à part (voir docs/APPLICATION_BUREAU.md)
+    "desktop/**",
+    "android/**",
     "test-results/**",
   ]),
 ]);

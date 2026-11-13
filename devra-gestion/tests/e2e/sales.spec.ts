@@ -345,11 +345,13 @@ test("modèles d'emails : variable inconnue refusée, objet personnalisé, plusi
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto("/parametres/emails");
   const subject = page.getByLabel("Objet — Français").nth(1); // section « Envoi d'une facture »
+  // « Enregistrer » des modèles (la relance des devis a son propre bouton).
+  const save = page.getByRole("button", { name: "Enregistrer", exact: true });
   await subject.fill("Facture {numro}");
-  await page.getByRole("button", { name: "Enregistrer" }).click();
+  await save.click();
   await expect(page.getByText("Variable inconnue : {numro}")).toBeVisible();
   await subject.fill("Votre facture {numero} – {entreprise}");
-  await page.getByRole("button", { name: "Enregistrer" }).click();
+  await save.click();
   await expect(page.getByText("Modèles d'emails enregistrés.")).toBeVisible();
 
   await page.goto("/factures");

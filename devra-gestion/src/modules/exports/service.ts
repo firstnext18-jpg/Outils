@@ -1,4 +1,5 @@
 import "server-only";
+import { formatPercent } from "@/domain/percent";
 import { zipSync, type Zippable } from "fflate";
 import { z } from "zod";
 import type { ExportColumn, ExportValue } from "@/domain/accounting";
@@ -222,10 +223,52 @@ async function clientSheet(range: DateRange): Promise<TypedSheet> {
   return { name: "Clients", columns: CLIENT_COLUMNS, rows };
 }
 
+const EXPENSE_COLUMNS: ExportColumn[] = [
+  { header: "Date", type: "date" },
+  { header: "Fournisseur", type: "text" },
+  { header: "Description", type: "text" },
+  { header: "Catégorie", type: "text" },
+  { header: "Montant TTC", type: "amount" },
+  { header: "Taux TVA", type: "text" },
+  { header: "TVA (impôt préalable)", type: "amount" },
+  { header: "Moyen de paiement", type: "text" },
+  { header: "Client", type: "text" },
+  { header: "Projet", type: "text" },
+  { header: "Justificatifs", type: "text" },
+];
+
+async function expenseSheet(range: DateRange): Promise<TypedSheet> {
+  const expenses = await db.expense.findMany({
+    where: { date: dates(range) },
+    orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+    include: {
+      category: { select: { name: true } },
+      client: { select: { displayName: true } },
+      project: { select: { name: true } },
+      _count: { select: { receipts: true } },
+    },
+  });
+  const rows: ExportValue[][] = expenses.map((e) => [
+    dbDateToIso(e.date),
+    e.supplier,
+    e.description,
+    e.category?.name ?? "",
+    e.amountCents,
+    e.vatRateBps ? formatPercent(e.vatRateBps) : "",
+    e.vatCents,
+    PAYMENT_METHOD_LABELS[e.method],
+    e.client?.displayName ?? "",
+    e.project?.name ?? "",
+    e._count.receipts > 0 ? "oui" : "non",
+  ]);
+  return { name: "Dépenses", columns: EXPENSE_COLUMNS, rows };
+}
+
 export const EXPORT_DATASETS = {
   factures: { label: "Factures", build: invoiceSheet },
   paiements: { label: "Paiements", build: paymentSheet },
   clients: { label: "Clients", build: clientSheet },
+  depenses: { label: "Dépenses", build: expenseSheet },
 } as const;
 
 export type ExportDataset = keyof typeof EXPORT_DATASETS;

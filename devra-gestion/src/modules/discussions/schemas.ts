@@ -28,6 +28,13 @@ export const postMessageSchema = z.object({
   body: messageBodySchema,
 });
 
+/** Message avec pièces jointes : le texte peut alors être vide. */
+export const postMessageWithFilesSchema = z.object({
+  discussionId: discussionIdSchema,
+  body: z.string().trim().max(MESSAGE_MAX, `${MESSAGE_MAX} caractères au plus`),
+  files: z.array(z.instanceof(File)).min(1, "Choisissez au moins un fichier."),
+});
+
 export const markReadSchema = z.object({ discussionId: discussionIdSchema });
 
 /** Abonnement Web Push envoyé par le navigateur (PushSubscription.toJSON()). */

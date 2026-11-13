@@ -570,6 +570,10 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   l'auteur seulement, sous le dernier message de chacun de ses groupes de messages (un message
   lu implique les précédents), sans heure : la date retenue est celle de la dernière lecture,
   pas celle de la première. Utilisateurs désactivés exclus.
+- **Affichage en bulles** : ses propres messages à droite (bleu), ceux de l'équipe à gauche
+  (gris), ceux des clients en couleurs inversées (noir en mode clair, blanc en mode sombre) pour
+  les repérer d'un coup d'œil. Le compteur du menu donne le **nombre de messages** non lus (et non
+  de discussions), dans un petit carré blanc, relu toutes les 30 secondes.
 - **Lecture seule** : consulte et lit (marquage « lu »), n'écrit pas ni ne démarre de discussion.
 - **Journal** : la création d'une discussion y figure (catégorie « Discussions ») ; pas chaque
   message, qui noierait le journal.
@@ -643,6 +647,81 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   connexion, celle du navigateur ou du lien (`?langue=de`).
 - **Journal** : catégorie « Espace client » (accès créé, désactivé, réactivé, nouveau mot de
   passe, identifiants envoyés, mot de passe changé ou réinitialisé par le client).
+
+## Gestion courante (projets, temps, argent, sites)
+
+- **Listes modifiables** (`list_item`, par sorte : états des clients, catégories de dépenses,
+  étapes de projet) plutôt qu'une table par liste : même éditeur dans Paramètres → Listes. Les
+  valeurs par défaut sont insérées par la migration (et non par le seed) pour exister aussi sur
+  les installations en place ; une valeur utilisée se désactive au lieu de se supprimer.
+- **État d'un client** = étape choisie par l'équipe + **indicateurs calculés** (devis à accepter,
+  facture à envoyer, facture en retard), jamais enregistrés : ils ne peuvent pas être faux.
+- **Fichiers** stockés sur le disque (`DATA_DIR/files/<uuid>`, nom d'origine en base), donc dans
+  l'archive des sauvegardes. Affichés dans le navigateur seulement pour les images et les PDF
+  reconnus à leur contenu (pas à leur extension), avec une CSP « sandbox » ; sinon téléchargés.
+- **Temps** en minutes entières ; chronomètre = saisie avec une heure de début, convertie à
+  l'arrêt (rien ne tourne côté serveur). Facturation : une ligne par projet au tarif du projet
+  ou des paramètres, les saisies sont liées à la facture (supprimer le brouillon les libère).
+- **Dépenses** TTC en centimes, TVA récupérable calculée en entiers (`BigInt`) pour éviter les
+  arrondis flottants ; justificatifs = fichiers.
+- **Import bancaire camt.053/054** (XML ISO 20022, standard des banques suisses) lu avec
+  `fast-xml-parser`. Rapprochement : référence QR (certain), numéro de facture dans la
+  communication, puis montant si une seule facture ouverte a ce solde (« à vérifier »). Chaque
+  opération a une clé unique (référence bancaire, sinon empreinte) : un relevé importé deux fois
+  n'enregistre rien deux fois. L'utilisateur confirme toujours avant l'enregistrement.
+- **Relance des devis** : un seul rappel par devis (`reminderSentAt`), N jours après l'envoi,
+  par la tâche quotidienne ; désactivée par défaut.
+- **Surveillance des sites** par le conteneur `cron` (déjà présent, dans l'image de
+  l'application : rien à changer sur le serveur), toutes les `MONITOR_MINUTES` minutes, une
+  vérification à la fois. Un site est « hors ligne » après **deux échecs consécutifs** (évite
+  les fausses alertes d'une coupure de quelques secondes) ; 401 et 403 comptent comme « en
+  ligne » (pages protégées). Pannes enregistrées (`site_incident`) pour la disponibilité sur 30
+  jours. User-Agent générique : aucune information de l'entreprise n'est envoyée.
+- **Expiration des domaines** lue dans les registres publics **RDAP** (annuaire IANA) ; les
+  registres .ch et .li ne la publient pas : date saisie à la main. Certificats : date lue par une
+  connexion TLS. **Un rappel par échéance** (`domainReminderFor`…) : changer la date en
+  déclenche un nouveau.
+- **Calendrier** calculé à la demande (rien d'enregistré). **Abonnement iCal** : jeton
+  personnel de 256 bits dont seule l'empreinte SHA-256 est en base, affiché une fois ;
+  événements « journée entière », de 3 mois en arrière à 15 mois en avant.
+
+## Applications de bureau et Android, notifications
+
+- **Notifications enregistrées en base** (`notification`, 30 jours) à chaque envoi, en plus du
+  Web Push. Les applications les lisent avec la session de l'utilisateur
+  (`GET /api/notifications?apres=<n>`, numéro croissant) : aucune dépendance aux services de
+  notification des navigateurs, de Google ou d'Apple, ni aux clés VAPID. Après une longue
+  absence, un seul résumé au lieu de dizaines de notifications.
+- **Application de bureau : Electron** (Windows et Mac avec le même code, notifications du
+  système natives) plutôt qu'une application web installée (PWA), dont les notifications
+  dépendent du navigateur. Lecture toutes les 20 secondes ; fenêtre fermée = cachée (icône dans
+  la barre des tâches / des menus), lancement au démarrage. Fenêtre isolée (`contextIsolation`,
+  `sandbox`, aucune API Node), seuls les liens de l'outil s'y ouvrent.
+- **Pas de certificat** Apple ni Microsoft (plusieurs centaines de francs par an) : application
+  Mac signée « ad hoc » (exigé sur Apple Silicon), avertissement à passer une fois à
+  l'installation (documenté). Pas de mise à jour automatique (elle exige une signature).
+- **Android : Java sans bibliothèque**, WebView + `JobScheduler` (toutes les 15 minutes,
+  minimum d'Android) et, en option, un service au premier plan (toutes les 30 secondes,
+  notification permanente exigée par Android) : pas de Firebase ni de compte Google. Installé
+  par câble USB ; clé de signature facultative dans les secrets GitHub (sans elle, chaque
+  version demande de désinstaller la précédente).
+- **Aucune adresse ni nom d'entreprise dans les applications** : l'adresse de l'outil est
+  demandée au premier lancement. L'outil les reconnaît à leur User-Agent (`GestionBureau/…`,
+  `GestionMobile/…`) pour adapter le menu des notifications.
+- **Installateurs construits par GitHub Actions** (Windows, macOS, Linux pour Android) et
+  téléchargés dans l'onglet Actions : rien à installer sur un ordinateur pour les produire.
+
+## Sauvegarde sur Google Drive
+
+- **rclone** (déjà dans l'image de sauvegarde) avec un stockage `crypt` qui chiffre noms et
+  contenus sur le serveur avant l'envoi, et l'autorisation Google **`drive.file`** (seulement
+  les fichiers créés par la sauvegarde). Configuration par variables `RCLONE_CONFIG_*` dans
+  `.env`, comme les autres stockages.
+- **Autorisation obtenue sur l'ordinateur de l'administrateur** (`rclone authorize`, qui ouvre
+  le navigateur) puis collée dans `deploy/serveur/google-drive.sh` : le serveur n'a pas de
+  navigateur. Le script génère les deux phrases de chiffrement et les affiche une seule fois ;
+  il vérifie l'accès avant de garder la configuration et sait récupérer les sauvegardes lors
+  d'une réinstallation.
 
 ## Interface
 

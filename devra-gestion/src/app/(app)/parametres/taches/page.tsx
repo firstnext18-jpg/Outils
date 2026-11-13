@@ -15,6 +15,12 @@ function describe(summary: DailySummary | null): string {
     `${summary.subscriptionInvoices ?? 0} facture(s) d'abonnement`,
   ];
   if (summary.subscriptionEmails?.sent) parts.push(`${summary.subscriptionEmails.sent} envoyée(s)`);
+  if (summary.quoteReminders?.sent) {
+    parts.push(`${summary.quoteReminders.sent} devis relancé(s)`);
+  }
+  if (summary.sites?.reminders) {
+    parts.push(`${summary.sites.reminders} rappel(s) de renouvellement`);
+  }
   const reminders = summary.reminders;
   if (reminders?.mode === "MANUAL") parts.push(`${reminders.toSend} relance(s) à envoyer`);
   if (reminders?.mode === "AUTOMATIC") {

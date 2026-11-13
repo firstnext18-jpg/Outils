@@ -125,6 +125,16 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
           detail="Paiements reçus pendant la période"
         />
         <KpiCard
+          title="Dépenses"
+          value={formatChf(current.expensesCents)}
+          comparison={{
+            change: relativeChange(current.expensesCents, previous.expensesCents),
+            previous: formatChf(previous.expensesCents),
+          }}
+          detail={`Résultat (encaissé − dépenses) : ${formatChf(current.resultCents)}`}
+          href="/depenses"
+        />
+        <KpiCard
           title="Factures impayées"
           value={formatChf(data.unpaid.totalCents)}
           detail={

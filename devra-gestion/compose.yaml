@@ -81,6 +81,7 @@ services:
       CRON_URL: http://app:3000/api/taches/quotidiennes
       CRON_SECRET: ${CRON_SECRET:?CRON_SECRET manquant dans .env}
       CRON_TIME: ${CRON_TIME:-06:00}
+      MONITOR_MINUTES: ${MONITOR_MINUTES:-5}
     depends_on:
       app:
         condition: service_started

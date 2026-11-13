@@ -24,6 +24,8 @@ entreprise, auto-hébergé sur un Raspberry Pi.
 | 10. Production                            | Sauvegardes, HTTPS, sécurité, déploiement Raspberry Pi            | ✅ Terminée |
 | 11. Discussions                           | Canal général, discussions par client, notifications              | ✅ Terminée |
 | 12. Espace client                         | Devis, factures, abonnements et discussion pour chaque client     | ✅ Terminée |
+| 13. Gestion courante                      | Projets, temps, dépenses, banque, sites, calendrier, fichiers     | ✅ Terminée |
+| 14. Applications                          | Bureau (Windows, Mac), Android, sauvegarde Google Drive           | ✅ Terminée |
 
 ## Ce qui fonctionne aujourd'hui
 
@@ -156,9 +158,42 @@ entreprise, auto-hébergé sur un Raspberry Pi.
     ou « Pas encore lu » ;
   - **lecture seule** : consulte les discussions sans y écrire ; supprimer un client supprime
     ses discussions ; elles figurent dans l'export de ses données (nLPD).
-- **Notifications** de l'ordinateur ou du téléphone (Windows, macOS, Android) pour les nouveaux
-  messages, même application fermée : menu utilisateur → « Activer les notifications », sur
-  chaque appareil (Web Push, clés `VAPID_*` dans `.env`).
+  - **bulles** : ses propres messages à droite, ceux des autres à gauche ; messages des clients
+    en couleurs inversées (blanc en mode sombre, noir en mode clair) ;
+  - petit **carré blanc** avec le nombre de messages non lus (menu, liste, en-tête sur
+    téléphone), mis à jour toutes les 30 secondes.
+- **Notifications** : enregistrées dans l'outil (30 jours) et affichées par
+  l'**application de bureau** (Windows, Mac, voir [`docs/APPLICATION_BUREAU.md`](docs/APPLICATION_BUREAU.md))
+  et l'**application Android** ([`docs/APPLICATION_ANDROID.md`](docs/APPLICATION_ANDROID.md)) ;
+  aussi par le navigateur (menu utilisateur → « Activer les notifications », Web Push).
+- **État des clients** : étape choisie dans une liste modifiable (à contacter, en discussion,
+  projet en cours, en attente du client, maintenance, terminé…) et indicateurs automatiques
+  (devis à accepter, facture à envoyer, facture en retard), colonne et filtre « État » dans la
+  liste des clients.
+- **Paramètres → Listes** : états des clients, catégories de dépenses et étapes de projet
+  proposées, modifiables (ajouter, renommer, réordonner, désactiver).
+- **Fichiers partagés** (fiche client, espace client, discussions) : 20 Mo et 5 fichiers par
+  envoi, visibles ou non par le client ; le client peut en envoyer depuis son espace.
+- **Projets** : étapes cochées par l'équipe, **avancement visible par le client** dans son
+  espace (et le temps passé, au choix), échéance, tarif horaire et budget d'heures.
+- **Suivi du temps** : chronomètre ou saisie (« 1:30 », « 45 min »), par client et projet ;
+  **facturation des heures** non facturées en un clic (brouillon de facture, une ligne par
+  projet).
+- **Dépenses** : catégorie, fournisseur, TVA (impôt préalable), justificatifs, client ou projet
+  concerné ; résultat (encaissé − dépenses) au tableau de bord ; export comptable.
+- **Import des paiements bancaires** (Factures → Importer un relevé) : fichiers camt.053 et
+  camt.054 de l'e-banking, rapprochement par référence QR, numéro de facture ou montant, jamais
+  deux fois la même opération.
+- **Relance automatique des devis** sans réponse après N jours (Paramètres → Emails), ou à la
+  main depuis le devis.
+- **Sites des clients** (menu « Sites ») : surveillance toutes les 5 minutes (alerte après deux
+  échecs et au retour, historique des pannes, disponibilité sur 30 jours), **expiration des
+  domaines** lue automatiquement (registres RDAP) et des certificats, **rappels de
+  renouvellement** (domaine, hébergement, certificat), **état du site visible par le client**
+  dans son espace (au choix).
+- **Calendrier** : échéances des factures, validité des devis, facturations d'abonnement,
+  échéances de projet, renouvellements ; **abonnement iCal** personnel (Outlook, Google Agenda,
+  téléphone).
 - **Espace client** (`/espace-client`, en français ou en allemand selon la langue du client) :
   - accès créé depuis la fiche du client (« Créer l'accès à l'espace client ») : identifiant et
     mot de passe **générés**, affichés une seule fois (à copier) avec un bouton « Envoyer par
@@ -268,7 +303,8 @@ devra-gestion/
 │  │  ├─ (auth)/          connexion, mot de passe oublié, invitation
 │  │  ├─ (app)/           application connectée (navigation latérale)
 │  │  ├─ (public)/        page d'acceptation des devis en ligne (sans compte)
-│  │  └─ api/             authentification, logo, exports, PDF, tâches quotidiennes
+│  │  ├─ espace-client/   espace client (FR/DE)
+│  │  └─ api/             authentification, PDF, fichiers, notifications, calendrier, tâches
 │  ├─ domain/             règles métier pures, sans base de données (testées)
 │  ├─ modules/<module>/   schémas Zod, services, actions serveur par module
 │  ├─ server/             authentification, base, sessions, emails, fichiers, PDF
@@ -276,9 +312,12 @@ devra-gestion/
 │  ├─ components/         composants d'interface (ui/ = shadcn/ui)
 │  └─ lib/                utilitaires (formats suisses…)
 ├─ docker/
-│  ├─ cron/               planificateur des tâches quotidiennes (conteneur cron)
+│  ├─ cron/               tâches quotidiennes et surveillance des sites (conteneur cron)
 │  ├─ backup/             sauvegarde et restauration (conteneurs backup et restore)
 │  └─ caddy/              configuration du reverse proxy HTTPS (option Caddy)
+├─ desktop/               application de bureau Windows et Mac (Electron)
+├─ android/               application Android (Java, sans bibliothèque externe)
+├─ deploy/serveur/        installation sur un serveur, sauvegarde Google Drive
 ├─ tests/e2e/             tests Playwright
 ├─ docs/                  déploiement, sauvegardes, choix techniques
 ├─ compose.yaml           production (Docker)
@@ -292,8 +331,12 @@ devra-gestion/
   Raspberry Pi, HTTPS, mises à jour, dépannage, mesures de sécurité.
 - [`docs/DEPLOIEMENT_SERVEUR.md`](docs/DEPLOIEMENT_SERVEUR.md) : installation sur un serveur
   Linux exploité par un agent (compte restreint, commande `claude-devra`).
-- [`docs/SAUVEGARDES.md`](docs/SAUVEGARDES.md) : fonctionnement des sauvegardes, copie hors du
-  Raspberry Pi, vérification et restauration.
+- [`docs/SAUVEGARDES.md`](docs/SAUVEGARDES.md) : fonctionnement des sauvegardes, copie chiffrée
+  sur Google Drive, vérification et restauration.
+- [`docs/APPLICATION_BUREAU.md`](docs/APPLICATION_BUREAU.md) : application Windows et Mac
+  (notifications du système), téléchargement et installation.
+- [`docs/APPLICATION_ANDROID.md`](docs/APPLICATION_ANDROID.md) : application Android, installation
+  par câble USB, clé de signature.
 - [`docs/TARIFS_SITE_VITRINE.md`](docs/TARIFS_SITE_VITRINE.md) : tarifs publics (`/tarif.php`)
   pour le site vitrine, format et exemples PHP / JavaScript.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) : choix techniques et leurs raisons.

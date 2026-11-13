@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
-import { addDays, dbDateToIso, isoToDbDate, todayIso, yearOf } from "@/domain/dates";
+import { addDays, dbDateToIso, formatIsoDate, isoToDbDate, todayIso, yearOf } from "@/domain/dates";
 import {
   balanceCents,
   canCancel,
@@ -15,6 +15,7 @@ import { defaultDueDate, depositParts, type Deduction } from "@/domain/invoices"
 import { formatPercent } from "@/domain/percent";
 import { missingQrRequirements, paymentSetup } from "@/domain/qr-bill";
 import { normalizeSearchText, searchWords } from "@/domain/search";
+import { formatDuration, hoursQuantity } from "@/domain/time";
 import { documentLabels, fillLabel } from "@/i18n/documents";
 import { formatAmount, formatChf } from "@/lib/format";
 import {
@@ -437,6 +438,110 @@ function texts(settings: AppSettings, language: "FR" | "DE") {
 }
 
 // ---------------------------------------------------------------------------
+// Facture du temps passé (suivi du temps)
+// ---------------------------------------------------------------------------
+
+/**
+ * Brouillon de facture avec le temps facturable non facturé d'un client : une
+ * ligne « à l'heure » par projet (tarif du projet, sinon celui des paramètres),
+ * avec le détail des saisies. Le temps facturé ne sera plus proposé ; supprimer
+ * le brouillon le libère.
+ */
+export async function createTimeInvoice(actor: CurrentUser, clientId: string) {
+  return db.$transaction(async (tx) => {
+    const client = await tx.client.findUnique({
+      where: { id: clientId },
+      select: { id: true, displayName: true, language: true, siteTypeId: true },
+    });
+    if (!client) throw new UserError("Ce client n'existe plus.");
+    const entries = await tx.timeEntry.findMany({
+      where: { clientId, billable: true, invoiceId: null, startedAt: null, minutes: { gt: 0 } },
+      orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+      include: { project: { select: { id: true, name: true, hourlyRateCents: true } } },
+    });
+    if (entries.length === 0) throw new UserError("Aucun temps à facturer pour ce client.");
+    const settings = await getSettings(tx);
+    const labels = documentLabels(client.language);
+    const vatRateBps = settings.vatEnabled ? (settings.vatRates[0] ?? null) : null;
+
+    const groups = new Map<string, typeof entries>();
+    for (const entry of entries) {
+      const key = entry.projectId ?? "";
+      groups.set(key, [...(groups.get(key) ?? []), entry]);
+    }
+    const lines = [...groups.values()].map((group) => {
+      const project = group[0]!.project;
+      const rate = project?.hourlyRateCents ?? settings.hourlyRateCents;
+      if (!rate) {
+        throw new UserError(
+          "Indiquez d'abord votre tarif horaire : Paramètres → Projets et sites (ou sur le projet).",
+        );
+      }
+      const minutes = group.reduce((sum, e) => sum + e.minutes, 0);
+      const detail = group
+        .slice(0, 40)
+        .map((e) =>
+          [formatIsoDate(dbDateToIso(e.date)), e.description, formatDuration(e.minutes)]
+            .filter(Boolean)
+            .join(" · "),
+        )
+        .join("\n");
+      return {
+        catalogItemId: null,
+        lineType: "HOURLY" as const,
+        periodicity: null,
+        label: project?.name ?? labels.timeOutsideProject,
+        description: (group.length > 40 ? `${detail}\n…` : detail).slice(0, 2000),
+        quantity: hoursQuantity(minutes),
+        unit: "HOUR" as const,
+        unitPrice: formatAmount(rate),
+        discountType: "PERCENT" as const,
+        discountValue: "",
+        vatRateBps,
+      };
+    });
+
+    const today = todayIso();
+    const data = invoiceInputSchema.parse({
+      clientId: client.id,
+      language: client.language,
+      issueDate: today,
+      dueDate: defaultDueDate(today, settings.paymentTermDays),
+      subject: labels.timeInvoiceSubject,
+      siteTypeId: client.siteTypeId,
+      ...texts(settings, client.language),
+      globalDiscountType: "PERCENT",
+      globalDiscountValue: "",
+      lines,
+    } satisfies InvoiceInput);
+    const invoice = await createDraft(tx, actor, data, {
+      source: { action: "invoice.created", details: { fromTime: client.displayName } },
+    });
+    const ids = entries.map((e) => e.id);
+    const marked = await tx.timeEntry.updateMany({
+      where: { id: { in: ids }, invoiceId: null },
+      data: { invoiceId: invoice.id },
+    });
+    if (marked.count !== ids.length) {
+      throw new UserError("Le temps a été modifié entre-temps. Rechargez la page.");
+    }
+    const minutes = entries.reduce((sum, e) => sum + e.minutes, 0);
+    await logActivity(
+      {
+        userId: actor.id,
+        action: "time.invoiced",
+        entityType: "client",
+        entityId: client.id,
+        label: client.displayName,
+        details: { hours: formatDuration(minutes), entries: entries.length, invoiceId: invoice.id },
+      },
+      tx,
+    );
+    return invoice;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Factures d'abonnement
 // ---------------------------------------------------------------------------
 
@@ -725,7 +830,12 @@ async function lockInvoice(tx: Tx, id: string) {
   return invoice;
 }
 
-export async function recordPayment(actor: CurrentUser, payment: PaymentData) {
+export async function recordPayment(
+  actor: CurrentUser,
+  payment: PaymentData,
+  /** Appelé dans la même transaction (ex. import bancaire : opération liée au paiement). */
+  onRecorded?: (tx: Tx, paymentId: string) => Promise<void>,
+) {
   if (payment.date > todayIso())
     throw new UserError("La date du paiement ne peut pas être dans le futur.");
   return db.$transaction(async (tx) => {
@@ -740,7 +850,7 @@ export async function recordPayment(actor: CurrentUser, payment: PaymentData) {
       throw new UserError(`Le montant dépasse le solde de la facture (${formatChf(balance)}).`);
     }
     const paid = invoice.paidCents + payment.amountCents;
-    await tx.payment.create({
+    const created = await tx.payment.create({
       data: {
         invoiceId: invoice.id,
         date: isoToDbDate(payment.date),
@@ -759,6 +869,7 @@ export async function recordPayment(actor: CurrentUser, payment: PaymentData) {
       amount: formatChf(payment.amountCents),
       method: PAYMENT_METHOD_LABELS[payment.method],
     });
+    if (onRecorded) await onRecorded(tx, created.id);
     return { status, balanceCents: balanceCents(owedCents(invoice), paid) };
   });
 }

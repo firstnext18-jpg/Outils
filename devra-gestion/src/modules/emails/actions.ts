@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { sendEmailSchema } from "@/modules/emails/schemas";
-import { sendInvoiceEmail, sendQuoteEmail } from "@/modules/emails/service";
+import { sendInvoiceEmail, sendQuoteEmail, sendQuoteReminder } from "@/modules/emails/service";
 import { sendReminderEmail } from "@/modules/reminders/service";
 import { authAction } from "@/server/action";
+import { z } from "zod";
 
 /** Envoi d'un devis ou d'une facture par email, avec le PDF en pièce jointe. */
 export const sendDocumentEmailAction = authAction(
@@ -29,5 +30,15 @@ export const sendDocumentEmailAction = authAction(
       if (data.kind === "reminder") revalidatePath("/factures/relances");
       revalidatePath("/clients/[id]", "page");
     }
+  },
+);
+
+/** Relance du client pour un devis envoyé (bouton de la page du devis). */
+export const sendQuoteReminderAction = authAction(
+  { role: "MEMBER", schema: z.object({ id: z.uuid() }) },
+  async ({ id }, { user }) => {
+    const result = await sendQuoteReminder(user, id);
+    revalidatePath(`/devis/${id}`);
+    return result;
   },
 );

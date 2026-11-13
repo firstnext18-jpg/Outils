@@ -1,9 +1,12 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { todayIso } from "@/domain/dates";
+import { sendDueQuoteReminders } from "@/modules/emails/service";
 import { expireQuotes } from "@/modules/quotes/service";
 import { reminderProposals, sendDueReminders } from "@/modules/reminders/service";
+import { purgeOldNotifications } from "@/modules/notifications/service";
 import { getSettings } from "@/modules/settings/service";
+import { runDailySiteChecks } from "@/modules/sites/service";
 import { billDueSubscriptions } from "@/modules/subscriptions/service";
 import { UserError } from "@/server/action";
 import { db } from "@/server/db";
@@ -17,6 +20,8 @@ export type DailySummary = {
   reminders?:
     | { mode: "MANUAL"; toSend: number }
     | { mode: "AUTOMATIC"; sent: number; failed: number; withoutEmail: number };
+  quoteReminders?: { sent: number; failed: number; skipped: boolean };
+  sites?: { sites: number; reminders: number };
 };
 
 /** Une exécution qui ne s'est pas terminée depuis plus longtemps est considérée comme interrompue. */
@@ -61,6 +66,16 @@ export async function runDailyTasks(trigger: "cron" | "manual", userId: string |
       settings.reminderMode === "AUTOMATIC"
         ? { mode: "AUTOMATIC", ...(await sendDueReminders(today)) }
         : { mode: "MANUAL", toSend: (await reminderProposals(today)).length };
+  });
+
+  await step("relances des devis", async () => {
+    summary.quoteReminders = await sendDueQuoteReminders(today);
+  });
+  await step("sites (domaines, hébergements, certificats)", async () => {
+    summary.sites = await runDailySiteChecks(today);
+  });
+  await step("nettoyage des notifications", async () => {
+    await purgeOldNotifications();
   });
 
   await db.taskRun.update({

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { QuoteActions } from "@/app/(app)/devis/[id]/quote-actions";
 import { QuoteBilling } from "@/app/(app)/devis/[id]/quote-billing";
+import { QuoteReminderButton } from "@/app/(app)/devis/[id]/quote-reminder-button";
 import { LinesTable } from "@/components/documents/lines-table";
 import { QuoteStatusBadge } from "@/components/documents/quote-status-badge";
 import { EmailHistoryCard } from "@/components/documents/email-history-card";
@@ -170,6 +171,13 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
               canEdit={canEdit(user.role)}
             />
           )}
+          {quote.status === "SENT" && canEdit(user.role) && quote.client.email && (
+            <QuoteReminderButton
+              quoteId={quote.id}
+              email={quote.client.email}
+              lastReminder={quote.reminderSentAt ? formatDateTime(quote.reminderSentAt) : null}
+            />
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Montants</CardTitle>
@@ -193,6 +201,12 @@ export default async function QuotePage({ params }: PageProps<"/devis/[id]">) {
                 <dd>{formatIsoDate(dbDateToIso(quote.issueDate))}</dd>
                 <dt className="text-muted-foreground">Valable jusqu&apos;au</dt>
                 <dd>{formatIsoDate(dbDateToIso(quote.validUntil))}</dd>
+                {quote.reminderSentAt && (
+                  <>
+                    <dt className="text-muted-foreground">Relancé le</dt>
+                    <dd>{formatDateTime(quote.reminderSentAt)}</dd>
+                  </>
+                )}
                 <dt className="text-muted-foreground">Langue</dt>
                 <dd>{LANGUAGE_LABELS[quote.language]}</dd>
                 {quote.siteType && (

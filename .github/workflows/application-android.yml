@@ -1,0 +1,120 @@
+# Construit l'application Android (devra-gestion/android) : Gestion-Android.apk, à
+# installer par câble USB (voir devra-gestion/docs/APPLICATION_ANDROID.md). Le fichier
+# est à télécharger dans l'onglet Actions → « Application Android » → dernière exécution
+# → « Artifacts ».
+#
+# - à chaque mise à jour de main ou d'une pull request touchant l'application ;
+# - à la demande : onglet Actions → « Application Android » → « Run workflow »
+#   (case « Créer une clé de signature » : une seule fois, voir la documentation).
+name: Application Android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "devra-gestion/android/**"
+      - ".github/workflows/application-android.yml"
+  pull_request:
+    paths:
+      - "devra-gestion/android/**"
+      - ".github/workflows/application-android.yml"
+  workflow_dispatch:
+    inputs:
+      creer_cle:
+        description: "Créer une clé de signature (une seule fois, puis l'enregistrer dans les secrets)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: application-android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: Construire l'APK
+    if: ${{ !inputs.creer_cle }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Clé de signature (si enregistrée dans les secrets)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/gestion.keystore"
+            echo "ANDROID_KEYSTORE=$RUNNER_TEMP/gestion.keystore" >> "$GITHUB_ENV"
+            echo "APK signé avec la clé enregistrée dans les secrets du dépôt." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Pas de clé ANDROID_KEYSTORE_BASE64 : APK signé avec une clé de test." >> "$GITHUB_STEP_SUMMARY"
+            echo "Chaque nouvelle version demandera de désinstaller l'ancienne (voir docs/APPLICATION_ANDROID.md)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          gradle --no-daemon -p devra-gestion/android assembleRelease
+          cp devra-gestion/android/app/build/outputs/apk/release/app-release.apk Gestion-Android.apk
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: Gestion-Android
+          path: Gestion-Android.apk
+          if-no-files-found: error
+          retention-days: 90
+
+  cle:
+    name: Créer une clé de signature
+    if: ${{ inputs.creer_cle }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Clé
+        run: |
+          umask 077
+          mkdir cle
+          pass=$(openssl rand -hex 24)
+          keytool -genkeypair -keystore cle/gestion.keystore -storetype PKCS12 -alias gestion \
+            -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Gestion" \
+            -storepass "$pass" -keypass "$pass"
+          base64 -w0 cle/gestion.keystore > cle/ANDROID_KEYSTORE_BASE64.txt
+          {
+            echo "Secrets à créer : Settings → Secrets and variables → Actions → New repository secret"
+            echo
+            echo "ANDROID_KEYSTORE_BASE64 = contenu du fichier ANDROID_KEYSTORE_BASE64.txt"
+            echo "ANDROID_KEYSTORE_PASSWORD = $pass"
+            echo "ANDROID_KEY_ALIAS = gestion"
+            echo "ANDROID_KEY_PASSWORD = $pass"
+            echo
+            echo "Gardez aussi gestion.keystore et ce fichier dans un gestionnaire de mots de passe,"
+            echo "puis supprimez-les de l'ordinateur."
+          } > cle/A-LIRE.txt
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: Cle-Android-a-enregistrer
+          path: cle/
+          if-no-files-found: error
+          # Fichier secret : disponible 1 jour seulement.
+          retention-days: 1

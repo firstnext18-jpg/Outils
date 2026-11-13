@@ -9,7 +9,7 @@ import {
   savePushSubscriptionAction,
 } from "@/modules/discussions/actions";
 
-type State = "loading" | "unsupported" | "blocked" | "off" | "on";
+type State = "loading" | "unsupported" | "blocked" | "off" | "on" | "desktop" | "mobile";
 
 /** Clé publique VAPID (base64url) → octets attendus par pushManager.subscribe. */
 function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
@@ -59,6 +59,10 @@ async function currentSubscription() {
 
 /** État des notifications sur ce navigateur (lu une fois affiché). */
 async function detectState(): Promise<State> {
+  // Application de bureau : elle affiche elle-même les notifications du système.
+  if (/GestionBureau\//.test(navigator.userAgent)) return "desktop";
+  // Application Android : notifications et réglages dans l'application.
+  if (/GestionMobile\//.test(navigator.userAgent)) return "mobile";
   if (!supported()) return "unsupported";
   if (Notification.permission === "denied") return "blocked";
   try {
@@ -133,6 +137,22 @@ export function NotificationsMenuItem({ publicKey }: { publicKey: string | null 
   }
 
   if (state === "loading" || state === "unsupported") return null;
+  if (state === "mobile") {
+    return (
+      <DropdownMenuItem asChild>
+        <a href="gestion-app://reglages">
+          <BellIcon /> Réglages de l&apos;application
+        </a>
+      </DropdownMenuItem>
+    );
+  }
+  if (state === "desktop") {
+    return (
+      <DropdownMenuItem disabled>
+        <BellIcon /> Notifications de l&apos;application activées
+      </DropdownMenuItem>
+    );
+  }
   if (!publicKey) {
     return (
       <DropdownMenuItem disabled>

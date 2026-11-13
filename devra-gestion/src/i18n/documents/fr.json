@@ -55,5 +55,7 @@
   "reminderQrMessage": "Rappel facture {number}",
   "period": "Période",
   "emailPdfAttached": "PDF joint",
-  "emailViewQuoteOnline": "Consulter le devis en ligne"
+  "emailViewQuoteOnline": "Consulter le devis en ligne",
+  "timeInvoiceSubject": "Prestations au temps passé",
+  "timeOutsideProject": "Prestations diverses"
 }

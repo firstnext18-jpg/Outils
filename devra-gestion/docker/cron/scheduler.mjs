@@ -1,13 +1,17 @@
 /**
- * Planificateur des tâches quotidiennes (conteneur « cron »).
+ * Planificateur des tâches automatiques (conteneur « cron »).
  *
- * Appelle chaque jour à CRON_TIME (heure de Zurich) la route
- * POST /api/taches/quotidiennes de l'application, avec le secret CRON_SECRET.
- * Il l'appelle aussi au démarrage du conteneur (rattrapage après une coupure
- * du Raspberry Pi) : les tâches ne font jamais deux fois la même chose.
+ * - Chaque jour à CRON_TIME (heure de Zurich) : route
+ *   POST /api/taches/quotidiennes de l'application, avec le secret CRON_SECRET.
+ *   Aussi au démarrage du conteneur (rattrapage après une coupure du serveur) :
+ *   les tâches ne font jamais deux fois la même chose.
+ * - Toutes les MONITOR_MINUTES minutes (5 par défaut, 0 pour arrêter) :
+ *   POST /api/taches/surveillance (vérification des sites des clients).
  * Sans dépendance : Node seul, dans l'image de l'application.
  */
 const url = process.env.CRON_URL ?? "http://app:3000/api/taches/quotidiennes";
+const monitorUrl = process.env.MONITOR_URL ?? url.replace(/quotidiennes\/?$/, "surveillance");
+const monitorMinutes = Number(process.env.MONITOR_MINUTES ?? "5");
 const secret = process.env.CRON_SECRET ?? "";
 const time = process.env.CRON_TIME ?? "06:00";
 const runOnStart = process.env.CRON_RUN_ON_START !== "false";
@@ -66,21 +70,53 @@ async function run() {
   }
 }
 
-if (runOnStart) {
-  await sleep(30_000); // laisse l'application démarrer
-  await run();
-}
-for (;;) {
-  let wait = msUntilNextRun();
-  console.log(
-    `Prochaine exécution dans ${Math.round(wait / 60_000)} minutes (${time}, heure de Zurich).`,
-  );
-  // Attente par tranches d'une heure au plus : l'heure reste juste lors des
-  // passages à l'heure d'été ou d'hiver.
-  while (wait > 3_600_000) {
-    await sleep(3_600_000);
-    wait = msUntilNextRun();
+/** Surveillance des sites : un passage, puis attente (jamais deux en même temps). */
+async function monitorLoop() {
+  if (!Number.isFinite(monitorMinutes) || monitorMinutes <= 0) {
+    console.log("Surveillance des sites désactivée (MONITOR_MINUTES=0).");
+    return;
   }
-  await sleep(wait);
-  await run();
+  const every = Math.max(1, monitorMinutes) * 60_000;
+  await sleep(60_000); // laisse l'application démarrer
+  for (;;) {
+    const started = Date.now();
+    try {
+      const response = await fetch(monitorUrl, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${secret}` },
+        signal: AbortSignal.timeout(10 * 60_000),
+      });
+      if (!response.ok && response.status !== 409) {
+        console.error(
+          `${new Date().toISOString()} surveillance des sites : ${response.status} ${await response.text()}`,
+        );
+      }
+    } catch (error) {
+      console.error(`${new Date().toISOString()} surveillance des sites impossible`, error.message);
+    }
+    await sleep(Math.max(30_000, every - (Date.now() - started)));
+  }
 }
+
+async function dailyLoop() {
+  if (runOnStart) {
+    await sleep(30_000); // laisse l'application démarrer
+    await run();
+  }
+  for (;;) {
+    let wait = msUntilNextRun();
+    console.log(
+      `Prochaine exécution dans ${Math.round(wait / 60_000)} minutes (${time}, heure de Zurich).`,
+    );
+    // Attente par tranches d'une heure au plus : l'heure reste juste lors des
+    // passages à l'heure d'été ou d'hiver.
+    while (wait > 3_600_000) {
+      await sleep(3_600_000);
+      wait = msUntilNextRun();
+    }
+    await sleep(wait);
+    await run();
+  }
+}
+
+await Promise.all([dailyLoop(), monitorLoop()]);

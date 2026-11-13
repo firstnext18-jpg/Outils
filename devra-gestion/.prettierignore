@@ -6,3 +6,5 @@ package-lock.json
 playwright-report
 test-results
 data
+desktop/node_modules
+desktop/dist

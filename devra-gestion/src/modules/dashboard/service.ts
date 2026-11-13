@@ -45,7 +45,7 @@ function issuedIn(range: DateRange): Prisma.InvoiceWhereInput {
 }
 
 async function revenue(range: DateRange) {
-  const [invoiced, paid] = await Promise.all([
+  const [invoiced, paid, expenses] = await Promise.all([
     db.invoice.aggregate({
       where: issuedIn(range),
       _sum: { amountDueCents: true },
@@ -55,11 +55,17 @@ async function revenue(range: DateRange) {
       where: { date: dateFilter(range), invoice: { status: { not: "CANCELLED" } } },
       _sum: { amountCents: true },
     }),
+    db.expense.aggregate({ where: { date: dateFilter(range) }, _sum: { amountCents: true } }),
   ]);
+  const paidCents = paid._sum.amountCents ?? 0;
+  const expensesCents = expenses._sum.amountCents ?? 0;
   return {
     invoicedCents: invoiced._sum.amountDueCents ?? 0,
     invoiceCount: invoiced._count,
-    paidCents: paid._sum.amountCents ?? 0,
+    paidCents,
+    /** Dépenses de la période, et résultat de trésorerie : encaissé − dépenses. */
+    expensesCents,
+    resultCents: paidCents - expensesCents,
   };
 }
 

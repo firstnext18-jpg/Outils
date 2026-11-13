@@ -1,5 +1,6 @@
 import { ArchiveIcon, Building2Icon, UserIcon } from "lucide-react";
 import Link from "next/link";
+import { ClientIndicators } from "@/app/(app)/clients/client-stage";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -56,6 +57,7 @@ export function ClientsList({ clients }: { clients: ClientListRow[] }) {
           <TableHeader>
             <TableRow>
               <TableHead className="pl-4">Client</TableHead>
+              <TableHead>État</TableHead>
               <TableHead>Localité</TableHead>
               <TableHead>Contact</TableHead>
               <TableHead>Type de site</TableHead>
@@ -83,6 +85,14 @@ export function ClientsList({ clients }: { clients: ClientListRow[] }) {
                   {client.contactName && (
                     <div className="text-muted-foreground pl-6 text-sm">{client.contactName}</div>
                   )}
+                </TableCell>
+                <TableCell className="max-w-56 whitespace-normal">
+                  {client.stage?.name ?? (
+                    <span className="text-muted-foreground">
+                      {client.indicators.length ? "" : "—"}
+                    </span>
+                  )}
+                  <ClientIndicators indicators={client.indicators} className="mt-1" />
                 </TableCell>
                 <TableCell>
                   <Location client={client} />
@@ -118,6 +128,7 @@ export function ClientsList({ clients }: { clients: ClientListRow[] }) {
                 <KindIcon client={client} />
                 <span className="font-medium">{client.displayName}</span>
                 {client.archivedAt && <Badge variant="outline">Archivé</Badge>}
+                {client.stage && <Badge variant="secondary">{client.stage.name}</Badge>}
               </div>
               <div className="text-sm">
                 <Location client={client} />
@@ -127,6 +138,7 @@ export function ClientsList({ clients }: { clients: ClientListRow[] }) {
                   {[client.email, client.phone].filter(Boolean).join(" · ")}
                 </div>
               )}
+              <ClientIndicators indicators={client.indicators} />
               <Tags tags={client.tags} />
             </Link>
           </li>

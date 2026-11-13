@@ -52,10 +52,12 @@ export default async function PortalLayout({ children }: { children: React.React
             label={t.menu}
             items={[
               { href: "/espace-client", label: t.navHome },
+              { href: "/espace-client/projets", label: t.navProjects },
               { href: "/espace-client/devis", label: t.navQuotes },
               { href: "/espace-client/factures", label: t.navInvoices },
               { href: "/espace-client/abonnements", label: t.navSubscriptions },
               { href: "/espace-client/discussion", label: t.navDiscussion, badge: unread },
+              { href: "/espace-client/fichiers", label: t.navFiles },
               { href: "/espace-client/compte", label: t.navAccount },
             ]}
           />

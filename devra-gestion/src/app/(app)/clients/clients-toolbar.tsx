@@ -5,18 +5,21 @@ import { useState } from "react";
 import { FilterSelect, SearchField, useUrlFilters } from "@/components/list-filters";
 import { Button } from "@/components/ui/button";
 import { CANTONS_BY_FR_NAME } from "@/domain/cantons";
+import { CLIENT_INDICATORS, NO_STAGE_FILTER } from "@/domain/client-stage";
 import { cn } from "@/lib/utils";
 import { CLIENT_SORTS, CLIENT_STATUS_FILTERS } from "@/modules/clients/schemas";
 
 const ALL = "__tous__";
-const FILTER_KEYS = ["q", "type", "canton", "site", "tag", "statut"] as const;
+const FILTER_KEYS = ["q", "type", "canton", "site", "tag", "statut", "etat"] as const;
 
 /** Barre de recherche et de filtres de la liste des clients. */
 export function ClientsToolbar({
   siteTypes,
+  stages,
   tags,
 }: {
   siteTypes: { id: string; name: string }[];
+  stages: { id: string; name: string }[];
   tags: string[];
 }) {
   const { searchParams, update, reset, pending } = useUrlFilters();
@@ -45,6 +48,19 @@ export function ClientsToolbar({
         />
       </div>
       <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
+        <FilterSelect
+          label="État"
+          {...select("etat", ALL)}
+          options={[
+            { value: ALL, label: "Tous les états" },
+            ...stages.map((stage) => ({ value: stage.id, label: stage.name })),
+            { value: NO_STAGE_FILTER, label: "Sans état" },
+            ...Object.entries(CLIENT_INDICATORS).map(([value, label]) => ({
+              value,
+              label: `${label} (automatique)`,
+            })),
+          ]}
+        />
         <FilterSelect
           label="Type"
           {...select("type", ALL)}
