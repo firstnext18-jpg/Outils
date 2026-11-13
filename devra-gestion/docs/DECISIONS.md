@@ -685,6 +685,19 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   personnel de 256 bits dont seule l'empreinte SHA-256 est en base, affiché une fois ;
   événements « journée entière », de 3 mois en arrière à 15 mois en avant.
 
+## Apports des associés
+
+- **Associés = utilisateurs de l'outil** (choix de l'utilisateur) : pas de liste à part à tenir
+  à jour. Un utilisateur désactivé garde ses mouvements et son solde.
+- **Quatre sortes de mouvements** (`partner_movement`) : apport en capital, prêt d'associé,
+  remboursement du prêt, retrait de capital. Montant toujours positif, le sens est donné par la
+  sorte ; le solde (capital, prêt restant) est calculé, jamais enregistré.
+- **Jamais plus rendu que mis** : un remboursement ne dépasse pas le prêt restant, un retrait le
+  capital apporté ; modifier ou supprimer un apport qui laisserait un solde négatif est refusé.
+- **Admins seulement** : page, menu, actions, journal, carte du tableau de bord et justificatifs
+  (la route des fichiers les refuse aux autres rôles). Les apports ne sont pas du chiffre
+  d'affaires : ils n'entrent que dans la « trésorerie estimée ».
+
 ## Applications de bureau et Android, notifications
 
 - **Notifications enregistrées en base** (`notification`, 30 jours) à chaque envoi, en plus du

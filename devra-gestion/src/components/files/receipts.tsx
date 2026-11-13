@@ -7,16 +7,22 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { FileList } from "@/components/files/file-list";
 import { FilePicker } from "@/components/files/file-picker";
 import { uploadProblem } from "@/domain/files";
-import { addReceiptsAction } from "@/modules/expenses/actions";
 import { deleteFileAction } from "@/modules/files/actions";
+import type { ActionResult } from "@/server/action";
 
-/** Justificatifs d'une dépense (facture du fournisseur, ticket…). */
+/**
+ * Justificatifs (facture du fournisseur, relevé, contrat de prêt…) d'une
+ * dépense ou d'un apport d'associé. `addAction` : action serveur qui reçoit
+ * « id » et « files ».
+ */
 export function Receipts({
-  expenseId,
+  ownerId,
+  addAction,
   receipts,
   canEdit,
 }: {
-  expenseId: string;
+  ownerId: string;
+  addAction: (formData: FormData) => Promise<ActionResult>;
   receipts: { id: string; name: string; size: number; meta: string }[];
   canEdit: boolean;
 }) {
@@ -31,10 +37,10 @@ export function Receipts({
             const problem = uploadProblem(files);
             if (problem) return toast.error(problem);
             const form = new FormData();
-            form.set("id", expenseId);
+            form.set("id", ownerId);
             for (const file of files) form.append("files", file);
             startTransition(async () => {
-              const result = await addReceiptsAction(form);
+              const result = await addAction(form);
               if (result.ok) toast.success("Justificatif ajouté.");
               else toast.error(result.error);
             });

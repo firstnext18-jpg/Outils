@@ -56,6 +56,7 @@ type FileOwner = {
   projectId?: string | null;
   messageId?: string | null;
   expenseId?: string | null;
+  partnerMovementId?: string | null;
   visibleToClient: boolean;
   uploadedById?: string | null;
   uploadedByClient?: boolean;
@@ -151,6 +152,9 @@ export async function setFileVisibility(actor: CurrentUser, id: string, visibleT
 
 export async function deleteFile(actor: CurrentUser, id: string) {
   const file = await fileOrThrow(id);
+  if (file.partnerMovementId && actor.role !== "ADMIN") {
+    throw new UserError("Vous n'avez pas les droits nécessaires pour cette action.");
+  }
   await db.storedFile.delete({ where: { id } });
   await deleteStoredFiles([file.storageName]);
   if (file.clientId) {
@@ -163,12 +167,24 @@ export async function deleteFile(actor: CurrentUser, id: string) {
       details: { file: file.name },
     });
   }
-  return { clientId: file.clientId, expenseId: file.expenseId };
+  return {
+    clientId: file.clientId,
+    expenseId: file.expenseId,
+    partnerMovementId: file.partnerMovementId,
+  };
 }
 
-/** Fichier pour l'équipe (tout utilisateur connecté). */
-export function fileForTeam(id: string) {
-  return db.storedFile.findUnique({ where: { id }, select: { name: true, storageName: true } });
+/**
+ * Fichier pour l'équipe (tout utilisateur connecté), sauf les justificatifs de
+ * l'argent des associés, réservés aux admins.
+ */
+export async function fileForTeam(id: string, role: CurrentUser["role"]) {
+  const file = await db.storedFile.findUnique({
+    where: { id },
+    select: { name: true, storageName: true, partnerMovementId: true },
+  });
+  if (!file || (file.partnerMovementId && role !== "ADMIN")) return null;
+  return file;
 }
 
 /** Fichier pour le client connecté : seulement les siens, partagés avec lui. */

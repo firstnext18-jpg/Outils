@@ -1,5 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-import { ADMIN, CRON_SECRET, login } from "./fixtures";
+import { expect, test, type Browser, type Page } from "@playwright/test";
+import { acceptInvitation, ADMIN, CRON_SECRET, invite, login } from "./fixtures";
 
 // Gestion courante : état du client, projet et avancement, suivi du temps
 // facturé, import d'un relevé bancaire camt, dépense, site du client
@@ -10,6 +10,12 @@ import { ADMIN, CRON_SECRET, login } from "./fixtures";
 test.describe.configure({ mode: "serial" });
 
 const CLIENT = { name: "Studio Projets SA", email: "contact@studio-projets.test" };
+// Membre invité par ce fichier : ne doit rien voir de l'argent des associés.
+const MEMBER = {
+  name: "Léa Membre",
+  email: "lea.apports@e2e.test",
+  password: "Lea-E2E-Password",
+};
 const SITE_HOST = "www.studio-projets.invalid";
 
 let clientUrl = "";
@@ -190,6 +196,117 @@ test("site du client : renouvellement, calendrier, abonnement iCal et rappel", a
   expect(data.notifications.map((n) => n.title)).toContain(
     `Renouvellement · ${CLIENT.name} · Site vitrine`,
   );
+});
+
+async function addPartnerMovement(
+  page: Page,
+  movement: {
+    kind?: string;
+    amount: string;
+    description: string;
+    file?: { name: string; mimeType: string; buffer: Buffer };
+  },
+) {
+  await page.goto("/apports/nouveau");
+  await page.waitForLoadState("networkidle");
+  // L'admin connecté est proposé comme associé.
+  await expect(page.locator("#partner-id")).toHaveText(ADMIN.name);
+  if (movement.kind) {
+    await page.locator("#partner-kind").click();
+    await page.getByRole("option", { name: movement.kind }).click();
+  }
+  await page.getByLabel("Montant (CHF)").fill(movement.amount);
+  await page.getByLabel("Description (facultatif)").fill(movement.description);
+  if (movement.file) {
+    await page.getByLabel("Joindre un relevé ou un contrat").setInputFiles(movement.file);
+  }
+  await page.getByRole("button", { name: "Ajouter le mouvement" }).click();
+}
+
+/** Le membre active son compte (invitation envoyée par l'admin) dans une session à part. */
+async function memberSession(browser: Browser) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await acceptInvitation(page, MEMBER);
+  return { context, page };
+}
+
+test("apports des associés : soldes, remboursement limité, trésorerie, admins seulement", async ({
+  page,
+  browser,
+}) => {
+  await login(page, ADMIN.email, ADMIN.password);
+  await page.goto("/apports");
+  await expect(page.getByText("Aucun apport pour l'instant")).toBeVisible();
+
+  await addPartnerMovement(page, {
+    amount: "5000",
+    description: "Apport initial",
+    file: { name: "releve.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n") },
+  });
+  await expect(page.getByText("Mouvement ajouté.")).toBeVisible();
+  await expect(page).toHaveURL(/\/apports$/);
+  await addPartnerMovement(page, {
+    kind: "Prêt d'associé",
+    amount: "2000",
+    description: "Prêt pour le matériel",
+  });
+  await expect(page).toHaveURL(/\/apports$/);
+
+  // On ne rend jamais plus que le prêt restant.
+  await addPartnerMovement(page, {
+    kind: "Remboursement du prêt",
+    amount: "3000",
+    description: "Premier remboursement",
+  });
+  await expect(
+    page.getByText("Le remboursement dépasse le prêt restant de cet associé (CHF 2'000.00)."),
+  ).toBeVisible();
+  await page.getByLabel("Montant (CHF)").fill("500");
+  await page.getByRole("button", { name: "Ajouter le mouvement" }).click();
+  await expect(page).toHaveURL(/\/apports$/);
+
+  const balances = page.getByRole("region", { name: "Soldes des associés" });
+  await expect(balances).toContainText(ADMIN.name);
+  await expect(balances).toContainText("CHF 5'000.00"); // capital
+  await expect(balances).toContainText("CHF 1'500.00"); // prêt restant
+  await expect(balances).toContainText("CHF 6'500.00"); // investi au total
+  const list = page.getByRole("list", { name: "Mouvements" });
+  await expect(list).toContainText("+ CHF 5'000.00");
+  await expect(list).toContainText("− CHF 500.00");
+
+  // Supprimer le prêt laisserait un remboursement sans prêt : refusé.
+  await list.getByRole("link", { name: /Prêt pour le matériel/ }).click();
+  await page.getByRole("button", { name: "Supprimer" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+  await expect(page.getByText(/aurait alors été remboursé de plus que son prêt/)).toBeVisible();
+
+  // Justificatif de l'apport : lisible par les admins seulement.
+  await page.goto("/apports");
+  await list.getByRole("link", { name: /Apport initial/ }).click();
+  const receipt = page.getByRole("link", { name: /releve\.pdf/ });
+  await expect(receipt).toBeVisible();
+  const receiptUrl = (await receipt.getAttribute("href"))!;
+  expect((await page.request.get(receiptUrl)).status()).toBe(200);
+
+  // Tableau de bord : trésorerie estimée (admins).
+  await page.goto("/");
+  const cash = page
+    .getByRole("region", { name: "Indicateurs" })
+    .locator('[data-slot="card"]')
+    .filter({ has: page.getByText("Trésorerie estimée", { exact: true }) });
+  await expect(cash).toContainText("apports des associés (CHF 7'000.00)");
+  await expect(cash).toContainText("remboursements (CHF 500.00)");
+
+  // Un membre ne voit ni la page, ni le menu, ni les justificatifs, ni la carte.
+  await invite(page, MEMBER, "Membre");
+  const member = await memberSession(browser);
+  await expect(member.page.getByRole("link", { name: "Apports", exact: true })).toHaveCount(0);
+  await expect(member.page.getByText("Trésorerie estimée", { exact: true })).toHaveCount(0);
+  await member.page.goto("/apports");
+  await expect(member.page).toHaveURL(/\/acces-refuse/);
+  expect((await member.page.request.get(receiptUrl)).status()).toBe(404);
+  await member.context.close();
 });
 
 test("notifications des applications : réservées à l'utilisateur connecté", async ({ request }) => {

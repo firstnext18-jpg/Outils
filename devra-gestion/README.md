@@ -181,6 +181,12 @@ entreprise, auto-hébergé sur un Raspberry Pi.
   projet).
 - **Dépenses** : catégorie, fournisseur, TVA (impôt préalable), justificatifs, client ou projet
   concerné ; résultat (encaissé − dépenses) au tableau de bord ; export comptable.
+- **Apports des associés** (menu « Apports », admins seulement) : argent investi par les
+  associés (utilisateurs de l'outil), en **apport en capital** ou en **prêt**, et ce que
+  l'entreprise leur rend (remboursements, retraits), avec justificatifs ; solde de chaque
+  associé (capital, prêt à rembourser, investi au total). On ne peut pas rendre plus que ce qui
+  a été mis. Carte « Trésorerie estimée » au tableau de bord (encaissé + apports − dépenses −
+  remboursements), visible des admins seulement.
 - **Import des paiements bancaires** (Factures → Importer un relevé) : fichiers camt.053 et
   camt.054 de l'e-banking, rapprochement par référence QR, numéro de facture ou montant, jamais
   deux fois la même opération.

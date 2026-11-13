@@ -59,19 +59,21 @@ model User {
   subsUpdated     Subscription[] @relation("SubscriptionUpdatedBy")
   taskRuns        TaskRun[]
 
-  discussionsCreated Discussion[]        @relation("DiscussionCreatedBy")
-  discussionMessages DiscussionMessage[]
-  discussionReads    DiscussionRead[]
-  pushSubscriptions  PushSubscription[]
-  notifications      Notification[]
-  clientAccounts     ClientAccount[]     @relation("ClientAccountCreatedBy")
-  filesUploaded      StoredFile[]
-  projectsCreated    Project[]           @relation("ProjectCreatedBy")
-  stepsDone          ProjectStep[]
-  timeEntries        TimeEntry[]
-  expensesCreated    Expense[]           @relation("ExpenseCreatedBy")
-  bankImports        BankImport[]
-  calendarFeed       CalendarFeed?
+  discussionsCreated      Discussion[]        @relation("DiscussionCreatedBy")
+  discussionMessages      DiscussionMessage[]
+  discussionReads         DiscussionRead[]
+  pushSubscriptions       PushSubscription[]
+  notifications           Notification[]
+  clientAccounts          ClientAccount[]     @relation("ClientAccountCreatedBy")
+  filesUploaded           StoredFile[]
+  projectsCreated         Project[]           @relation("ProjectCreatedBy")
+  stepsDone               ProjectStep[]
+  timeEntries             TimeEntry[]
+  expensesCreated         Expense[]           @relation("ExpenseCreatedBy")
+  partnerMovements        PartnerMovement[]   @relation("PartnerMovements")
+  partnerMovementsCreated PartnerMovement[]   @relation("PartnerMovementCreatedBy")
+  bankImports             BankImport[]
+  calendarFeed            CalendarFeed?
 
   @@map("user")
 }
@@ -1186,35 +1188,39 @@ model ListItem {
 
 /// Fichier enregistré dans DATA_DIR/files (inclus dans les sauvegardes).
 model StoredFile {
-  id               String             @id @default(uuid(7))
-  clientId         String?
-  client           Client?            @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  projectId        String?
-  project          Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  id                String             @id @default(uuid(7))
+  clientId          String?
+  client            Client?            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projectId         String?
+  project           Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
   /// Pièce jointe d'un message de discussion.
-  messageId        String?
-  message          DiscussionMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId         String?
+  message           DiscussionMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
   /// Justificatif d'une dépense.
-  expenseId        String?
-  expense          Expense?           @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  expenseId         String?
+  expense           Expense?           @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  /// Justificatif d'un apport ou d'un remboursement d'associé (admins seulement).
+  partnerMovementId String?
+  partnerMovement   PartnerMovement?   @relation(fields: [partnerMovementId], references: [id], onDelete: Cascade)
   /// Nom d'origine (affiché et proposé au téléchargement).
-  name             String
-  mimeType         String
-  size             Int
+  name              String
+  mimeType          String
+  size              Int
   /// Nom sur le disque (aléatoire).
-  storageName      String             @unique
+  storageName       String             @unique
   /// Visible dans l'espace client.
-  visibleToClient  Boolean            @default(false)
-  uploadedById     String?
-  uploadedBy       User?              @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  visibleToClient   Boolean            @default(false)
+  uploadedById      String?
+  uploadedBy        User?              @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
   /// Envoyé par le client depuis son espace.
-  uploadedByClient Boolean            @default(false)
-  createdAt        DateTime           @default(now())
+  uploadedByClient  Boolean            @default(false)
+  createdAt         DateTime           @default(now())
 
   @@index([clientId, createdAt])
   @@index([projectId])
   @@index([messageId])
   @@index([expenseId])
+  @@index([partnerMovementId])
   @@map("stored_file")
 }
 
@@ -1339,6 +1345,43 @@ model Expense {
   @@index([categoryId])
   @@index([clientId])
   @@map("expense")
+}
+
+/// Sorte de mouvement d'argent entre un associé et l'entreprise.
+enum PartnerMovementKind {
+  /// Apport en capital (définitif).
+  CAPITAL_IN
+  /// Prêt de l'associé à l'entreprise (à rembourser).
+  LOAN_IN
+  /// Remboursement du prêt par l'entreprise.
+  LOAN_OUT
+  /// Retrait de capital (l'entreprise rend de l'argent apporté).
+  CAPITAL_OUT
+}
+
+/// Argent investi par un associé dans l'entreprise, ou rendu à un associé.
+/// Visible et modifiable par les admins seulement.
+model PartnerMovement {
+  id          String              @id @default(uuid(7))
+  /// L'associé : un utilisateur de l'outil.
+  partnerId   String
+  partner     User                @relation("PartnerMovements", fields: [partnerId], references: [id], onDelete: Restrict)
+  kind        PartnerMovementKind
+  date        DateTime            @db.Date
+  /// Montant, toujours positif (le sens est donné par `kind`), en centimes.
+  amountCents Int
+  description String              @default("")
+  notes       String              @default("")
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  createdById String?
+  createdBy   User?               @relation("PartnerMovementCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  receipts StoredFile[]
+
+  @@index([date])
+  @@index([partnerId])
+  @@map("partner_movement")
 }
 
 /// Relevé bancaire importé (fichier camt.053 / camt.054 de l'e-banking).
