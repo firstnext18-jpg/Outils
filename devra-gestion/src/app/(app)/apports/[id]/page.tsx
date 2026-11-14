@@ -10,6 +10,7 @@ import { PARTNER_KIND_LABELS } from "@/domain/partners";
 import { formatAmount, formatChf, formatDateTime } from "@/lib/format";
 import { addPartnerReceiptsAction } from "@/modules/partners/actions";
 import { getPartnerMovement, partnerOptions } from "@/modules/partners/service";
+import { displayCompanyName, getSettings } from "@/modules/settings/service";
 import { requireRole } from "@/server/session";
 
 export const metadata: Metadata = { title: "Mouvement d'associé" };
@@ -19,7 +20,11 @@ export default async function PartnerMovementPage({ params }: PageProps<"/apport
   const { id } = await params;
   const movement = /^[0-9a-f-]{36}$/i.test(id) ? await getPartnerMovement(id) : null;
   if (!movement) notFound();
-  const partners = await partnerOptions(movement.partnerId);
+  const [partners, settings] = await Promise.all([
+    partnerOptions(movement.partnerId),
+    getSettings(),
+  ]);
+  const companyName = displayCompanyName(settings);
 
   return (
     <>
@@ -36,13 +41,14 @@ export default async function PartnerMovementPage({ params }: PageProps<"/apport
             {movement.createdBy && ` par ${movement.createdBy.name}`}
           </p>
         </div>
-        <DeleteMovementButton id={movement.id} />
+        <DeleteMovementButton id={movement.id} companyName={companyName} />
       </div>
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <MovementForm
             movementId={movement.id}
             partners={partners}
+            companyName={companyName}
             defaultValues={{
               partnerId: movement.partnerId,
               kind: movement.kind,

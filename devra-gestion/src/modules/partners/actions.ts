@@ -33,7 +33,7 @@ const create = authAction(
   async ({ movement, receipts }, { user }) => {
     const created = await service.createPartnerMovement(user, movement, receipts);
     refresh();
-    return { id: created.id };
+    return { id: created.id, fundsCents: (await service.currentCompanyFunds()).totalCents };
   },
 );
 
@@ -56,7 +56,7 @@ export const updatePartnerMovementAction = authAction(
   async ({ id, movement }, { user }) => {
     await service.updatePartnerMovement(user, id, movement);
     refresh(id);
-    return { id };
+    return { id, fundsCents: (await service.currentCompanyFunds()).totalCents };
   },
 );
 
@@ -81,6 +81,6 @@ export const deletePartnerMovementAction = authAction(
   async ({ id }, { user }) => {
     await service.deletePartnerMovement(user, id);
     refresh();
-    return null;
+    return { fundsCents: (await service.currentCompanyFunds()).totalCents };
   },
 );

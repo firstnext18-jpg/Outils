@@ -694,6 +694,10 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   sorte ; le solde (capital, prêt restant) est calculé, jamais enregistré.
 - **Jamais plus rendu que mis** : un remboursement ne dépasse pas le prêt restant, un retrait le
   capital apporté ; modifier ou supprimer un apport qui laisserait un solde négatif est refusé.
+- **Fonds de l'entreprise** (depuis le début) = paiements reçus (factures non annulées) + apports
+  − dépenses − rendu aux associés, calculés à la demande et annoncés après chaque mouvement. Pas
+  de module de salaires : un salaire versé se saisit comme une dépense, ce qui le retire des
+  fonds.
 - **Admins seulement** : page, menu, actions, journal, carte du tableau de bord et justificatifs
   (la route des fichiers les refuse aux autres rôles). Les apports ne sont pas du chiffre
   d'affaires : ils n'entrent que dans la « trésorerie estimée ».

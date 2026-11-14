@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { uploadProblem } from "@/domain/files";
+import { formatChf } from "@/lib/format";
 import {
   PARTNER_KIND_HELP,
   PARTNER_KIND_LABELS,
@@ -44,10 +45,13 @@ export function MovementForm({
   movementId,
   defaultValues,
   partners,
+  companyName,
 }: {
   movementId?: string;
   defaultValues: MovementFormValues;
   partners: { id: string; name: string }[];
+  /** Nom de l'entreprise (Paramètres), pour annoncer ses fonds après l'enregistrement. */
+  companyName: string;
 }) {
   const router = useRouter();
   const [values, setValues] = useState(defaultValues);
@@ -73,7 +77,9 @@ export function MovementForm({
         setError(Object.values(result.fieldErrors ?? {})[0]?.[0] ?? result.error);
         return;
       }
-      toast.success(movementId ? "Mouvement enregistré." : "Mouvement ajouté.");
+      toast.success(movementId ? "Mouvement enregistré." : "Mouvement ajouté.", {
+        description: `Fonds de ${companyName} : ${formatChf(result.data.fundsCents)}`,
+      });
       router.push(movementId ? `/apports/${movementId}` : "/apports");
       router.refresh();
     });

@@ -28,6 +28,20 @@ function zurichDate(days: number): string {
   return date.toLocaleDateString("sv-SE", { timeZone: "Europe/Zurich" });
 }
 
+/** « CHF 1'250.00 » ↔ centimes (format suisse de l'outil). */
+function chfToCents(text: string): number {
+  const match = text.match(/CHF\s*(-)?([\d']+)\.(\d{2})/);
+  if (!match) throw new Error(`Montant illisible : ${text}`);
+  const cents = Number(match[2]!.replaceAll("'", "")) * 100 + Number(match[3]);
+  return match[1] ? -cents : cents;
+}
+
+function chf(cents: number): string {
+  const sign = cents < 0 ? "-" : "";
+  const [whole, decimals] = (Math.abs(cents) / 100).toFixed(2).split(".");
+  return `CHF ${sign}${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, "'")}.${decimals}`;
+}
+
 function swissDate(iso: string): string {
   const [y, m, d] = iso.split("-");
   return `${d}.${m}.${y}`;
@@ -238,6 +252,9 @@ test("apports des associés : soldes, remboursement limité, trésorerie, admins
   await login(page, ADMIN.email, ADMIN.password);
   await page.goto("/apports");
   await expect(page.getByText("Aucun apport pour l'instant")).toBeVisible();
+  // Fonds de l'entreprise avant le premier apport (paiements et dépenses des autres tests).
+  const funds = page.getByTestId("fonds-total");
+  const before = chfToCents((await funds.textContent()) ?? "");
 
   await addPartnerMovement(page, {
     amount: "5000",
@@ -245,7 +262,10 @@ test("apports des associés : soldes, remboursement limité, trésorerie, admins
     file: { name: "releve.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n") },
   });
   await expect(page.getByText("Mouvement ajouté.")).toBeVisible();
+  // Retour immédiat : les fonds de l'entreprise après l'apport.
+  await expect(page.getByText(`Fonds de Devra Test : ${chf(before + 500_000)}`)).toBeVisible();
   await expect(page).toHaveURL(/\/apports$/);
+  await expect(funds).toHaveText(chf(before + 500_000));
   await addPartnerMovement(page, {
     kind: "Prêt d'associé",
     amount: "2000",
@@ -265,6 +285,8 @@ test("apports des associés : soldes, remboursement limité, trésorerie, admins
   await page.getByLabel("Montant (CHF)").fill("500");
   await page.getByRole("button", { name: "Ajouter le mouvement" }).click();
   await expect(page).toHaveURL(/\/apports$/);
+  // + 5'000 + 2'000 − 500 rendus.
+  await expect(funds).toHaveText(chf(before + 650_000));
 
   const balances = page.getByRole("region", { name: "Soldes des associés" });
   await expect(balances).toContainText(ADMIN.name);

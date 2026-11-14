@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { ConfirmButton } from "@/components/confirm-button";
+import { formatChf } from "@/lib/format";
 import { deletePartnerMovementAction } from "@/modules/partners/actions";
 
-export function DeleteMovementButton({ id }: { id: string }) {
+export function DeleteMovementButton({ id, companyName }: { id: string; companyName: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   return (
@@ -26,7 +27,9 @@ export function DeleteMovementButton({ id }: { id: string }) {
             toast.error(result.error);
             return;
           }
-          toast.success("Mouvement supprimé.");
+          toast.success("Mouvement supprimé.", {
+            description: `Fonds de ${companyName} : ${formatChf(result.data.fundsCents)}`,
+          });
           router.replace("/apports");
         })
       }

@@ -7,10 +7,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { dbDateToIso, formatIsoDate } from "@/domain/dates";
-import { isIncoming, PARTNER_KIND_LABELS, type PartnerBalance } from "@/domain/partners";
+import {
+  isIncoming,
+  PARTNER_KIND_LABELS,
+  type CompanyFunds,
+  type PartnerBalance,
+} from "@/domain/partners";
 import { formatChf } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { listPartnerMovements, partnerSummaries } from "@/modules/partners/service";
+import {
+  currentCompanyFunds,
+  listPartnerMovements,
+  partnerSummaries,
+} from "@/modules/partners/service";
+import { displayCompanyName, getSettings } from "@/modules/settings/service";
 import { requireRole } from "@/server/session";
 
 export const metadata: Metadata = { title: "Apports des associés" };
@@ -32,12 +42,56 @@ function BalanceLines({ balance }: { balance: PartnerBalance }) {
   );
 }
 
+/** Fonds de l'entreprise depuis le début, avec le détail du calcul. */
+function FundsCard({ funds, companyName }: { funds: CompanyFunds; companyName: string }) {
+  const lines: [string, number][] = [
+    ["Encaissé (paiements des clients)", funds.paidCents],
+    ["Apports des associés", funds.partnerInCents],
+    ["Dépenses (salaires compris)", -funds.expensesCents],
+    ["Rendu aux associés", -funds.partnerOutCents],
+  ];
+  return (
+    <section aria-label="Fonds de l'entreprise">
+      <Card>
+        <CardHeader>
+          <CardDescription>Fonds de {companyName}</CardDescription>
+          <CardTitle
+            data-testid="fonds-total"
+            className={cn("text-3xl tabular-nums", funds.totalCents < 0 && "text-destructive")}
+          >
+            {formatChf(funds.totalCents)}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <dl className="grid max-w-md grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm">
+            {lines.map(([label, cents]) => (
+              <div key={label} className="contents">
+                <dt className="text-muted-foreground">{label}</dt>
+                <dd className="text-right tabular-nums">
+                  {cents < 0 ? "−" : "+"} {formatChf(Math.abs(cents))}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <p className="text-muted-foreground text-xs">
+            Depuis le début, d&apos;après les paiements, les apports et les dépenses enregistrés
+            dans l&apos;outil. Un salaire versé se saisit comme une dépense : il est alors retiré
+            des fonds.
+          </p>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
 /** Argent mis par les associés dans l'entreprise, et ce qu'elle leur a rendu (admins). */
 export default async function PartnersPage() {
   await requireRole("ADMIN");
-  const [{ partners, total }, movements] = await Promise.all([
+  const [{ partners, total }, movements, funds, settings] = await Promise.all([
     partnerSummaries(),
     listPartnerMovements(),
+    currentCompanyFunds(),
+    getSettings(),
   ]);
 
   return (
@@ -53,6 +107,8 @@ export default async function PartnersPage() {
           </Button>
         }
       />
+
+      <FundsCard funds={funds} companyName={displayCompanyName(settings)} />
 
       {movements.length === 0 ? (
         <EmptyState

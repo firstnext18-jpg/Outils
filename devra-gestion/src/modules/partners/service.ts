@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { isoToDbDate } from "@/domain/dates";
 import {
+  companyFunds,
   emptyBalance,
   overdrawProblem,
   PARTNER_KIND_LABELS,
@@ -107,6 +108,30 @@ export async function partnerTotals(range: { from: string; to: string }) {
     rows.map((r) => ({ kind: r.kind as PartnerKind, amountCents: r._sum.amountCents ?? 0 })),
   );
   return { inCents: balance.inCents, outCents: balance.outCents };
+}
+
+/**
+ * Fonds de l'entreprise depuis le début : paiements reçus + apports des
+ * associés − dépenses − ce qui leur a été rendu (d'après ce qui est enregistré).
+ */
+export async function currentCompanyFunds() {
+  const [paid, expenses, partners] = await Promise.all([
+    db.payment.aggregate({
+      where: { invoice: { status: { not: "CANCELLED" } } },
+      _sum: { amountCents: true },
+    }),
+    db.expense.aggregate({ _sum: { amountCents: true } }),
+    db.partnerMovement.groupBy({ by: ["kind"], _sum: { amountCents: true } }),
+  ]);
+  const balance = partnerBalance(
+    partners.map((r) => ({ kind: r.kind as PartnerKind, amountCents: r._sum.amountCents ?? 0 })),
+  );
+  return companyFunds({
+    paidCents: paid._sum.amountCents ?? 0,
+    partnerInCents: balance.inCents,
+    expensesCents: expenses._sum.amountCents ?? 0,
+    partnerOutCents: balance.outCents,
+  });
 }
 
 // ---------------------------------------------------------------------------
