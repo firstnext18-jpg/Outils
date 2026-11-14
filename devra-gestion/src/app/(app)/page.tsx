@@ -15,6 +15,8 @@ import { formatRate, relativeChange } from "@/domain/dashboard";
 import { formatIsoDate, todayIso } from "@/domain/dates";
 import { canEdit } from "@/domain/roles";
 import { formatChf } from "@/lib/format";
+import { currentCompanyFunds } from "@/modules/partners/service";
+import { displayCompanyName, getSettings } from "@/modules/settings/service";
 import { dashboardParamsSchema, periodFromParams } from "@/modules/dashboard/schemas";
 import {
   EXPIRING_SOON_DAYS,
@@ -64,9 +66,13 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     today,
   );
   const editable = canEdit(user.role);
-  const [data, openInvoices] = await Promise.all([
+  const admin = user.role === "ADMIN";
+  const [data, openInvoices, funds, settings] = await Promise.all([
     getDashboard(period, today),
     editable ? openInvoicesForPayment() : Promise.resolve([]),
+    // Fonds de l'entreprise (argent des associés compris) : admins seulement.
+    admin ? currentCompanyFunds() : Promise.resolve(null),
+    getSettings(),
   ]);
   const { current, previous } = data.revenue;
   const firstName = user.name.split(/\s+/)[0] ?? user.name;
@@ -98,6 +104,20 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
           )
         }
       />
+
+      {funds && (
+        <section
+          aria-label="Fonds de l'entreprise"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+        >
+          <KpiCard
+            title={`Fonds de ${displayCompanyName(settings)}`}
+            value={formatChf(funds.totalCents)}
+            detail="Depuis le début : encaissé + apports des associés − dépenses − rendu aux associés"
+            href="/apports"
+          />
+        </section>
+      )}
 
       <PeriodFilter period={period} />
       <FormError message={error} />
@@ -134,7 +154,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
           detail={`Résultat (encaissé − dépenses) : ${formatChf(current.resultCents)}`}
           href="/depenses"
         />
-        {user.role === "ADMIN" && (
+        {admin && (
           <KpiCard
             title="Trésorerie estimée"
             value={formatChf(current.cashCents)}
