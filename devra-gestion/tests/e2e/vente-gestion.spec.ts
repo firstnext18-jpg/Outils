@@ -319,12 +319,20 @@ test("apports des associés : soldes, remboursement limité, trésorerie, admins
     .filter({ has: page.getByText("Trésorerie estimée", { exact: true }) });
   await expect(cash).toContainText("apports des associés (CHF 7'000.00)");
   await expect(cash).toContainText("remboursements (CHF 500.00)");
+  // Fonds de l'entreprise depuis le début, au-dessus de la période.
+  await expect(
+    page.getByRole("region", { name: "Fonds de l'entreprise" }).getByText("Fonds de Devra Test"),
+  ).toBeVisible();
+  await expect(page.getByRole("region", { name: "Fonds de l'entreprise" })).toContainText(
+    chf(before + 650_000),
+  );
 
   // Un membre ne voit ni la page, ni le menu, ni les justificatifs, ni la carte.
   await invite(page, MEMBER, "Membre");
   const member = await memberSession(browser);
   await expect(member.page.getByRole("link", { name: "Apports", exact: true })).toHaveCount(0);
   await expect(member.page.getByText("Trésorerie estimée", { exact: true })).toHaveCount(0);
+  await expect(member.page.getByRole("region", { name: "Fonds de l'entreprise" })).toHaveCount(0);
   await member.page.goto("/apports");
   await expect(member.page).toHaveURL(/\/acces-refuse/);
   expect((await member.page.request.get(receiptUrl)).status()).toBe(404);

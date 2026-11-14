@@ -187,7 +187,7 @@ entreprise, auto-hébergé sur un Raspberry Pi.
   associé (capital, prêt à rembourser, investi au total). On ne peut pas rendre plus que ce qui
   a été mis. **Fonds de l'entreprise** en tête de page et annoncés après chaque mouvement :
   encaissé + apports − dépenses − rendu aux associés, depuis le début (un salaire versé se
-  saisit comme une dépense). Carte « Trésorerie estimée » au tableau de bord (encaissé + apports − dépenses −
+  saisit comme une dépense) ; aussi en tête du tableau de bord (admins). Carte « Trésorerie estimée » au tableau de bord (encaissé + apports − dépenses −
   remboursements), visible des admins seulement.
 - **Import des paiements bancaires** (Factures → Importer un relevé) : fichiers camt.053 et
   camt.054 de l'e-banking, rapprochement par référence QR, numéro de facture ou montant, jamais
