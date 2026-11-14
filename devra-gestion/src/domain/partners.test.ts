@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { formatChf } from "@/lib/format";
-import { isIncoming, overdrawProblem, partnerBalance, signedCents } from "@/domain/partners";
+import {
+  companyFunds,
+  isIncoming,
+  overdrawProblem,
+  partnerBalance,
+  signedCents,
+} from "@/domain/partners";
 
 describe("argent des associés", () => {
   const movements = [
@@ -40,5 +46,18 @@ describe("argent des associés", () => {
     expect(
       overdrawProblem({ kind: "CAPITAL_IN", amountCents: 1 }, partnerBalance([]), formatChf),
     ).toBeNull();
+  });
+});
+
+describe("fonds de l'entreprise", () => {
+  it("encaissé + apports − dépenses − rendu aux associés", () => {
+    expect(
+      companyFunds({
+        paidCents: 1_250_000,
+        partnerInCents: 700_000,
+        expensesCents: 24_000,
+        partnerOutCents: 50_000,
+      }).totalCents,
+    ).toBe(1_876_000);
   });
 });

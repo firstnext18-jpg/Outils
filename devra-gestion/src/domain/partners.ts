@@ -82,3 +82,25 @@ export function overdrawProblem(
   }
   return null;
 }
+
+export type CompanyFunds = {
+  /** Paiements reçus des clients (factures non annulées). */
+  paidCents: number;
+  /** Apports et prêts des associés. */
+  partnerInCents: number;
+  /** Dépenses (salaires compris, s'ils sont saisis comme dépenses). */
+  expensesCents: number;
+  /** Ce qui a été rendu aux associés (remboursements, retraits). */
+  partnerOutCents: number;
+  /** Fonds de l'entreprise : encaissé + apports − dépenses − rendu aux associés. */
+  totalCents: number;
+};
+
+/** Fonds de l'entreprise d'après ce qui est enregistré dans l'outil. */
+export function companyFunds(parts: Omit<CompanyFunds, "totalCents">): CompanyFunds {
+  return {
+    ...parts,
+    totalCents:
+      parts.paidCents + parts.partnerInCents - parts.expensesCents - parts.partnerOutCents,
+  };
+}
