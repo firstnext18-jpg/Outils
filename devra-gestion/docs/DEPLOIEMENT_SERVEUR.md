@@ -210,6 +210,9 @@ cd /opt/devra-gestion
 /home/claude/devra-gestion-kit/deploy/serveur/google-drive.sh` (kit déposé par l'agent, étape 1),
   voir [SAUVEGARDES.md](SAUVEGARDES.md). Autre stockage : variables `BACKUP_REMOTE` et
   `RCLONE_CONFIG_*` dans `.env`, même document.
+- **Section Mail (boîte des réponses des clients)** : `bash
+/home/claude/devra-gestion-kit/deploy/serveur/boite-mail.sh` (kit déposé par l'agent, étape 1),
+  voir [SECTION_MAIL.md](SECTION_MAIL.md).
 - **Restaurer une sauvegarde** : commandes `docker compose …` de [SAUVEGARDES.md](SAUVEGARDES.md)
   (section « Restaurer »), lancées depuis `/opt/devra-gestion`.
 - **Renouveler le jeton GitHub** quand il expire : relancer `installer.sh` et répondre « o » à
@@ -227,12 +230,12 @@ cd /opt/devra-gestion
 
 - **Repartir de zéro en gardant les paramètres** (clients, devis, factures, paiements,
   abonnements, relances, discussions, accès à l'espace client, fichiers, projets, temps, dépenses,
-  imports bancaires, sites, journal et numérotation effacés ; entreprise, IBAN, logo, modèles,
+  imports bancaires, sites, apports des associés, emails, journal et numérotation effacés ; entreprise, IBAN, logo, modèles,
   listes, catalogue et comptes conservés) :
 
   ```bash
   claude-devra backup
-  docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "TRUNCATE client, quote, quote_line, quote_link, invoice, invoice_line, payment, reminder, subscription, subscription_item, email_log, activity_log, task_run, number_sequence, discussion, discussion_message, discussion_read, client_account, client_session, client_password_reset, stored_file, project, project_step, time_entry, expense, bank_import, bank_transaction, site, site_incident, notification RESTART IDENTITY"'
+  docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "TRUNCATE client, quote, quote_line, quote_link, invoice, invoice_line, payment, reminder, subscription, subscription_item, email_log, activity_log, task_run, number_sequence, discussion, discussion_message, discussion_read, client_account, client_session, client_password_reset, stored_file, project, project_step, time_entry, expense, bank_import, bank_transaction, site, site_incident, notification, partner_movement, email_message, mailbox_state RESTART IDENTITY"'
   docker compose exec app rm -rf /data/documents /data/files
   ```
 

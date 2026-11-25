@@ -82,6 +82,7 @@ services:
       CRON_SECRET: ${CRON_SECRET:?CRON_SECRET manquant dans .env}
       CRON_TIME: ${CRON_TIME:-06:00}
       MONITOR_MINUTES: ${MONITOR_MINUTES:-5}
+      MAIL_MINUTES: ${MAIL_MINUTES:-2}
     depends_on:
       app:
         condition: service_started

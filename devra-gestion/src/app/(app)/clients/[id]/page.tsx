@@ -42,6 +42,8 @@ import { ProjectList } from "@/components/projects/project-list";
 import { SiteList } from "@/components/sites/site-list";
 import { getSettings } from "@/modules/settings/service";
 import { listSites } from "@/modules/sites/service";
+import { recentClientEmails } from "@/modules/mails/service";
+import { mailExcerpt } from "@/domain/mails";
 import { listOptions } from "@/modules/lists/service";
 import { clientDiscussionId, listDiscussions } from "@/modules/discussions/service";
 import { clientInvoiceSummary, listClientInvoices } from "@/modules/invoices/service";
@@ -89,6 +91,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
     projects,
     sites,
     settings,
+    emails,
   ] = await Promise.all([
     getClient(id),
     getClientActivity(id),
@@ -105,6 +108,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
     listClientProjects(id),
     listSites({ clientId: id }),
     getSettings(),
+    recentClientEmails(id),
   ]);
   if (!client) notFound();
 
@@ -392,6 +396,71 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
               ) : (
                 <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
                   <RepeatIcon className="size-5" /> Aucun abonnement pour ce client.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Mails</CardTitle>
+              <div className="flex gap-2">
+                {emails.length > 0 && (
+                  <Button asChild size="sm" variant="ghost">
+                    <Link href={`/mails/${client.id}`}>Tout voir</Link>
+                  </Button>
+                )}
+                {canEdit(user.role) && client.email && (
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/mails/nouveau?client=${client.id}`}>
+                      <MailIcon /> Écrire
+                    </Link>
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="text-sm">
+              {emails.length > 0 ? (
+                <ul className="divide-y rounded-md border" aria-label="Derniers emails">
+                  {emails.map((mail) => (
+                    <li key={mail.id}>
+                      <Link
+                        href={`/mails/${client.id}`}
+                        className="hover:bg-muted/50 flex items-start gap-3 p-3 transition-colors"
+                      >
+                        <Badge
+                          variant={mail.direction === "INCOMING" ? "default" : "secondary"}
+                          className="mt-0.5 text-[11px]"
+                        >
+                          {mail.direction === "INCOMING" ? "Reçu" : "Envoyé"}
+                        </Badge>
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className={
+                              mail.direction === "INCOMING" && !mail.readAt
+                                ? "truncate font-semibold"
+                                : "truncate font-medium"
+                            }
+                          >
+                            {mail.subject}
+                          </div>
+                          <p className="text-muted-foreground truncate">
+                            {mailExcerpt(mail.bodyText)}
+                          </p>
+                        </div>
+                        <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                          {formatDateTime(mail.date)}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-muted-foreground flex items-center gap-3 rounded-md border border-dashed p-4">
+                  <MailIcon className="size-5" />
+                  {client.email
+                    ? "Aucun email échangé avec ce client."
+                    : "Ajoutez l'adresse email du client pour lui écrire."}
                 </div>
               )}
             </CardContent>

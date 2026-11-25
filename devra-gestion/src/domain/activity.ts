@@ -46,6 +46,12 @@ export function describeActivity(action: string, details: unknown): string {
       return data.visibleToClient
         ? `a partagé ${String(data.file ?? "")} avec le client`
         : `a retiré ${String(data.file ?? "")} de l'espace client`;
+    case "mail.sent": {
+      const count = Number(data.attachments ?? 0);
+      return `a envoyé l'email « ${String(data.subject ?? "")} »${
+        count > 0 ? ` (${count} pièce${count > 1 ? "s" : ""} jointe${count > 1 ? "s" : ""})` : ""
+      }`;
+    }
     case "site.created":
       return `a ajouté le site ${String(data.site ?? "")}${data.url ? ` (${String(data.url)})` : ""}`;
     case "site.updated":

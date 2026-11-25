@@ -740,6 +740,28 @@ terminée fait l'objet d'une pull request, fusionnée après validation.
   il vérifie l'accès avant de garder la configuration et sait récupérer les sauvegardes lors
   d'une réinstallation.
 
+## Section Mail
+
+- **Boîte de l'entreprise relevée en IMAP** (`imapflow`, emails lus avec `mailparser`) plutôt
+  qu'une API propre à Gmail : fonctionne avec Gmail (mot de passe d'application), Infomaniak,
+  Outlook… Identifiants dans `.env` uniquement. La relève lit sans marquer comme lu
+  (`BODY.PEEK`) ni rien supprimer : la boîte reste utilisable normalement.
+- **Seuls les emails des clients** (adresse d'expédition = email de la fiche, sans tenir compte
+  des majuscules) sont gardés, rangés par client ; le reste de la boîte n'entre jamais dans
+  l'outil. Relève incrémentale (dernier UID vu, `UIDVALIDITY`), première relève limitée à 60
+  jours ; Message-ID unique : jamais deux fois le même email.
+- **Envoi par le SMTP existant**, avec la boîte relevée en « Répondre à » ; en-têtes
+  `In-Reply-To` / `References` pour garder le fil. Date d'envoi à la seconde (comme l'en-tête
+  Date) pour que l'ordre reste juste face aux réponses. Copie dans « Envoyés » par IMAP sauf si
+  le serveur d'envoi le fait déjà (Gmail).
+- **Texte seulement à l'affichage** : le HTML des emails reçus n'est jamais interprété (pas de
+  script ni de pistage) ; `mailparser` en tire le texte. Message cité replié.
+- **Relève par le conteneur `cron`** (toutes les `MAIL_MINUTES` minutes, une seule à la fois) et
+  à la demande ; notification à chaque nouvel email d'un client (sauf la première relève, qui
+  reprend l'historique).
+- **Tests** : vraie boîte IMAP de test (GreenMail, `compose.dev.yaml`) pour la relève de bout en
+  bout.
+
 ## Interface
 
 - **Interface en français, sans bibliothèque de traduction.** Les traductions FR/DE ne concernent

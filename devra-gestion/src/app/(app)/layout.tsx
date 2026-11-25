@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { unreadMessageCount } from "@/modules/discussions/service";
+import { unreadMailCount } from "@/modules/mails/service";
 import { displayCompanyName, getSettings } from "@/modules/settings/service";
 import { pushPublicKey } from "@/server/push";
 import { requireUser } from "@/server/session";
@@ -16,15 +17,16 @@ export const dynamic = "force-dynamic";
 /** Mise en page de l'application connectée : navigation latérale + contenu. */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const [settings, cookieStore, unreadMessages] = await Promise.all([
+  const [settings, cookieStore, unreadMessages, unreadMails] = await Promise.all([
     getSettings(),
     cookies(),
     unreadMessageCount(user.id),
+    unreadMailCount(),
   ]);
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
   return (
-    <UnreadProvider initial={unreadMessages}>
+    <UnreadProvider initial={{ discussions: unreadMessages, mails: unreadMails }}>
       <SidebarProvider defaultOpen={sidebarOpen}>
         <AppSidebar
           user={user}

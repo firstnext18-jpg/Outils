@@ -35,6 +35,23 @@ export async function saveFile(file: File): Promise<SavedFile> {
   };
 }
 
+/** Enregistre un contenu reçu (pièce jointe d'un email) ; la ligne en base est créée par l'appelant. */
+export async function saveBuffer(
+  content: Buffer,
+  name: string,
+  mimeType: string,
+): Promise<SavedFile> {
+  await mkdir(filesDir(), { recursive: true });
+  const storageName = randomUUID();
+  await writeFile(storagePath(storageName), content);
+  return {
+    name: cleanFileName(name || "piece-jointe"),
+    mimeType: (mimeType || "application/octet-stream").slice(0, 100),
+    size: content.byteLength,
+    storageName,
+  };
+}
+
 export async function readStoredFile(storageName: string): Promise<Buffer | null> {
   try {
     return await readFile(storagePath(storageName));

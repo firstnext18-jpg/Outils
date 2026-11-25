@@ -72,6 +72,7 @@ model User {
   expensesCreated         Expense[]           @relation("ExpenseCreatedBy")
   partnerMovements        PartnerMovement[]   @relation("PartnerMovements")
   partnerMovementsCreated PartnerMovement[]   @relation("PartnerMovementCreatedBy")
+  clientEmailsSent        EmailMessage[]      @relation("EmailSentBy")
   bankImports             BankImport[]
   calendarFeed            CalendarFeed?
 
@@ -387,6 +388,8 @@ model Client {
   timeEntries   TimeEntry[]
   expenses      Expense[]
   sites         Site[]
+
+  emailMessages EmailMessage[]
 
   @@index([sortName])
   @@index([stageId])
@@ -1202,6 +1205,9 @@ model StoredFile {
   /// Justificatif d'un apport ou d'un remboursement d'associé (admins seulement).
   partnerMovementId String?
   partnerMovement   PartnerMovement?   @relation(fields: [partnerMovementId], references: [id], onDelete: Cascade)
+  /// Pièce jointe d'un email échangé avec un client (section Mail).
+  emailMessageId    String?
+  emailMessage      EmailMessage?      @relation(fields: [emailMessageId], references: [id], onDelete: Cascade)
   /// Nom d'origine (affiché et proposé au téléchargement).
   name              String
   mimeType          String
@@ -1221,6 +1227,7 @@ model StoredFile {
   @@index([messageId])
   @@index([expenseId])
   @@index([partnerMovementId])
+  @@index([emailMessageId])
   @@map("stored_file")
 }
 
@@ -1501,4 +1508,60 @@ model CalendarFeed {
   createdAt DateTime @default(now())
 
   @@map("calendar_feed")
+}
+
+// ---------------------------------------------------------------------------
+// Section Mail : emails échangés avec les clients
+// ---------------------------------------------------------------------------
+
+enum EmailDirection {
+  /// Envoyé depuis l'outil.
+  OUTGOING
+  /// Reçu dans la boîte relevée (IMAP), depuis l'adresse d'un client.
+  INCOMING
+}
+
+/// Email échangé avec un client.
+model EmailMessage {
+  id          String         @id @default(uuid(7))
+  clientId    String
+  client      Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  direction   EmailDirection
+  /// En-tête Message-ID (sans < >) : un email n'est jamais enregistré deux fois.
+  messageId   String         @unique
+  /// Fil de la conversation (en-têtes In-Reply-To et References).
+  inReplyTo   String         @default("")
+  references  String[]       @default([])
+  subject     String
+  fromAddress String
+  fromName    String         @default("")
+  toAddresses String[]       @default([])
+  ccAddresses String[]       @default([])
+  /// Texte du message (version texte, ou texte tiré du HTML).
+  bodyText    String
+  date        DateTime
+  /// Email reçu : ouvert dans l'outil.
+  readAt      DateTime?
+  sentById    String?
+  sentBy      User?          @relation("EmailSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  createdAt   DateTime       @default(now())
+
+  attachments StoredFile[]
+
+  @@index([clientId, date])
+  @@index([direction, readAt])
+  @@map("email_message")
+}
+
+/// Relève de la boîte mail (IMAP) : dernier message lu, pour ne relever que les nouveaux.
+model MailboxState {
+  /// Dossier relevé, ex. « INBOX ».
+  id          String    @id
+  uidValidity BigInt?
+  lastUid     Int       @default(0)
+  lastSyncAt  DateTime?
+  lastError   String    @default("")
+  updatedAt   DateTime  @updatedAt
+
+  @@map("mailbox_state")
 }

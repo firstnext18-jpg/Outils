@@ -57,6 +57,7 @@ type FileOwner = {
   messageId?: string | null;
   expenseId?: string | null;
   partnerMovementId?: string | null;
+  emailMessageId?: string | null;
   visibleToClient: boolean;
   uploadedById?: string | null;
   uploadedByClient?: boolean;
@@ -234,7 +235,7 @@ export async function notifyTeamOfClientFiles(session: PortalSession, names: str
 /** Fichiers sur le disque d'un client (à effacer après la suppression de sa fiche). */
 export async function clientStorageNames(clientId: string): Promise<string[]> {
   const files = await db.storedFile.findMany({
-    where: { clientId },
+    where: { OR: [{ clientId }, { emailMessage: { clientId } }] },
     select: { storageName: true },
   });
   return files.map((f) => f.storageName);

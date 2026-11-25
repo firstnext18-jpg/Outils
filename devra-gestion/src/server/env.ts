@@ -4,6 +4,13 @@ import { z } from "zod";
  * Variables d'environnement, validées au premier accès (et non à l'import) pour
  * que `next build` fonctionne sans secrets. Voir `.env.example`.
  */
+/** Texte facultatif : une valeur vide dans .env compte comme absente. */
+const optionalText = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value) => value || undefined);
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   APP_URL: z.url().transform((url) => url.replace(/\/+$/, "")),
@@ -32,6 +39,18 @@ const envSchema = z.object({
   VAPID_PRIVATE_KEY: z.string().trim().optional(),
   /** Contact transmis aux services de notification (https:// ou mailto:). */
   VAPID_SUBJECT: z.string().trim().optional(),
+  /**
+   * Section Mail : boîte relevée (IMAP) pour afficher les emails des clients.
+   * Facultatif : sans elle, les emails partent mais les réponses ne sont pas relevées.
+   */
+  IMAP_HOST: optionalText,
+  IMAP_PORT: z.coerce.number().int().positive().default(993),
+  IMAP_SECURE: z.stringbool().default(true),
+  IMAP_USER: optionalText,
+  IMAP_PASSWORD: optionalText,
+  IMAP_FOLDER: z.string().trim().min(1).default("INBOX"),
+  /** Copie des emails envoyés dans « Envoyés » : auto (sauf Gmail, qui le fait déjà), oui, non. */
+  IMAP_SAVE_SENT: z.enum(["auto", "oui", "non"]).default("auto"),
 });
 
 export type Env = z.infer<typeof envSchema>;

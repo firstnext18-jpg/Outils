@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { ADMIN, CRON_SECRET, VAPID_TEST_KEYS } from "./tests/e2e/fixtures";
+import { ADMIN, CRON_SECRET, MAILBOX, VAPID_TEST_KEYS } from "./tests/e2e/fixtures";
 import { testDatabaseUrl } from "./tests/e2e/test-database";
 
 /**
@@ -62,6 +62,12 @@ export default defineConfig({
       CRON_SECRET,
       VAPID_PUBLIC_KEY: VAPID_TEST_KEYS.publicKey,
       VAPID_PRIVATE_KEY: VAPID_TEST_KEYS.privateKey,
+      // Section Mail : boîte IMAP de test (GreenMail, compose.dev.yaml).
+      IMAP_HOST: "localhost",
+      IMAP_PORT: "3143",
+      IMAP_SECURE: "false",
+      IMAP_USER: MAILBOX.user,
+      IMAP_PASSWORD: MAILBOX.password,
     },
   },
 });

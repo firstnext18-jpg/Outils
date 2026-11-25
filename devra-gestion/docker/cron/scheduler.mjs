@@ -7,11 +7,15 @@
  *   les tâches ne font jamais deux fois la même chose.
  * - Toutes les MONITOR_MINUTES minutes (5 par défaut, 0 pour arrêter) :
  *   POST /api/taches/surveillance (vérification des sites des clients).
+ * - Toutes les MAIL_MINUTES minutes (2 par défaut, 0 pour arrêter) :
+ *   POST /api/taches/courriels (relève de la boîte mail de la section Mail).
  * Sans dépendance : Node seul, dans l'image de l'application.
  */
 const url = process.env.CRON_URL ?? "http://app:3000/api/taches/quotidiennes";
 const monitorUrl = process.env.MONITOR_URL ?? url.replace(/quotidiennes\/?$/, "surveillance");
 const monitorMinutes = Number(process.env.MONITOR_MINUTES ?? "5");
+const mailUrl = process.env.MAIL_URL ?? url.replace(/quotidiennes\/?$/, "courriels");
+const mailMinutes = Number(process.env.MAIL_MINUTES ?? "2");
 const secret = process.env.CRON_SECRET ?? "";
 const time = process.env.CRON_TIME ?? "06:00";
 const runOnStart = process.env.CRON_RUN_ON_START !== "false";
@@ -70,29 +74,32 @@ async function run() {
   }
 }
 
-/** Surveillance des sites : un passage, puis attente (jamais deux en même temps). */
-async function monitorLoop() {
-  if (!Number.isFinite(monitorMinutes) || monitorMinutes <= 0) {
-    console.log("Surveillance des sites désactivée (MONITOR_MINUTES=0).");
+/**
+ * Tâche répétée (surveillance des sites, relève des mails) : un passage, puis
+ * attente, jamais deux en même temps. `minutes` à 0 : désactivée.
+ */
+async function repeatLoop(name, target, minutes, variable) {
+  if (!Number.isFinite(minutes) || minutes <= 0) {
+    console.log(`${name} désactivée (${variable}=0).`);
     return;
   }
-  const every = Math.max(1, monitorMinutes) * 60_000;
+  const every = Math.max(1, minutes) * 60_000;
   await sleep(60_000); // laisse l'application démarrer
   for (;;) {
     const started = Date.now();
     try {
-      const response = await fetch(monitorUrl, {
+      const response = await fetch(target, {
         method: "POST",
         headers: { Authorization: `Bearer ${secret}` },
         signal: AbortSignal.timeout(10 * 60_000),
       });
       if (!response.ok && response.status !== 409) {
         console.error(
-          `${new Date().toISOString()} surveillance des sites : ${response.status} ${await response.text()}`,
+          `${new Date().toISOString()} ${name} : ${response.status} ${await response.text()}`,
         );
       }
     } catch (error) {
-      console.error(`${new Date().toISOString()} surveillance des sites impossible`, error.message);
+      console.error(`${new Date().toISOString()} ${name} impossible`, error.message);
     }
     await sleep(Math.max(30_000, every - (Date.now() - started)));
   }
@@ -119,4 +126,8 @@ async function dailyLoop() {
   }
 }
 
-await Promise.all([dailyLoop(), monitorLoop()]);
+await Promise.all([
+  dailyLoop(),
+  repeatLoop("surveillance des sites", monitorUrl, monitorMinutes, "MONITOR_MINUTES"),
+  repeatLoop("relève des mails", mailUrl, mailMinutes, "MAIL_MINUTES"),
+]);

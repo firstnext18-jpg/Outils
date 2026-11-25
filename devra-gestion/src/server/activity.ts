@@ -42,6 +42,7 @@ export type ActivityAction =
   | "partner.created"
   | "partner.updated"
   | "partner.deleted"
+  | "mail.sent"
   | "clients.imported"
   | "clients.exported"
   | "catalog.created"
