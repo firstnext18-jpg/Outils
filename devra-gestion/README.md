@@ -214,6 +214,10 @@ entreprise, auto-hébergé sur un Raspberry Pi.
     il répond ; il ne voit **jamais les discussions internes** ;
   - il peut **changer son mot de passe** (Mon compte) ou en recevoir un nouveau par email
     (« Mot de passe oublié ? »).
+- **Section Mail** : écrire aux clients depuis l'outil (pièces jointes, signature de
+  l'entreprise) et lire leurs réponses, relevées toutes les 2 minutes dans la boîte de
+  l'entreprise (IMAP, ex. Gmail), rangées par client ; non lus, notifications, carte « Mails »
+  sur la fiche client. Voir [`docs/SECTION_MAIL.md`](docs/SECTION_MAIL.md).
 - **Recherche globale** (Ctrl+K) : clients (nom, localité, email, téléphone), devis et factures
   (numéro, objet).
 - **Navigation** latérale (repliable, en tiroir sur téléphone), thème clair / sombre / système.
@@ -341,6 +345,8 @@ devra-gestion/
   Linux exploité par un agent (compte restreint, commande `claude-devra`).
 - [`docs/SAUVEGARDES.md`](docs/SAUVEGARDES.md) : fonctionnement des sauvegardes, copie chiffrée
   sur Google Drive, vérification et restauration.
+- [`docs/SECTION_MAIL.md`](docs/SECTION_MAIL.md) : section Mail, boîte relevée (Gmail : mot de
+  passe d'application), mise en place sur le serveur.
 - [`docs/APPLICATION_BUREAU.md`](docs/APPLICATION_BUREAU.md) : application Windows et Mac
   (notifications du système), téléchargement et installation.
 - [`docs/APPLICATION_ANDROID.md`](docs/APPLICATION_ANDROID.md) : application Android, installation

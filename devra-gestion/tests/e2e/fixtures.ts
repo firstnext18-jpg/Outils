@@ -13,6 +13,9 @@ export const VAPID_TEST_KEYS = {
   privateKey: "ChK1Hod3Lk7QC-lW1W08_hpBAfBpDBYcw95s3TWV8O4",
 };
 
+/** Boîte IMAP de test relevée par la section Mail (GreenMail, compose.dev.yaml). */
+export const MAILBOX = { user: "boite@devra.test", password: "boite-test", smtpPort: 3025 };
+
 /** Secret de la route des tâches quotidiennes (appelée par le conteneur cron). */
 export const CRON_SECRET = "e2e-cron-secret-0123456789abcdef0123456789";
 
@@ -44,6 +47,7 @@ export async function waitForEmailLink(to: string, subjectContains: string): Pro
 }
 
 export type MailpitMessage = {
+  MessageID: string;
   Subject: string;
   Text: string;
   To: { Address: string }[];

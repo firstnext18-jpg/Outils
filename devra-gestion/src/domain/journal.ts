@@ -28,6 +28,7 @@ export const JOURNAL_CATEGORIES = {
   depenses: { label: "Dépenses", prefixes: ["expense."] },
   sites: { label: "Sites", prefixes: ["site."] },
   associes: { label: "Apports des associés", prefixes: ["partner."] },
+  mails: { label: "Mails", prefixes: ["mail."] },
 } as const;
 
 export type JournalCategory = keyof typeof JOURNAL_CATEGORIES;
@@ -79,6 +80,8 @@ export function journalSentence(entry: JournalEntry): string {
     case "site.updated":
     case "site.deleted":
       return `${describeActivity(entry.action, entry.details)} (${label})`;
+    case "mail.sent":
+      return `${describeActivity(entry.action, entry.details)} à ${label}`;
     case "client.stage_changed":
       return data.to
         ? `a passé ${label} à l'état « ${text(data.to)} »`

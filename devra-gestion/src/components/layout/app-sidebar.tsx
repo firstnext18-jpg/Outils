@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CompanyBrand } from "@/components/company-brand";
-import { UnreadCount, useUnreadCount } from "@/components/discussions/unread-count";
+import { UnreadCount, useUnreadCounts } from "@/components/discussions/unread-count";
 import { isActivePath, NAV_ITEMS } from "@/components/layout/navigation";
 import { UserMenu } from "@/components/layout/user-menu";
 import {
@@ -36,8 +36,11 @@ export function AppSidebar({
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
   const items = NAV_ITEMS.filter((item) => hasRole(user.role, item.role));
-  const unread = useUnreadCount();
-  const badges: Partial<Record<string, number>> = { "/discussions": unread };
+  const unread = useUnreadCounts();
+  const badges: Partial<Record<string, number>> = {
+    "/discussions": unread.discussions,
+    "/mails": unread.mails,
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -65,11 +68,15 @@ export function AppSidebar({
                   {(badges[item.href] ?? 0) > 0 && (
                     <>
                       <SidebarMenuBadge className="h-auto min-w-0 px-0">
-                        <UnreadCount count={badges[item.href]!} />
+                        <UnreadCount
+                          count={badges[item.href]!}
+                          noun={item.href === "/mails" ? "email" : "message"}
+                        />
                       </SidebarMenuBadge>
                       {/* Menu réduit aux icônes : pastille sur l'icône. */}
                       <UnreadCount
                         count={badges[item.href]!}
+                        noun={item.href === "/mails" ? "email" : "message"}
                         className="pointer-events-none absolute -top-1 right-0 hidden h-4 min-w-4 px-0.5 text-[10px] group-data-[collapsible=icon]:inline-flex"
                       />
                     </>

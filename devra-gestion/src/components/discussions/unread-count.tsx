@@ -8,11 +8,21 @@ import { cn } from "@/lib/utils";
  * Petit carré blanc aux bords arrondis avec le nombre de messages non lus
  * (bordure légère pour rester visible sur fond clair).
  */
-export function UnreadCount({ count, className }: { count: number; className?: string }) {
+export function UnreadCount({
+  count,
+  className,
+  noun = "message",
+}: {
+  count: number;
+  className?: string;
+  /** Ce qui est compté (libellé lu par les lecteurs d'écran). */
+  noun?: "message" | "email";
+}) {
   if (count <= 0) return null;
+  const plural = count > 1 ? "s" : "";
   return (
     <span
-      aria-label={`${count} message${count > 1 ? "s" : ""} non lu${count > 1 ? "s" : ""}`}
+      aria-label={`${count} ${noun}${plural} non lu${plural}`}
       className={cn(
         "inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-white px-1 text-xs font-semibold text-zinc-900 tabular-nums shadow-sm ring-1 ring-zinc-900/15",
         className,
@@ -23,22 +33,27 @@ export function UnreadCount({ count, className }: { count: number; className?: s
   );
 }
 
-const UnreadContext = createContext(0);
+export type UnreadCounts = { discussions: number; mails: number };
 
-/** Nombre de messages non lus de l'utilisateur, tenu à jour toutes les 30 secondes. */
+const UnreadContext = createContext<UnreadCounts>({ discussions: 0, mails: 0 });
+
+/**
+ * Messages non lus de l'utilisateur (discussions) et emails des clients pas
+ * encore ouverts, tenus à jour toutes les 30 secondes.
+ */
 export function UnreadProvider({
   initial,
   children,
 }: {
-  initial: number;
+  initial: UnreadCounts;
   children: React.ReactNode;
 }) {
-  const [count, setCount] = useState(initial);
-  // Nouvelle valeur du serveur à chaque navigation.
+  const [counts, setCounts] = useState(initial);
+  // Nouvelles valeurs du serveur à chaque navigation.
   const [previous, setPrevious] = useState(initial);
-  if (initial !== previous) {
+  if (initial.discussions !== previous.discussions || initial.mails !== previous.mails) {
     setPrevious(initial);
-    setCount(initial);
+    setCounts(initial);
   }
 
   useEffect(() => {
@@ -48,8 +63,10 @@ export function UnreadProvider({
       try {
         const response = await fetch("/api/notifications", { cache: "no-store" });
         if (!response.ok) return;
-        const data = (await response.json()) as { unread?: number };
-        if (!stopped && typeof data.unread === "number") setCount(data.unread);
+        const data = (await response.json()) as { discussions?: number; mails?: number };
+        if (!stopped && typeof data.discussions === "number") {
+          setCounts({ discussions: data.discussions, mails: data.mails ?? 0 });
+        }
       } catch {
         // Hors ligne : on réessaiera.
       }
@@ -63,20 +80,24 @@ export function UnreadProvider({
     };
   }, []);
 
-  return <UnreadContext.Provider value={count}>{children}</UnreadContext.Provider>;
+  return <UnreadContext.Provider value={counts}>{children}</UnreadContext.Provider>;
 }
 
-export function useUnreadCount(): number {
+export function useUnreadCounts(): UnreadCounts {
   return useContext(UnreadContext);
 }
 
 /** Pastille des non lus à côté du bouton du menu, sur téléphone (menu replié). */
 export function HeaderUnread() {
-  const count = useUnreadCount();
-  if (count <= 0) return null;
+  const { discussions, mails } = useUnreadCounts();
+  if (discussions + mails <= 0) return null;
   return (
-    <Link href="/discussions" className="md:hidden" aria-label="Discussions">
-      <UnreadCount count={count} />
+    <Link
+      href={discussions > 0 ? "/discussions" : "/mails"}
+      className="md:hidden"
+      aria-label={discussions > 0 ? "Discussions" : "Mail"}
+    >
+      <UnreadCount count={discussions + mails} noun={discussions > 0 ? "message" : "email"} />
     </Link>
   );
 }
